@@ -79,3 +79,10 @@ Rules:
 Found the hard way: a real-payload test of `ingest_question` stored a corrupted native
 title. The runner in gitignored `.tmp/` has been fixed, but the hazard is recorded here
 because that file is not committed and the next person will write another one.
+
+Same trap, second place it bites: **`Set-Content -Encoding UTF8` also writes a BOM**, and
+PowerShell 5.1 has no `utf8NoBOM`. Using it for a `git commit -F` message file puts a
+literal U+FEFF at the front of the commit **subject**, where it shows up in `git log`
+forever - commit `934327a` has one. Write commit messages with a tool that emits plain
+UTF-8, or use `[System.IO.File]::WriteAllText` as above. Not worth a force-push to fix
+after the fact; worth not repeating.
