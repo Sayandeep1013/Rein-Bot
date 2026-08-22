@@ -510,3 +510,54 @@ tested locally (no `tesseract`/`ffmpeg`/ImageMagick), and a green CI run does no
 `doc/GAME-DESIGN.md` §1 row 1 and §3; `doc/RESEARCH.md` §4.10 (→ 1275 lines);
 `doc/BLOCKERS.md` resolution log (B-25 implemented, B-27 + B-27a resolved, B-28 opened).
 
+---
+
+## 2026-08-23 (later) - Pipeline spec written down, session handoff created
+
+### What was done
+
+Converted `doc/GAME-DESIGN.md` section 5.2 from the old video steps into an implementable
+frame-selection spec, and wrote `doc/HANDOFF.md` so the next session starts with full
+context instead of rediscovering it.
+
+### How
+
+Section 5.2's step 4 used to read "spot-check a frame visually". That was replaced rather
+than amended: it would never have scaled to 136 themes, and B-20 proved that sampling four
+frames out of ~600 would not have caught the title cards anyway. In its place are three
+filters with measured thresholds - detail (JPEG bytes below 45% of the per-theme median),
+text (`tesseract --psm 11`, `eng+jpn`, tuned to over-reject because a false positive costs
+one frame of sixty while a false negative ships the answer), and spread (best survivor
+from each third). Each carries the reason it was chosen over the alternative, so the
+thresholds are not free-floating constants.
+
+The handoff doc was written in plain ASCII on purpose. The rest of `doc/` uses em-dash
+U+2014 and similar characters, which repeatedly broke exact-string matching during this
+batch and forced every edit through Python scripts with assertions; the one doc most likely
+to be edited by a fresh agent should not carry that trap.
+
+### What it changed
+
+- `doc/GAME-DESIGN.md` 823 -> 887 lines. Section 5.2 now has subsections 5.2.1 (detail),
+  5.2.2 (text/OCR) and 5.2.3 (spread). Section 5.3's column sketch matches the live
+  schema, and explains why `asset_slug` exists separately from `id`.
+- `doc/HANDOFF.md` added: hard rules, environment hazards, command recipes, settled
+  decisions, the rejected-approaches list, ordered next steps, egress arithmetic, and an
+  honest verified-vs-unverified split.
+
+### What became possible next
+
+The `curate.yml` rewrite can now be implemented from section 5.2 directly rather than
+re-derived from measurements that existed only in conversation. That was the point: the
+frame-quality numbers came from a one-off 40-frame experiment, and had they stayed in chat
+history they would have been lost and probably re-run.
+
+### Known doc debt, recorded rather than hidden
+
+`doc/GAME-DESIGN.md` sections 1.1, 2 and 2.1.1 still describe video, and the section 5.1
+blockquote still refers to re-encoding to ~1 MB at a step that no longer exists.
+`doc/ARCHITECTURE.md` asset flow and `doc/RESEARCH.md` section 4.7 still need the two-mode
+egress numbers (~120 KB/round stills-only = ~530 games/month; ~280 KB with audio = ~220).
+These are listed in `doc/HANDOFF.md` section 8 as leftover debt rather than left to be
+tripped over.
+
