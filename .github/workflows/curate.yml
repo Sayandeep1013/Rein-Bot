@@ -1,0 +1,326 @@
+# Curate: transcode AnimeThemes sources into the clips bucket and ingest them.
+#
+# WHY THIS RUNS IN CI AND NOT ON THE LAPTOP
+# The source downloads total ~5.5 GB (pipeline/manifest.json .source_bytes). Actions gives
+# 2000 free minutes/month and throwaway bandwidth, the laptop does not. Only the finished
+# ~1 MB clips cross into Supabase, so the expensive half of the pipeline never touches the
+# user's connection or disk.
+#
+# WHY BATCHED AND MANUAL
+# VP9 is slow (tens of seconds per clip). One 136-clip job would be a long, all-or-nothing
+# run that burns minutes on a retry. workflow_dispatch with start/count lets a failure be
+# re-run for just the affected slice, and every write is idempotent (see below), so a
+# re-run of an already-ingested slice is a no-op rather than a duplicate.
+#
+# IDEMPOTENCY CONTRACT
+# clip id = md5(basename) reformatted as a uuid. Same theme always maps to the same object
+# key and the same question_bank.id, so Storage upserts over itself and ingest_question
+# returns the existing row. Re-running any slice is safe.
+
+name: curate
+
+on:
+  workflow_dispatch:
+    inputs:
+      start:
+        description: "Index of first theme to process (0-based, into the flattened theme list)"
+        required: true
+        default: "0"
+      count:
+        description: "How many themes to process this run (10-20 is a comfortable batch)"
+        required: true
+        default: "10"
+      dry_run:
+        description: "Transcode and build thumbnails but write NOTHING to Supabase"
+        type: boolean
+        required: true
+        default: true
+
+# Two concurrent runs would fight over the same object keys and waste minutes. Queue them.
+concurrency:
+  group: curate
+  cancel-in-progress: false
+
+jobs:
+  curate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    env:
+      # Not a secret. The anon-facing project URL is public in the client bundle anyway;
+      # only the service-role key is privileged.
+      SUPABASE_URL: https://mxkqivivqultfuattuin.supabase.co
+      SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      DRY_RUN: ${{ inputs.dry_run }}
+      START: ${{ inputs.start }}
+      COUNT: ${{ inputs.count }}
+      # Bucket ceiling from migration 0009 (file_size_limit = 5242880). Checked locally so
+      # an oversized clip is reported with its real size instead of a bare 413 from Storage.
+      MAX_BYTES: "5242880"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ffmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          ffmpeg -version | head -1
+
+      - name: Guard inputs and secret
+        run: |
+          set -euo pipefail
+          if ! [[ "$START" =~ ^[0-9]+$ ]]; then echo "::error::start must be an integer"; exit 1; fi
+          if ! [[ "$COUNT" =~ ^[0-9]+$ ]]; then echo "::error::count must be an integer"; exit 1; fi
+          if [ "$COUNT" -lt 1 ]; then echo "::error::count must be >= 1"; exit 1; fi
+          if [ "$DRY_RUN" != "true" ] && [ -z "${SERVICE_KEY:-}" ]; then
+            echo "::error::SUPABASE_SERVICE_ROLE_KEY is not set, and this is not a dry run."
+            echo "Add it under Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+
+      # Flattens the nested manifest into one JSON object per theme (JSONL). JSONL and not
+      # TSV because titles contain commas, colons and CJK; a delimiter-based format would
+      # need escaping rules that are easy to get subtly wrong. Each line is already almost
+      # the RPC payload, so the loop only has to add the measured fields.
+      - name: Build job list
+        run: |
+          set -euo pipefail
+
+          # PowerShell's ConvertTo-Json has bitten this project before by emitting a bare
+          # object where a one-element array was intended, which silently undercounted
+          # themes. Fail loudly here rather than skip work later.
+          jq -e '[.items[] | select((.themes | type) != "array")] | length == 0' \
+            pipeline/manifest.json > /dev/null \
+            || { echo "::error::some items[].themes is not an array -- rebuild the manifest"; exit 1; }
+
+          jq -c '
+            .items[] as $a
+            | $a.themes[]
+            | {
+                basename, link, overlap,
+                nc, subbed, spoiler, nsfw,
+                difficulty, theme_type, theme_sequence,
+                anime_slug:   $a.slug,
+                titles:       { romaji: $a.title_romaji, english: $a.title_english, native: $a.title_native },
+                synonyms:     ($a.synonyms // []),
+                anime_year:   $a.year,
+                anime_season: $a.season,
+                anime_format: $a.format
+              }
+          ' pipeline/manifest.json > all-jobs.jsonl
+
+          TOTAL=$(wc -l < all-jobs.jsonl)
+          DECLARED=$(jq -r '.theme_count' pipeline/manifest.json)
+          echo "flattened $TOTAL themes (manifest declares $DECLARED)"
+          if [ "$TOTAL" -ne "$DECLARED" ]; then
+            echo "::error::manifest theme_count ($DECLARED) disagrees with actual themes ($TOTAL)"
+            exit 1
+          fi
+
+          # nc/subbed/spoiler/nsfw are carried from the AnimeThemes API, never asserted.
+          # question_bank's credit_free_only / not_subbed / sfw_only CHECKs are meant to
+          # stop an unsafe clip "even by a buggy ingest run"; if this workflow substituted
+          # literals the constraints would be validating a constant. Anything unsafe is a
+          # manifest bug, so stop before spending encode minutes on it.
+          BAD=$(jq -s '[.[] | select(.nc != true or .subbed != false or .spoiler != false or .nsfw != false)] | length' all-jobs.jsonl)
+          if [ "$BAD" -ne 0 ]; then
+            echo "::error::$BAD theme(s) carry unsafe flags -- these would be rejected by question_bank CHECKs"
+            jq -c 'select(.nc != true or .subbed != false or .spoiler != false or .nsfw != false) | {basename, nc, subbed, spoiler, nsfw}' all-jobs.jsonl
+            exit 1
+          fi
+
+          sed -n "$((START + 1)),$((START + COUNT))p" all-jobs.jsonl > jobs.jsonl
+          SLICE=$(wc -l < jobs.jsonl)
+          echo "slice: start=$START count=$COUNT -> $SLICE job(s)"
+          if [ "$SLICE" -eq 0 ]; then
+            echo "::warning::slice is empty; start=$START is at or past the end ($TOTAL themes)"
+          fi
+
+      - name: Transcode, upload, ingest
+        run: |
+          set -uo pipefail   # deliberately NOT -e: one bad clip must not abort the batch
+          mkdir -p thumbs clips
+          : > report.tsv
+          printf 'status\tbasename\tuuid\tseconds\tbytes\tnote\n' >> report.tsv
+
+          ok=0; failed=0; skipped=0
+
+          while IFS= read -r job; do
+            [ -z "$job" ] && continue
+
+            basename=$(jq -r '.basename' <<< "$job")
+            link=$(jq -r '.link // empty' <<< "$job")
+            # AnimeThemes' basename ALREADY carries the extension ("ShingekiNoKyojin-OP1.webm"),
+            # so nothing may append .webm to it. The API normally supplies .link; this branch
+            # only stops a null from becoming the literal string "null" in a curl URL and
+            # failing as a confusing 404 much later.
+            [ -z "$link" ] && link="https://v.animethemes.moe/${basename}"
+            stem="${basename%.webm}"
+
+            # md5 reformatted 8-4-4-4-12. Not a spec-conformant UUIDv3 (the version and
+            # variant nibbles are left as-is) because nothing here reads them: Postgres
+            # accepts any 32 hex digits as uuid, and all this value must be is stable and
+            # collision-free. Forcing the nibbles would add a bit-twiddling step whose only
+            # effect would be a new way for the run to break.
+            h=$(printf '%s' "$basename" | md5sum | cut -c1-32)
+            uuid="${h:0:8}-${h:8:4}-${h:12:4}-${h:16:4}-${h:20:12}"
+            out="clips/${uuid}.webm"
+
+            echo "::group::${basename} -> ${uuid}"
+
+            # -ss BEFORE -i is input seeking: ffmpeg issues a ranged request and starts at
+            # the keyframe near 5s instead of pulling the whole file and discarding it.
+            # Skipping the first 5s avoids the near-silent intro on many OPs.
+            # -map_metadata -1 -map_chapters -1 is a correctness requirement, not tidiness:
+            # source containers carry title tags that would hand the player the answer.
+            if ! ffmpeg -hide_banner -loglevel error -y \
+                  -ss 5 -i "$link" -t 20 \
+                  -map_metadata -1 -map_chapters -1 \
+                  -vf "scale=-2:480" \
+                  -c:v libvpx-vp9 -b:v 0 -crf 36 -row-mt 1 -deadline good -cpu-used 4 \
+                  -c:a libopus -b:a 64k -ac 2 \
+                  -f webm "$out"; then
+              echo "::error::transcode failed for $basename"
+              printf 'FAIL\t%s\t%s\t\t\ttranscode failed\n' "$basename" "$uuid" >> report.tsv
+              failed=$((failed + 1)); echo "::endgroup::"; continue
+            fi
+
+            # Measured, not assumed. duration_seconds and bytes end up in question_bank and
+            # are what the client trusts to size the round timer.
+            dur_raw=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$out" 2>/dev/null || echo 0)
+            dur=$(printf '%.0f' "$dur_raw" 2>/dev/null || echo 0)
+            bytes=$(stat -c%s "$out")
+            echo "duration=${dur}s bytes=${bytes}"
+
+            # A stub this short means the source was shorter than the seek point or the
+            # download truncated. Ingesting it would leave an unplayable round.
+            if [ "$dur" -lt 15 ]; then
+              echo "::error::$basename produced only ${dur}s (expected ~20s)"
+              printf 'FAIL\t%s\t%s\t%s\t%s\tclip shorter than 15s\n' "$basename" "$uuid" "$dur" "$bytes" >> report.tsv
+              failed=$((failed + 1)); echo "::endgroup::"; continue
+            fi
+
+            if [ "$bytes" -gt "$MAX_BYTES" ]; then
+              echo "::error::$basename is ${bytes} bytes, over the bucket limit of ${MAX_BYTES}"
+              printf 'FAIL\t%s\t%s\t%s\t%s\tover bucket size limit\n' "$basename" "$uuid" "$dur" "$bytes" >> report.tsv
+              failed=$((failed + 1)); echo "::endgroup::"; continue
+            fi
+
+            # A 2x2 tile sampled every 5s, taken from the CLIP rather than the source, so it
+            # shows exactly the frames a player will see. This is the evidence for BLOCKERS
+            # B-20: nc=true is supposed to mean no credits, but that it also means no
+            # burned-in title is unverified, and only human eyes on real frames can settle
+            # it. A single frame could easily miss a title card that is only up briefly.
+            ffmpeg -hide_banner -loglevel error -y -i "$out" \
+              -vf "fps=1/5,scale=320:-2,tile=2x2" -frames:v 1 \
+              "thumbs/${stem}.jpg" || echo "::warning::thumbnail failed for $basename"
+
+            if [ "$DRY_RUN" = "true" ]; then
+              printf 'DRY\t%s\t%s\t%s\t%s\tnot uploaded\n' "$basename" "$uuid" "$dur" "$bytes" >> report.tsv
+              skipped=$((skipped + 1)); echo "::endgroup::"; continue
+            fi
+
+            # Upload BEFORE the DB write, so a row never points at bytes that do not exist.
+            # x-upsert makes a re-run overwrite the same key instead of 409-ing.
+            code=$(curl -sS -o storage-resp.json -w '%{http_code}' \
+              -X POST "${SUPABASE_URL}/storage/v1/object/clips/${uuid}.webm" \
+              -H "Authorization: Bearer ${SERVICE_KEY}" \
+              -H "apikey: ${SERVICE_KEY}" \
+              -H "Content-Type: video/webm" \
+              -H "x-upsert: true" \
+              --data-binary "@${out}")
+            if [ "$code" != "200" ]; then
+              echo "::error::storage upload for $basename returned HTTP $code"
+              head -c 500 storage-resp.json; echo
+              printf 'FAIL\t%s\t%s\t%s\t%s\tstorage HTTP %s\n' "$basename" "$uuid" "$dur" "$bytes" "$code" >> report.tsv
+              failed=$((failed + 1)); echo "::endgroup::"; continue
+            fi
+
+            # ingest_question owns clip_key and title_norm. Going through the RPC instead of
+            # a PostgREST insert is what guarantees title_norm is produced by the same
+            # normalise_title that grade_guess uses at play time; two normalisers would
+            # drift and break answer matching invisibly.
+            jq -n --argjson job "$job" --arg uuid "$uuid" \
+                  --argjson dur "$dur" --argjson bytes "$bytes" '{
+              clip_uuid: $uuid,
+              duration_seconds: $dur,
+              bytes: $bytes,
+              animethemes_video_id: null,
+              animethemes_theme_id: null,
+              anime_slug:     $job.anime_slug,
+              titles:         $job.titles,
+              synonyms:       $job.synonyms,
+              anime_year:     $job.anime_year,
+              anime_season:   $job.anime_season,
+              anime_format:   $job.anime_format,
+              theme_type:     $job.theme_type,
+              theme_sequence: $job.theme_sequence,
+              difficulty:     $job.difficulty,
+              nc:             $job.nc,
+              subbed:         $job.subbed,
+              overlap:        $job.overlap,
+              spoiler:        $job.spoiler,
+              nsfw:           $job.nsfw
+            }' > payload.json
+
+            code=$(curl -sS -o rpc-resp.json -w '%{http_code}' \
+              -X POST "${SUPABASE_URL}/rest/v1/rpc/ingest_question" \
+              -H "Authorization: Bearer ${SERVICE_KEY}" \
+              -H "apikey: ${SERVICE_KEY}" \
+              -H "Content-Type: application/json" \
+              --data-binary "@payload.json")
+            if [ "$code" != "200" ]; then
+              echo "::error::ingest_question for $basename returned HTTP $code"
+              head -c 500 rpc-resp.json; echo
+              printf 'FAIL\t%s\t%s\t%s\t%s\tRPC HTTP %s\n' "$basename" "$uuid" "$dur" "$bytes" "$code" >> report.tsv
+              failed=$((failed + 1)); echo "::endgroup::"; continue
+            fi
+
+            # The RPC returns the row id. If it is not the uuid we uploaded under, the row
+            # and the object have diverged and the round would 404 at play time.
+            returned=$(jq -r '. // empty' rpc-resp.json | tr -d '"')
+            if [ "$returned" != "$uuid" ]; then
+              echo "::error::RPC returned id '$returned' but clip was uploaded as '$uuid'"
+              printf 'FAIL\t%s\t%s\t%s\t%s\tid mismatch: %s\n' "$basename" "$uuid" "$dur" "$bytes" "$returned" >> report.tsv
+              failed=$((failed + 1)); echo "::endgroup::"; continue
+            fi
+
+            printf 'OK\t%s\t%s\t%s\t%s\t\n' "$basename" "$uuid" "$dur" "$bytes" >> report.tsv
+            ok=$((ok + 1))
+            echo "::endgroup::"
+            # Courtesy pause; AnimeThemes allows 90 req/min and an encode already takes far
+            # longer than that, but this keeps a cached-source fast path from bursting.
+            sleep 1
+          done < jobs.jsonl
+
+          {
+            echo "### curate: start=$START count=$COUNT dry_run=$DRY_RUN"
+            echo
+            echo "| result | count |"
+            echo "| --- | --- |"
+            echo "| ingested | $ok |"
+            echo "| dry-run only | $skipped |"
+            echo "| failed | $failed |"
+            echo
+            echo '```'
+            column -t -s $'\t' report.tsv || cat report.tsv
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          echo "ok=$ok skipped=$skipped failed=$failed"
+          # Non-zero only for real failures, so a fully successful dry run stays green.
+          [ "$failed" -eq 0 ]
+
+      # Uploaded even when the job fails: on a failure the thumbnails and report are the
+      # only way to see what went wrong without re-running the encode.
+      - name: Upload thumbnails and report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: curate-${{ inputs.start }}-${{ inputs.count }}
+          path: |
+            thumbs/
+            report.tsv
+          if-no-files-found: warn
+          retention-days: 14

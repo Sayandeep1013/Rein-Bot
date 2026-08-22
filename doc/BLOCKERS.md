@@ -179,19 +179,29 @@ one item that needs the user's own taste rather than a decision I can make.
   screen turns a round into a free point for whoever reads fastest. The filters are
   the *only* thing standing between the catalogue and that outcome — there is no
   human review step in the pipeline as designed.
-- **Second unknown, same check:** how many titles actually **survive** the full
-  chain. `nc: true` alone discards a large share of entries, and the survivors skew
-  to the largest 1080p BD rips — the `nc: true` median is **~46.7 MB** against a
-  **26.1 MB** median (mean 31.9 MB) across an *unfiltered* 100-video sample, so
-  credit-free really is the heavier population, by roughly **1.8x**. If the curated pool
-  cannot reach ~500 titles after filtering,
-  the pool size assumption in §5 fails and difficulty tiers thin out.
-- **How to clear:** Two empirical steps, both cheap. (1) Pull ~30 clips that pass the
-  filter, eyeball frames for burned-in text. (2) Run the filter chain against the seed
-  list and count survivors. Neither needs code — both are `videoPagination` queries
-  plus a browser.
+- **Second unknown, same check — ANSWERED 2026-08-22 for the current scope:** how many
+  titles actually **survive** the full chain. `nc: true` alone discards a large share of
+  entries, and the survivors skew to the largest 1080p BD rips — the `nc: true` median is
+  **~46.7 MB** against a **26.1 MB** median (mean 31.9 MB) across an *unfiltered* 100-video
+  sample, so credit-free really is the heavier population, by roughly **1.8x**.
+  `pipeline/manifest.json` has now run the real chain over the seed list: **46 of 50 anime
+  survive, yielding 136 themes** at 5469 MB of source (~40 MB/theme, consistent with the
+  heavier-population finding). Four anime were lost outright, three of them films. So the
+  filter is survivable at this scale — but note the pool is 136, not the ~500 assumed in
+  §5, because the cap of 4 themes per anime was chosen deliberately for answer variety.
+  Difficulty tier 1 holds only 13 questions, which is the thinning this entry predicted,
+  accepted by the user and deferred to playtest.
+- **How to clear:** Step (2) is done, see above. Step (1) — eyeball frames for burned-in
+  text — now has a mechanism rather than a manual chore: `.github/workflows/curate.yml`
+  emits, for every clip it processes, a 2x2 tile of frames sampled every 5 s **from the
+  finished clip** rather than the source, so the tiles show exactly what a player sees. A
+  single frame was rejected as insufficient because a title card may only be up briefly.
+  Run the workflow with `dry_run: true` and inspect the `curate-*` artifact; nothing is
+  written to the database until the tiles look clean.
 - **Impact:** **Moderate.** Failure mode is a degraded game rather than a broken one,
   but it is discovered at play time, in front of players, which is the worst place.
+  The `dry_run` default of **true** exists specifically so this is discovered in an
+  artifact instead.
 
 ### B-21 — Free-tier egress is org-shared, and consumption cannot be read — **RESOLVED 2026-08-22**
 - ~~**What:**~~ **What was:** `doc/ARCHITECTURE.md` §10 originally budgeted the full **5 GB** egress

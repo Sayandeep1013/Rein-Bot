@@ -1,12 +1,12 @@
 {
-    "generated_at":  "2026-08-22T15:22:50.1670389Z",
+    "generated_at":  "2026-08-22T16:28:42.5645300Z",
     "source":  "AnimeThemes GraphQL (https://graphql.animethemes.moe/)",
     "selection_rule":  "nc=true mandatory; subbed=false; overlap NONE preferred; then smallest size",
     "cap_per_anime":  4,
     "difficulty_rule":  "base = ceil(seed rank / 10); +1 each for ED, sequence\u003e=3, non-TV format, year\u003c2000; clamped 1-5",
     "seed_rows":  50,
     "item_count":  46,
-    "theme_count":  130,
+    "theme_count":  136,
     "items":  [
                   {
                       "rank":  1,
@@ -34,6 +34,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  1
                                      },
                                      {
@@ -47,6 +51,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  1
                                      },
                                      {
@@ -60,6 +68,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  2
                                      },
                                      {
@@ -73,6 +85,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  2
                                      }
                                  ]
@@ -102,6 +118,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  1
                                      },
                                      {
@@ -115,6 +135,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  1
                                      },
                                      {
@@ -128,6 +152,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  2
                                      },
                                      {
@@ -141,6 +169,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  2
                                      }
                                  ]
@@ -172,6 +204,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  1
                                      },
                                      {
@@ -185,6 +221,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  1
                                      },
                                      {
@@ -198,6 +238,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  2
                                      },
                                      {
@@ -211,6 +255,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  2
                                      }
                                  ]
@@ -240,6 +288,10 @@
                                          "overlap":  "NONE",
                                          "source":  "DVD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  1
                                      },
                                      {
@@ -253,6 +305,10 @@
                                          "overlap":  "NONE",
                                          "source":  "DVD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  1
                                      },
                                      {
@@ -266,6 +322,10 @@
                                          "overlap":  "NONE",
                                          "source":  "DVD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  2
                                      },
                                      {
@@ -279,6 +339,10 @@
                                          "overlap":  "NONE",
                                          "source":  "DVD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  2
                                      }
                                  ]
@@ -308,6 +372,10 @@
                                          "overlap":  "NONE",
                                          "source":  "DVD",
                                          "variants_seen":  2,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  2
                                      },
                                      {
@@ -321,6 +389,10 @@
                                          "overlap":  "NONE",
                                          "source":  "DVD",
                                          "variants_seen":  2,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  2
                                      },
                                      {
@@ -334,6 +406,10 @@
                                          "overlap":  "NONE",
                                          "source":  "DVD",
                                          "variants_seen":  2,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  3
                                      },
                                      {
@@ -347,6 +423,10 @@
                                          "overlap":  "NONE",
                                          "source":  "DVD",
                                          "variants_seen":  2,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  3
                                      }
                                  ]
@@ -376,6 +456,10 @@
                                          "overlap":  "NONE",
                                          "source":  "DVD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  2
                                      },
                                      {
@@ -389,6 +473,10 @@
                                          "overlap":  "NONE",
                                          "source":  "DVD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  2
                                      },
                                      {
@@ -402,6 +490,10 @@
                                          "overlap":  "NONE",
                                          "source":  "DVD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  2
                                      },
                                      {
@@ -415,6 +507,10 @@
                                          "overlap":  "NONE",
                                          "source":  "DVD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  2
                                      }
                                  ]
@@ -446,6 +542,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  2,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  1
                                      },
                                      {
@@ -459,6 +559,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  2,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  2
                                      }
                                  ]
@@ -490,6 +594,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  2,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  1
                                      },
                                      {
@@ -503,6 +611,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  2,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  1
                                      },
                                      {
@@ -516,6 +628,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  2,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  2
                                      },
                                      {
@@ -529,6 +645,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  2,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  2
                                      }
                                  ]
@@ -558,6 +678,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  1
                                      },
                                      {
@@ -571,6 +695,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  2
                                      }
                                  ]
@@ -601,6 +729,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  1
                                      },
                                      {
@@ -614,6 +746,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  2
                                      },
                                      {
@@ -627,6 +763,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  2
                                      }
                                  ]
@@ -656,6 +796,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  2
                                      },
                                      {
@@ -669,6 +813,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  2
                                      },
                                      {
@@ -682,6 +830,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  3
                                      },
                                      {
@@ -695,6 +847,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  3
                                      }
                                  ]
@@ -712,19 +868,25 @@
                       "year":  2011,
                       "season":  "SPRING",
                       "format":  "TV",
-                      "themes":  {
-                                     "theme_type":  "OP",
-                                     "theme_sequence":  null,
-                                     "entry_version":  1,
-                                     "basename":  "SteinsGate-OP1.webm",
-                                     "link":  "https://v.animethemes.moe/SteinsGate-OP1.webm",
-                                     "resolution":  1080,
-                                     "size_bytes":  54646646,
-                                     "overlap":  "NONE",
-                                     "source":  "BD",
-                                     "variants_seen":  1,
-                                     "difficulty":  2
-                                 }
+                      "themes":  [
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  null,
+                                         "entry_version":  1,
+                                         "basename":  "SteinsGate-OP1.webm",
+                                         "link":  "https://v.animethemes.moe/SteinsGate-OP1.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  54646646,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
+                                         "difficulty":  2
+                                     }
+                                 ]
                   },
                   {
                       "rank":  13,
@@ -739,19 +901,25 @@
                       "year":  1998,
                       "season":  "SPRING",
                       "format":  "TV",
-                      "themes":  {
-                                     "theme_type":  "ED",
-                                     "theme_sequence":  1,
-                                     "entry_version":  1,
-                                     "basename":  "CowboyBebop-ED1.webm",
-                                     "link":  "https://v.animethemes.moe/CowboyBebop-ED1.webm",
-                                     "resolution":  720,
-                                     "size_bytes":  14410607,
-                                     "overlap":  "NONE",
-                                     "source":  "BD",
-                                     "variants_seen":  1,
-                                     "difficulty":  4
-                                 }
+                      "themes":  [
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "CowboyBebop-ED1.webm",
+                                         "link":  "https://v.animethemes.moe/CowboyBebop-ED1.webm",
+                                         "resolution":  720,
+                                         "size_bytes":  14410607,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
+                                         "difficulty":  4
+                                     }
+                                 ]
                   },
                   {
                       "rank":  14,
@@ -778,6 +946,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  3
                                      },
                                      {
@@ -791,6 +963,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  4
                                      }
                                  ]
@@ -821,6 +997,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  2
                                      },
                                      {
@@ -834,6 +1014,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  2
                                      },
                                      {
@@ -847,6 +1031,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  3
                                      },
                                      {
@@ -860,6 +1048,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  3
                                      }
                                  ]
@@ -890,6 +1082,10 @@
                                          "overlap":  "NONE",
                                          "source":  "DVD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  2
                                      },
                                      {
@@ -903,6 +1099,10 @@
                                          "overlap":  "NONE",
                                          "source":  "DVD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  2
                                      },
                                      {
@@ -916,6 +1116,10 @@
                                          "overlap":  "NONE",
                                          "source":  "DVD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  3
                                      },
                                      {
@@ -929,6 +1133,10 @@
                                          "overlap":  "NONE",
                                          "source":  "DVD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  3
                                      }
                                  ]
@@ -946,19 +1154,25 @@
                       "year":  1989,
                       "season":  "SPRING",
                       "format":  "TV",
-                      "themes":  {
-                                     "theme_type":  "OP",
-                                     "theme_sequence":  1,
-                                     "entry_version":  1,
-                                     "basename":  "DragonBallZ-OP1-NCBD1080.webm",
-                                     "link":  "https://v.animethemes.moe/DragonBallZ-OP1-NCBD1080.webm",
-                                     "resolution":  1080,
-                                     "size_bytes":  36283122,
-                                     "overlap":  "NONE",
-                                     "source":  "BD",
-                                     "variants_seen":  2,
-                                     "difficulty":  3
-                                 }
+                      "themes":  [
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "DragonBallZ-OP1-NCBD1080.webm",
+                                         "link":  "https://v.animethemes.moe/DragonBallZ-OP1-NCBD1080.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  36283122,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  2,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
+                                         "difficulty":  3
+                                     }
+                                 ]
                   },
                   {
                       "rank":  18,
@@ -985,6 +1199,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  2
                                      },
                                      {
@@ -998,6 +1216,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  2
                                      },
                                      {
@@ -1011,6 +1233,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  3
                                      },
                                      {
@@ -1024,6 +1250,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  3
                                      }
                                  ]
@@ -1056,6 +1286,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  2
                                      },
                                      {
@@ -1069,6 +1303,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  2
                                      },
                                      {
@@ -1082,6 +1320,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  3
                                      },
                                      {
@@ -1095,6 +1337,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  4
                                      }
                                  ]
@@ -1125,6 +1371,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  2,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  2
                                      },
                                      {
@@ -1138,6 +1388,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  2,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  3
                                      }
                                  ]
@@ -1171,6 +1425,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  3
                                      },
                                      {
@@ -1184,6 +1442,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  3
                                      },
                                      {
@@ -1197,6 +1459,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  4
                                      },
                                      {
@@ -1210,6 +1476,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  4
                                      }
                                  ]
@@ -1240,6 +1510,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  3,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  3
                                      },
                                      {
@@ -1253,6 +1527,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  3,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  4
                                      },
                                      {
@@ -1266,6 +1544,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  3,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  4
                                      }
                                  ]
@@ -1295,6 +1577,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  2,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  3
                                      },
                                      {
@@ -1308,6 +1594,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  2,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  3
                                      },
                                      {
@@ -1321,6 +1611,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  2,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  4
                                      },
                                      {
@@ -1334,6 +1628,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  2,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  4
                                      }
                                  ]
@@ -1363,6 +1661,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  2,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  3
                                      },
                                      {
@@ -1376,6 +1678,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  2,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  4
                                      },
                                      {
@@ -1389,6 +1695,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  2,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  4
                                      }
                                  ]
@@ -1407,19 +1717,25 @@
                       "year":  2016,
                       "season":  "SUMMER",
                       "format":  "TV",
-                      "themes":  {
-                                     "theme_type":  "ED",
-                                     "theme_sequence":  1,
-                                     "entry_version":  1,
-                                     "basename":  "MobPsycho100-ED1-NCBD1080.webm",
-                                     "link":  "https://v.animethemes.moe/MobPsycho100-ED1-NCBD1080.webm",
-                                     "resolution":  1080,
-                                     "size_bytes":  52498270,
-                                     "overlap":  "NONE",
-                                     "source":  "BD",
-                                     "variants_seen":  2,
-                                     "difficulty":  4
-                                 }
+                      "themes":  [
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "MobPsycho100-ED1-NCBD1080.webm",
+                                         "link":  "https://v.animethemes.moe/MobPsycho100-ED1-NCBD1080.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  52498270,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  2,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
+                                         "difficulty":  4
+                                     }
+                                 ]
                   },
                   {
                       "rank":  26,
@@ -1449,6 +1765,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  3
                                      },
                                      {
@@ -1462,6 +1782,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  4
                                      }
                                  ]
@@ -1491,6 +1815,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  3
                                      },
                                      {
@@ -1504,6 +1832,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  4
                                      }
                                  ]
@@ -1535,6 +1867,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  3
                                      },
                                      {
@@ -1548,6 +1884,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  3
                                      },
                                      {
@@ -1561,6 +1901,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  4
                                      },
                                      {
@@ -1574,6 +1918,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  4
                                      }
                                  ]
@@ -1604,6 +1952,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  2,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  3
                                      },
                                      {
@@ -1617,6 +1969,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  2,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  3
                                      },
                                      {
@@ -1630,6 +1986,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  2,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  4
                                      },
                                      {
@@ -1643,6 +2003,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  2,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  4
                                      }
                                  ]
@@ -1673,6 +2037,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  2,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  3
                                      },
                                      {
@@ -1686,6 +2054,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  2,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  3
                                      },
                                      {
@@ -1699,6 +2071,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  2,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  4
                                      },
                                      {
@@ -1712,6 +2088,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  2,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  4
                                      }
                                  ]
@@ -1742,6 +2122,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  2,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  4
                                      },
                                      {
@@ -1755,6 +2139,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  2,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  4
                                      },
                                      {
@@ -1768,6 +2156,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  2,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  5
                                      },
                                      {
@@ -1781,6 +2173,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  2,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  5
                                      }
                                  ]
@@ -1810,6 +2206,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  2,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  4
                                      },
                                      {
@@ -1823,6 +2223,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  2,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  5
                                      },
                                      {
@@ -1836,6 +2240,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  2,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  5
                                      },
                                      {
@@ -1849,6 +2257,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  2,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  5
                                      }
                                  ]
@@ -1867,19 +2279,25 @@
                       "year":  2022,
                       "season":  "SPRING",
                       "format":  "TV",
-                      "themes":  {
-                                     "theme_type":  "ED",
-                                     "theme_sequence":  null,
-                                     "entry_version":  1,
-                                     "basename":  "SpyXFamily-ED1-NCBD1080.webm",
-                                     "link":  "https://v.animethemes.moe/SpyXFamily-ED1-NCBD1080.webm",
-                                     "resolution":  1080,
-                                     "size_bytes":  61567703,
-                                     "overlap":  "NONE",
-                                     "source":  "BD",
-                                     "variants_seen":  2,
-                                     "difficulty":  5
-                                 }
+                      "themes":  [
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  null,
+                                         "entry_version":  1,
+                                         "basename":  "SpyXFamily-ED1-NCBD1080.webm",
+                                         "link":  "https://v.animethemes.moe/SpyXFamily-ED1-NCBD1080.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  61567703,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  2,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
+                                         "difficulty":  5
+                                     }
+                                 ]
                   },
                   {
                       "rank":  34,
@@ -1909,6 +2327,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  2,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  4
                                      },
                                      {
@@ -1922,6 +2344,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  2,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  5
                                      },
                                      {
@@ -1935,6 +2361,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  2,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  5
                                      }
                                  ]
@@ -1965,6 +2395,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  2,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  4
                                      },
                                      {
@@ -1978,6 +2412,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  2,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  5
                                      }
                                  ]
@@ -2008,6 +2446,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  2,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  4
                                      },
                                      {
@@ -2021,6 +2463,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  2,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  5
                                      },
                                      {
@@ -2034,6 +2480,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  2,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  5
                                      },
                                      {
@@ -2047,6 +2497,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  2,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  5
                                      }
                                  ]
@@ -2077,6 +2531,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  4
                                      },
                                      {
@@ -2090,6 +2548,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  5
                                      },
                                      {
@@ -2103,6 +2565,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  5
                                      }
                                  ]
@@ -2133,6 +2599,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  4
                                      },
                                      {
@@ -2146,6 +2616,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  5
                                      }
                                  ]
@@ -2177,6 +2651,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  5
                                      },
                                      {
@@ -2190,6 +2668,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  5
                                      }
                                  ]
@@ -2219,6 +2701,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  5
                                      },
                                      {
@@ -2232,6 +2718,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  5
                                      },
                                      {
@@ -2245,6 +2735,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  5
                                      },
                                      {
@@ -2258,6 +2752,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  5
                                      }
                                  ]
@@ -2287,6 +2785,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  5
                                      },
                                      {
@@ -2300,6 +2802,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  5
                                      }
                                  ]
@@ -2329,6 +2835,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  5
                                      },
                                      {
@@ -2342,6 +2852,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  5
                                      }
                                  ]
@@ -2360,19 +2874,25 @@
                       "year":  2016,
                       "season":  "SUMMER",
                       "format":  "MOVIE",
-                      "themes":  {
-                                     "theme_type":  "OP",
-                                     "theme_sequence":  null,
-                                     "entry_version":  1,
-                                     "basename":  "KimiNoNaWa-OP1.webm",
-                                     "link":  "https://v.animethemes.moe/KimiNoNaWa-OP1.webm",
-                                     "resolution":  1080,
-                                     "size_bytes":  69306627,
-                                     "overlap":  "TRANS",
-                                     "source":  "BD",
-                                     "variants_seen":  1,
-                                     "difficulty":  5
-                                 }
+                      "themes":  [
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  null,
+                                         "entry_version":  1,
+                                         "basename":  "KimiNoNaWa-OP1.webm",
+                                         "link":  "https://v.animethemes.moe/KimiNoNaWa-OP1.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  69306627,
+                                         "overlap":  "TRANS",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
+                                         "difficulty":  5
+                                     }
+                                 ]
                   },
                   {
                       "rank":  48,
@@ -2400,6 +2920,10 @@
                                          "overlap":  "NONE",
                                          "source":  "DVD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  5
                                      },
                                      {
@@ -2413,6 +2937,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  5
                                      },
                                      {
@@ -2426,6 +2954,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  5
                                      },
                                      {
@@ -2439,6 +2971,10 @@
                                          "overlap":  "NONE",
                                          "source":  "DVD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  5
                                      }
                                  ]
@@ -2470,6 +3006,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  5
                                      },
                                      {
@@ -2483,6 +3023,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  5
                                      },
                                      {
@@ -2496,6 +3040,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  5
                                      }
                                  ]
@@ -2525,6 +3073,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  5
                                      },
                                      {
@@ -2538,6 +3090,10 @@
                                          "overlap":  "NONE",
                                          "source":  "BD",
                                          "variants_seen":  1,
+                                         "nc":  true,
+                                         "subbed":  false,
+                                         "spoiler":  false,
+                                         "nsfw":  false,
                                          "difficulty":  5
                                      }
                                  ]

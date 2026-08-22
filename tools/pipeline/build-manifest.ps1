@@ -241,7 +241,18 @@ foreach ($row in $rows) {
         size_bytes     = [int64]$chosen.size
         overlap        = $chosen.overlap
         source         = $chosen.source
-        variants_seen  = $e.videos.nodes.Count
+        variants_seen  = @($e.videos.nodes).Count
+        # Carried through as the API reported them, NOT asserted downstream. The
+        # question_bank CHECK constraints (credit_free_only, not_subbed, sfw_only) exist
+        # so an unsafe clip cannot be inserted "even by a buggy ingest run" (migration
+        # 0003). If the workflow hardcoded nc=true instead of forwarding these, those
+        # constraints would be checking a literal and could never fire -- the tripwire
+        # would be wired to nothing. Select-Variant already guarantees the values, so
+        # recording them costs nothing and keeps the guarantee auditable end to end.
+        nc             = [bool]$chosen.nc
+        subbed         = [bool]$chosen.subbed
+        spoiler        = [bool]$e.spoiler
+        nsfw           = [bool]$e.nsfw
       }
       break   # one entry per theme is enough
     }
@@ -251,11 +262,18 @@ foreach ($row in $rows) {
   # alone yields 59 themes, bleach 36, gintama 28, so a random draw would keep landing
   # on the same handful of answers. Capping trades bank size (which is already far past
   # what a 20-round game needs) for answer variety, and cuts CI source downloads from
-  # ~10.7 GB to ~1.5 GB. OPs first, then lowest sequence: the most recognisable themes.
-  $themes = $themes | Sort-Object `
+  # ~10.7 GB to ~5.5 GB. OPs first, then lowest sequence: the most recognisable themes.
+  #
+  # The @() is load-bearing. Select-Object -First returns a BARE OBJECT when exactly one
+  # item survives, not a one-element array, and PS 5.1 gives $null for .Count on a bare
+  # PSCustomObject. That silently undercounted the six single-theme anime: the manifest
+  # reported 130 themes while actually holding 136, and the per-anime progress line
+  # printed "-- theme(s)" with a blank number. Never let a pipeline result reach a
+  # .Count without @() around it.
+  $themes = @($themes | Sort-Object `
     @{ Expression = { if ($_.theme_type -eq 'OP') { 0 } else { 1 } } },
     @{ Expression = { [int]$_.theme_sequence } } |
-    Select-Object -First $MaxThemesPerAnime
+    Select-Object -First $MaxThemesPerAnime)
 
   foreach ($t in $themes) {
     $t | Add-Member -NotePropertyName difficulty -NotePropertyValue (Get-Difficulty $row $t) -Force
@@ -293,7 +311,7 @@ $manifest = [pscustomobject]@{
   difficulty_rule = 'base = ceil(seed rank / 10); +1 each for ED, sequence>=3, non-TV format, year<2000; clamped 1-5'
   seed_rows       = $rows.Count
   item_count      = $items.Count
-  theme_count     = ($items | ForEach-Object { $_.themes.Count } | Measure-Object -Sum).Sum
+  theme_count     = ($items | ForEach-Object { @($_.themes).Count } | Measure-Object -Sum).Sum
   items           = $items
   excluded        = $excluded
 }

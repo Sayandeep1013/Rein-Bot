@@ -100,7 +100,7 @@ Secrets safe: `.env.local` gitignored and verified untracked; `.tmp/` ignored;
 ## 2026-08-22 - manifest builder, ingest RPC, clips bucket
 
 **Manifest builder.** `tools/pipeline/build-manifest.ps1` turns `doc/SEED-LIST.md` into
-`pipeline/manifest.json`: 46 of 50 titles, 130 themes, 5469 MB of source video.
+`pipeline/manifest.json`: 46 of 50 titles, 136 themes, 5469 MB of source video.
 
 How it works, and what had to be discovered first:
 
@@ -167,18 +167,82 @@ exists, so anon and authenticated cannot upload; only the service_role key can.
 a manifest, a bucket, and one idempotent RPC. The workflow itself is the only step left.
 
 ---
+## 2026-08-22 - curate workflow written; three latent data bugs found and fixed
+
+**Manifest now carries the safety flags.** `question_bank` has CHECK constraints
+`credit_free_only`, `not_subbed`, `sfw_only`, added in migration 0003 so an unsafe clip
+cannot be inserted "even by a buggy ingest run". The manifest did not record
+`nc`/`subbed`/`spoiler`/`nsfw` per theme - the builder filtered on them and threw the
+evidence away - so the workflow would have had to hardcode `nc: true`. That would leave
+those three constraints validating a literal: a tripwire wired to nothing. The builder now
+records all four values as the API reported them, and the workflow forwards them, so the
+guarantee is auditable from API to row. A guard in the workflow fails the run before
+spending encode minutes if any flag is unsafe.
+
+**Theme count was wrong: 130 was really 136.** `Select-Object -First` returns a bare
+object, not a one-element array, when exactly one item survives, and PS 5.1 evaluates
+`.Count` on a bare `PSCustomObject` as `$null`. The six anime with exactly one theme each
+therefore contributed 0 to `theme_count`. The difficulty spread was computed over the
+flattened list and always summed to 136, which is what exposed the discrepancy. Fixed by
+wrapping the pipeline result in `@()`; the same hazard was fixed in `variants_seen` and in
+the `theme_count` sum. The workflow now cross-checks its own flattened count against
+`theme_count` and refuses to run if they disagree, so this class of drift cannot return
+silently.
+
+**A native title was being corrupted into unmatchable garbage.** Test-ingesting a real
+manifest payload produced `title_norm = 'e2aefaRaao'` for 進撃の巨人. Cause was the local
+SQL runner: `Get-Content -Raw` with no `-Encoding` makes PS 5.1 decode a BOM-less UTF-8
+file as cp1252, so each 3-byte CJK character became three Latin-1 characters. Any Japanese
+title would have been stored in a form no player guess could ever match, with no error to
+point at it. The runner now reads with `-Encoding UTF8`; re-testing gives
+`native=進撃の巨人`. This was a flaw in the test harness only - the workflow builds its
+payload with `jq` and posts it with `curl` on Linux, which is UTF-8 end to end. The harness
+lives in gitignored `.tmp/`, so the bug class is recorded in
+`supabase/migrations/README.md` where it can outlive this session.
+
+**`.github/workflows/curate.yml` written and validated.** `workflow_dispatch` with
+`start`/`count`/`dry_run`. Batched because VP9 is slow and a 136-clip job would be
+long and all-or-nothing. Every write is idempotent: clip id is `md5(basename)` reformatted
+as a uuid, so Storage upserts over the same key and `ingest_question` returns the existing
+row, making any re-run a no-op instead of a duplicate. Upload happens before the DB write
+so no row can point at bytes that do not exist. The RPC's returned id is compared against
+the uploaded uuid, because a mismatch would mean row and object had diverged and the round
+would 404 at play time. Per-clip failures are recorded and the loop continues, so one bad
+source reports alongside the rest instead of aborting the batch. Thumbnails are a 2x2 tile
+sampled every 5 s **from the finished clip**, not the source, so they show the exact frames
+a player sees - that is the evidence B-20 needs, and a single frame could miss a brief
+title card. `dry_run` defaults to **true** so the first run produces thumbnails and real
+byte sizes for inspection without touching the database.
+
+Validated before committing: YAML parses; all 8 item fields and 10 theme fields the `jq`
+references exist on all 136 themes; no null `link`; flattened count matches `theme_count`.
+Caught during that check that AnimeThemes' `basename` already includes `.webm`, so the
+fallback URL would have built `...webm.webm` - fixed, and the thumbnail name now strips the
+extension. Test-ingested a real payload against the live DB: uppercase `SPRING`/`TV` are
+accepted, `clip_key` is derived correctly, `duration_seconds` and `bytes` are stored as
+measured. Test row deleted; bank back to 0 rows / 0 titles.
+
+Also checked whether synonyms are worth ingesting: of 88, **39 add a genuinely new
+matchable form** (AoT-style shorthand) and 49 normalise to a title already present. The
+RPC already folds duplicates rather than aborting, verified in migration 0008, so all 88
+can be passed as-is.
+
+**What this makes possible:** the pipeline is ready to run. A dry-run batch now yields
+thumbnails and true clip sizes, which closes B-20 and confirms clips fit under the 5 MB
+bucket cap before any row is written.
+
+---
 ## Project state at a glance
 
 - **Live DB:** full game schema on Supabase Free (`mxkqivivqultfuattuin`), zero content
   rows. Registry tracks migrations 1-9.
 - **Storage:** `clips` bucket live - public read, 5 MB cap, `video/webm` only, no write
   policy (service_role only).
-- **Pipeline:** `pipeline/manifest.json` built - 46 anime, 130 themes, 5469 MB source,
-  difficulty spread 13/32/28/28/35.
-- **Repo:** design docs, migrations, and the manifest builder; no app code yet.
-- **Next step:** `.github/workflows/curate.yml` - install ffmpeg (B-12: not preinstalled),
-  transcode 20 s clips with `-ss` **before** `-i` so HTTP range-seek avoids pulling the
-  full 5469 MB, upload to `clips/{uuid}.webm`, then call `ingest_question`. Needs the
-  `SUPABASE_SERVICE_ROLE_KEY` repo secret (user action). Emit thumbnails as an artifact
-  to settle B-20, which is still open: whether `nc:false` reliably implies on-screen text
-  is unverified, so clips need a visual spot-check before they go live.
+- **Pipeline:** `pipeline/manifest.json` built - 46 anime, 136 themes, 5469 MB source,
+  difficulty spread 13/32/28/28/35. `.github/workflows/curate.yml` written and validated,
+  not yet run.
+- **Repo:** design docs, migrations, manifest builder, curate workflow; no app code yet.
+- **Next step:** run `curate` with `dry_run: true`, `start: 0`, `count: 10`. Download the
+  artifact and eyeball the thumbnail tiles for burned-in titles to settle B-20, and check
+  reported byte sizes against the 5 MB bucket cap. If both look right, re-run with
+  `dry_run: false` and work through the 136 themes in batches.

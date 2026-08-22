@@ -52,3 +52,30 @@ afterwards, so `question_bank` is still at 0 rows. Registry tracks 1-9.
 `supabase db reset` against a local stack cannot always reproduce identically - the
 bucket row is data, not schema. Treat the migration as the source of truth for the
 bucket's settings.
+
+## Applying SQL that contains non-ASCII text (read before you do)
+
+Anime titles are frequently CJK, so any migration, seed, or ad-hoc test involving titles
+carries an encoding hazard that fails **silently and destructively**.
+
+**Windows PowerShell 5.1 `Get-Content` defaults to the system ANSI codepage, not UTF-8**,
+for any file without a BOM. A UTF-8 `.sql` file containing `進撃の巨人` is therefore decoded
+as cp1252, turning each 3-byte character into three Latin-1 characters (`é€²æ’ƒã®...`).
+Nothing errors. The mangled text inserts happily, and `normalise_title` reduces it to
+something like `e2aefaRaao` - a `title_norm` that no player guess can ever match. The game
+would simply never accept a Japanese title, and the cause is invisible at every layer:
+the migration looks fine, the insert succeeds, the constraint passes.
+
+Rules:
+
+- Read SQL files with an explicit encoding: `Get-Content -Raw -Encoding UTF8`.
+- Write request bodies with `[System.IO.File]::WriteAllText(..., UTF8Encoding($false))`.
+  UTF-8 **without** BOM: a BOM makes the Management API's Go JSON decoder reject the body.
+- After applying anything that touches titles, verify by reading `title_norm` back. Round-
+  tripping the text is the only check that actually proves the encoding survived.
+- This applies to local tooling only. The `curate` workflow builds its payload with `jq`
+  and posts it with `curl` on Linux, which is UTF-8 end to end and not affected.
+
+Found the hard way: a real-payload test of `ingest_question` stored a corrupted native
+title. The runner in gitignored `.tmp/` has been fixed, but the hazard is recorded here
+because that file is not committed and the next person will write another one.
