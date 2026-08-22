@@ -1,21 +1,42 @@
-# Curate: transcode AnimeThemes sources into the clips bucket and ingest them.
+# Curate: turn AnimeThemes sources into the five objects a question needs, then
+# ingest them. Implements doc/GAME-DESIGN.md 5.2.
 #
-# WHY THIS RUNS IN CI AND NOT ON THE LAPTOP
-# The source downloads total ~5.5 GB (pipeline/manifest.json .source_bytes). Actions gives
-# 2000 free minutes/month and throwaway bandwidth, the laptop does not. Only the finished
-# ~1 MB clips cross into Supabase, so the expensive half of the pipeline never touches the
-# user's connection or disk.
+# WHAT CHANGED FROM THE VIDEO ERA
+# This workflow used to transcode one ~1 MB VP9 clip per theme into a `clips`
+# bucket and call ingest_question v1. All three of those are now wrong:
+#   - No video is stored or served at all. doc/BLOCKERS.md B-20 measured that
+#     5 of 10 sampled credit-free clips display the anime's title in Latin
+#     script, so the clip spelled its own answer. A video window is contiguous,
+#     so a title card at 0:12 cannot be excluded without losing the footage
+#     around it. Stills are chosen independently and vetted one at a time.
+#   - The bucket is `media`, limited to {audio/webm, image/jpeg}, 512 KB per
+#     object (migration 0010). video/webm was removed outright, so the one
+#     upload this design forbids is now impossible.
+#   - Keys derive from asset_slug, never from the row id. rounds.question_id is
+#     readable by every room member and create_room pre-inserts every round, so
+#     id-derived keys on a public bucket would let a player prefetch all ten
+#     rounds during round 1.
 #
-# WHY BATCHED AND MANUAL
-# VP9 is slow (tens of seconds per clip). One 136-clip job would be a long, all-or-nothing
-# run that burns minutes on a retry. workflow_dispatch with start/count lets a failure be
-# re-run for just the affected slice, and every write is idempotent (see below), so a
-# re-run of an already-ingested slice is a no-op rather than a duplicate.
+# WHY THE PER-THEME WORK IS A PYTHON SCRIPT
+# tools/pipeline/curate_theme.py. The previous inline-bash version needed three
+# separate bug fixes and every one was a shell subtlety, not a pipeline mistake.
+# The work now involves per-theme medians, float timestamps and grouped sorting,
+# which bash is bad at. This file only orchestrates: install, slice, loop,
+# report.
+#
+# WHY IT RUNS IN CI AND NOT ON THE LAPTOP
+# Source downloads are ~46.7 MB median (pipeline/manifest.json), and ffmpeg and
+# tesseract are not installed on the dev machine at all. Actions has 2000 free
+# minutes/month and throwaway bandwidth. Only the finished ~230 KB of stills and
+# audio per theme crosses into Supabase.
 #
 # IDEMPOTENCY CONTRACT
-# clip id = md5(basename) reformatted as a uuid. Same theme always maps to the same object
-# key and the same question_bank.id, so Storage upserts over itself and ingest_question
-# returns the existing row. Re-running any slice is safe.
+# asset_slug is a fresh random uuid, deliberately NOT derived from basename:
+# basename is public AnimeThemes data, so a derived slug could be recomputed for
+# every title in the pool and the bucket is public-read. Retry safety instead
+# comes from skipping any theme already present in question_bank, checked once
+# per run before the loop. Combined with `concurrency: curate` that makes a
+# re-run of a half-finished slice a no-op for the themes that landed.
 
 name: curate
 
@@ -23,7 +44,7 @@ on:
   workflow_dispatch:
     inputs:
       start:
-        description: "Index of first theme to process (0-based, into the flattened theme list)"
+        description: "Index of first theme to process (0-based, into the deduped theme list)"
         required: true
         default: "0"
       count:
@@ -31,12 +52,27 @@ on:
         required: true
         default: "10"
       dry_run:
-        description: "Transcode and build thumbnails but write NOTHING to Supabase"
+        description: "Build all five objects but write NOTHING to Supabase"
         type: boolean
         required: true
         default: true
+      theme_types:
+        description: "Which theme types to include. B-28 fallback: 0 of 4 sampled EDs leaked a title vs 5 of 6 OPs."
+        type: choice
+        required: true
+        default: all
+        options: [all, OP, ED]
+      detail_pct:
+        description: "Detail filter: reject frames below this % of the theme's median JPEG bytes (5.2.1 measured 45)"
+        required: true
+        default: "45"
+      ocr_min_chars:
+        description: "Text filter: this many OCR'd alphanumeric chars rejects a frame. 1 = any text at all."
+        required: true
+        default: "1"
 
-# Two concurrent runs would fight over the same object keys and waste minutes. Queue them.
+# Two concurrent runs would race the same question_bank pre-check and waste
+# minutes. Queue them.
 concurrency:
   group: curate
   cancel-in-progress: false
@@ -44,57 +80,79 @@ concurrency:
 jobs:
   curate:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
 
     env:
-      # Not a secret. The anon-facing project URL is public in the client bundle anyway;
-      # only the service-role key is privileged.
+      # Not a secret: the project URL is public in any client bundle. Only the
+      # service-role key is privileged.
       SUPABASE_URL: https://mxkqivivqultfuattuin.supabase.co
       SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       DRY_RUN: ${{ inputs.dry_run }}
       START: ${{ inputs.start }}
       COUNT: ${{ inputs.count }}
-      # Bucket ceiling from migration 0009 (file_size_limit = 5242880). Checked locally so
-      # an oversized clip is reported with its real size instead of a bare 413 from Storage.
-      MAX_BYTES: "5242880"
-      # Courtesy, not a workaround. A bare ranged GET to v.animethemes.moe was verified
-      # locally to return 206 with no User-Agent at all, so this is not what fixes the
-      # 5XX failures - the retry loop below is. This just makes our traffic identifiable
-      # to AnimeThemes so they can contact us instead of guessing who is hammering them.
+      THEME_TYPES: ${{ inputs.theme_types }}
+      DETAIL_PCT: ${{ inputs.detail_pct }}
+      OCR_MIN_CHARS: ${{ inputs.ocr_min_chars }}
+      # media bucket file_size_limit from migration 0010. Checked before upload
+      # so an oversized object is reported with its real size instead of a bare
+      # 413 from Storage.
+      MAX_BYTES: "524288"
+      OCR_LANGS: eng+jpn+jpn_vert
+      WORKDIR: work
+      OUTDIR: out
+      # Courtesy, not a workaround: a bare ranged GET to v.animethemes.moe was
+      # verified to return 206 with no User-Agent at all. This just makes our
+      # traffic identifiable to a free community service.
       UA: "GuessTheAnime-curate/1.0 (+https://github.com/Sayandeep1013/Rein-Bot)"
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install ffmpeg
+      # tesseract is the only thing standing between an anime's title card and
+      # the player (doc/BLOCKERS.md B-28), so its language packs are not
+      # optional. jpn-vert is included because vertical Japanese appears on some
+      # cards and the filter is meant to over-reject.
+      - name: Install ffmpeg and tesseract
         run: |
+          set -euo pipefail
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ffmpeg
+          sudo apt-get install -y -qq ffmpeg tesseract-ocr tesseract-ocr-jpn tesseract-ocr-jpn-vert
           ffmpeg -version | head -1
+          tesseract --version | head -1
+          echo "languages:"
+          tesseract --list-langs
 
       - name: Guard inputs and secret
         run: |
           set -euo pipefail
-          if ! [[ "$START" =~ ^[0-9]+$ ]]; then echo "::error::start must be an integer"; exit 1; fi
-          if ! [[ "$COUNT" =~ ^[0-9]+$ ]]; then echo "::error::count must be an integer"; exit 1; fi
+          for v in START COUNT DETAIL_PCT OCR_MIN_CHARS; do
+            val="${!v}"
+            if ! [[ "$val" =~ ^[0-9]+$ ]]; then
+              echo "::error::$v must be a non-negative integer (got '$val')"; exit 1
+            fi
+          done
           if [ "$COUNT" -lt 1 ]; then echo "::error::count must be >= 1"; exit 1; fi
+          if [ "$DETAIL_PCT" -gt 100 ]; then echo "::error::detail_pct must be <= 100"; exit 1; fi
+          if [ "$OCR_MIN_CHARS" -lt 1 ]; then
+            echo "::error::ocr_min_chars must be >= 1; 0 would reject every frame"; exit 1
+          fi
           if [ "$DRY_RUN" != "true" ] && [ -z "${SERVICE_KEY:-}" ]; then
             echo "::error::SUPABASE_SERVICE_ROLE_KEY is not set, and this is not a dry run."
             echo "Add it under Settings > Secrets and variables > Actions."
             exit 1
           fi
 
-      # Flattens the nested manifest into one JSON object per theme (JSONL). JSONL and not
-      # TSV because titles contain commas, colons and CJK; a delimiter-based format would
-      # need escaping rules that are easy to get subtly wrong. Each line is already almost
-      # the RPC payload, so the loop only has to add the measured fields.
+      # Flattens the nested manifest into one JSON object per theme (JSONL).
+      # JSONL and not TSV because titles contain commas, colons and CJK, and a
+      # delimiter-based format would need escaping rules that are easy to get
+      # subtly wrong. Each line is almost the ingest payload already.
       - name: Build job list
         run: |
           set -euo pipefail
 
-          # PowerShell's ConvertTo-Json has bitten this project before by emitting a bare
-          # object where a one-element array was intended, which silently undercounted
-          # themes. Fail loudly here rather than skip work later.
+          # PowerShell's ConvertTo-Json has bitten this project before by
+          # emitting a bare object where a one-element array was intended, which
+          # silently undercounted themes. Fail loudly here rather than skip work.
           jq -e '[.items[] | select((.themes | type) != "array")] | length == 0' \
             pipeline/manifest.json > /dev/null \
             || { echo "::error::some items[].themes is not an array -- rebuild the manifest"; exit 1; }
@@ -103,7 +161,7 @@ jobs:
             .items[] as $a
             | $a.themes[]
             | {
-                basename, link, overlap,
+                basename, link, overlap, resolution, size_bytes,
                 nc, subbed, spoiler, nsfw,
                 difficulty, theme_type, theme_sequence,
                 anime_slug:   $a.slug,
@@ -113,9 +171,9 @@ jobs:
                 anime_season: $a.season,
                 anime_format: $a.format
               }
-          ' pipeline/manifest.json > all-jobs.jsonl
+          ' pipeline/manifest.json > flat.jsonl
 
-          TOTAL=$(wc -l < all-jobs.jsonl)
+          TOTAL=$(wc -l < flat.jsonl)
           DECLARED=$(jq -r '.theme_count' pipeline/manifest.json)
           echo "flattened $TOTAL themes (manifest declares $DECLARED)"
           if [ "$TOTAL" -ne "$DECLARED" ]; then
@@ -123,242 +181,195 @@ jobs:
             exit 1
           fi
 
-          # nc/subbed/spoiler/nsfw are carried from the AnimeThemes API, never asserted.
-          # question_bank's credit_free_only / not_subbed / sfw_only CHECKs are meant to
-          # stop an unsafe clip "even by a buggy ingest run"; if this workflow substituted
-          # literals the constraints would be validating a constant. Anything unsafe is a
-          # manifest bug, so stop before spending encode minutes on it.
-          BAD=$(jq -s '[.[] | select(.nc != true or .subbed != false or .spoiler != false or .nsfw != false)] | length' all-jobs.jsonl)
+          # nc/subbed/spoiler/nsfw are carried from the AnimeThemes API, never
+          # asserted. question_bank's credit_free_only / not_subbed / sfw_only
+          # CHECKs exist to stop an unsafe asset "even from a buggy ingest run";
+          # if this workflow substituted literals those constraints would be
+          # validating a constant. Anything unsafe is a manifest bug, so stop
+          # before spending download and OCR minutes on it.
+          BAD=$(jq -s '[.[] | select(.nc != true or .subbed != false or .spoiler != false or .nsfw != false)] | length' flat.jsonl)
           if [ "$BAD" -ne 0 ]; then
             echo "::error::$BAD theme(s) carry unsafe flags -- these would be rejected by question_bank CHECKs"
-            jq -c 'select(.nc != true or .subbed != false or .spoiler != false or .nsfw != false) | {basename, nc, subbed, spoiler, nsfw}' all-jobs.jsonl
+            jq -c 'select(.nc != true or .subbed != false or .spoiler != false or .nsfw != false) | {basename, nc, subbed, spoiler, nsfw}' flat.jsonl
             exit 1
           fi
 
-          sed -n "$((START + 1)),$((START + COUNT))p" all-jobs.jsonl > jobs.jsonl
-          SLICE=$(wc -l < jobs.jsonl)
-          echo "slice: start=$START count=$COUNT -> $SLICE job(s)"
-          if [ "$SLICE" -eq 0 ]; then
-            echo "::warning::slice is empty; start=$START is at or past the end ($TOTAL themes)"
+          # Dedupe to one theme per (anime_slug, theme_type, theme_sequence).
+          #
+          # WHY: gintama carries four manifest rows that collapse to two slots --
+          # a 720p BD and a 540p DVD recap-series entry for each of OP1 and OP2.
+          # Those are the same anime and the same song, so shipping both means
+          # two rounds with an identical answer. Deduping also makes the tuple a
+          # usable natural key, which is what the question_bank pre-check below
+          # needs (basename would be the true key, but it is not a column).
+          #
+          # Tiebreak is HIGHEST RESOLUTION, then smallest size. doc/RESEARCH.md
+          # 4.8 makes size the final tiebreak, but that precedence was written
+          # when every source was re-encoded down to one 480p video: source
+          # resolution affected nothing that shipped. Now the stills ARE the
+          # product and OCR reliability is the load-bearing safety property
+          # (B-28), and both improve with resolution. size stays as the second
+          # key. This never overrides nc:true, which the assertion above has
+          # already enforced for every row.
+          jq -s -c '
+            group_by(.anime_slug + "|" + .theme_type + "|" + ((.theme_sequence // "") | tostring))
+            | map(sort_by([-(.resolution // 0), (.size_bytes // 0)])[0])
+            | .[]
+          ' flat.jsonl > deduped.jsonl
+
+          DEDUPED=$(wc -l < deduped.jsonl)
+          echo "deduped to $DEDUPED themes (dropped $((TOTAL - DEDUPED)) duplicate slot(s))"
+          if [ "$TOTAL" -ne "$DEDUPED" ]; then
+            echo "duplicate slots resolved:"
+            jq -s -r '
+              group_by(.anime_slug + "|" + .theme_type + "|" + ((.theme_sequence // "") | tostring))
+              | map(select(length > 1))
+              | .[] | sort_by([-(.resolution // 0), (.size_bytes // 0)])
+              | "  \(.[0].anime_slug) \(.[0].theme_type)\(.[0].theme_sequence // ""): kept \(.[0].basename) (\(.[0].resolution)p), dropped \([.[1:][].basename] | join(", "))"
+            ' flat.jsonl
           fi
 
-      - name: Transcode, upload, ingest
+          if [ "$THEME_TYPES" = "all" ]; then
+            cp deduped.jsonl pool.jsonl
+          else
+            jq -c --arg t "$THEME_TYPES" 'select(.theme_type == $t)' deduped.jsonl > pool.jsonl
+            echo "theme_types=$THEME_TYPES filter -> $(wc -l < pool.jsonl) theme(s)"
+          fi
+
+          POOL=$(wc -l < pool.jsonl)
+          sed -n "$((START + 1)),$((START + COUNT))p" pool.jsonl > jobs.jsonl
+          SLICE=$(wc -l < jobs.jsonl)
+          echo "slice: start=$START count=$COUNT -> $SLICE job(s) of $POOL in pool"
+          if [ "$SLICE" -eq 0 ]; then
+            echo "::warning::slice is empty; start=$START is at or past the end ($POOL themes)"
+          fi
+
+      # One request, not one per theme. Idempotency for a retried batch: any
+      # theme already in question_bank is skipped before its ~46.7 MB download.
+      # service_role has SELECT on question_bank (verified live); no client role
+      # does, which is why this needs the secret.
+      - name: Fetch already-ingested themes
         run: |
-          set -uo pipefail   # deliberately NOT -e: one bad clip must not abort the batch
-          mkdir -p thumbs clips
-          : > report.tsv
-          printf 'status\tbasename\tuuid\tseconds\tbytes\tnote\n' >> report.tsv
+          set -euo pipefail
+          : > existing.keys
+          if [ -z "${SERVICE_KEY:-}" ]; then
+            echo "no service key (dry run): treating every theme as not yet ingested"
+            exit 0
+          fi
+          code=$(curl -sS -o existing.json -w '%{http_code}' \
+            "${SUPABASE_URL}/rest/v1/question_bank?select=anime_slug,theme_type,theme_sequence&limit=2000" \
+            -H "Authorization: Bearer ${SERVICE_KEY}" \
+            -H "apikey: ${SERVICE_KEY}")
+          if [ "$code" != "200" ]; then
+            echo "::error::question_bank pre-check returned HTTP $code"
+            head -c 300 existing.json; echo
+            exit 1
+          fi
+          jq -r '.[] | "\(.anime_slug)|\(.theme_type)|\(.theme_sequence // "")"' \
+            existing.json | sort -u > existing.keys
+          echo "already ingested: $(wc -l < existing.keys) theme(s)"
 
-          ok=0; failed=0; skipped=0; processed=0
+      - name: Build objects, upload and ingest
+        run: |
+          # Deliberately NOT -e: one bad theme must not abort the batch.
+          set -uo pipefail
+          mkdir -p "$OUTDIR" "$WORKDIR"
+          : > results.jsonl
 
-          # Reading on FD 3, not stdin. ffmpeg has an interactive console and reads stdin
-          # when it is a pipe, so with `done < jobs.jsonl` it swallowed the remaining job
-          # lines and fed them to its own command parser ("Parse error, at least 3 arguments
-          # were expected"), leaving `read` to pick up a half-consumed line and jq to die on
-          # it. -nostdin below fixes ffmpeg specifically; FD 3 protects the loop from ANY
-          # future command in the body that decides to read stdin.
+          ok=0; failed=0; dry=0; skipped=0; already=0; processed=0
+
+          # Reading on FD 3, not stdin. ffmpeg reads stdin when it is a pipe,
+          # and with `done < jobs.jsonl` it once swallowed the remaining job
+          # lines and fed them to its own command parser. curate_theme.py passes
+          # -nostdin and closes stdin for every child, but FD 3 keeps the loop
+          # safe from anything added here later.
           while IFS= read -r job <&3; do
             [ -z "$job" ] && continue
 
-            # Pace the AnimeThemes fetches. This sits at the TOP of the loop on purpose.
-            # A pause at the bottom is unreachable exactly when it is needed: every error
-            # path below uses `continue`, and the dry-run path exits the iteration before
-            # the end, so a dry run never paced at all. That is how run 32586647506 pulled
-            # ~200 MB in about two minutes and earned five consecutive 5XXs. Guarded on
-            # `processed` so the first item does not pay the cost.
+            basename=$(jq -r '.basename' <<< "$job")
+            key=$(jq -r '"\(.anime_slug)|\(.theme_type)|\(.theme_sequence // "")"' <<< "$job")
+
+            if grep -qxF "$key" existing.keys 2>/dev/null; then
+              echo "already ingested, skipping: $basename"
+              printf '{"basename":%s,"status":"ALREADY","note":"already in question_bank"}\n' \
+                "$(jq -Rn --arg b "$basename" '$b')" >> results.jsonl
+              already=$((already + 1))
+              continue
+            fi
+
+            # Pace the AnimeThemes fetches. This sits at the TOP of the loop on
+            # purpose: a pause at the bottom is unreachable exactly when it is
+            # needed, because every error path uses `continue`. That is how an
+            # earlier run pulled ~200 MB in two minutes and earned five
+            # consecutive 5XXs. Guarded on `processed` so the first item does
+            # not pay the cost.
             if [ "$processed" -gt 0 ]; then sleep 5; fi
             processed=$((processed + 1))
 
-            basename=$(jq -r '.basename' <<< "$job")
-            link=$(jq -r '.link // empty' <<< "$job")
-            # AnimeThemes' basename ALREADY carries the extension ("ShingekiNoKyojin-OP1.webm"),
-            # so nothing may append .webm to it. The API normally supplies .link; this branch
-            # only stops a null from becoming the literal string "null" in a curl URL and
-            # failing as a confusing 404 much later.
-            [ -z "$link" ] && link="https://v.animethemes.moe/${basename}"
-            stem="${basename%.webm}"
-
-            # md5 reformatted 8-4-4-4-12. Not a spec-conformant UUIDv3 (the version and
-            # variant nibbles are left as-is) because nothing here reads them: Postgres
-            # accepts any 32 hex digits as uuid, and all this value must be is stable and
-            # collision-free. Forcing the nibbles would add a bit-twiddling step whose only
-            # effect would be a new way for the run to break.
-            h=$(printf '%s' "$basename" | md5sum | cut -c1-32)
-            uuid="${h:0:8}-${h:8:4}-${h:12:4}-${h:16:4}-${h:20:12}"
-            out="clips/${uuid}.webm"
-
-            echo "::group::${basename} -> ${uuid}"
-
-            # -ss BEFORE -i is input seeking: ffmpeg issues a ranged request and starts at
-            # the keyframe near 5s instead of pulling the whole file and discarding it.
-            # Skipping the first 5s avoids the near-silent intro on many OPs.
-            # -map_metadata -1 -map_chapters -1 is a correctness requirement, not tidiness:
-            # source containers carry title tags that would hand the player the answer.
-            #
-            # Retried with backoff because AnimeThemes returned 5XX on five consecutive
-            # items after the first five had pulled ~200 MB in two minutes. A 5XX is
-            # transient by definition and the run that discovered this threw away half a
-            # batch by treating the first one as fatal. -user_agent identifies this crawler
-            # to a free community service; it is courtesy, not a workaround (a plain ranged
-            # GET with no UA was verified to return 206).
-            attempt=0; max_attempts=3; transcoded=0
-            while [ "$attempt" -lt "$max_attempts" ]; do
-              attempt=$((attempt + 1))
-              if ffmpeg -nostdin -hide_banner -loglevel error -y \
-                    -user_agent "$UA" \
-                    -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 30 \
-                    -ss 5 -i "$link" -t 20 \
-                    -map_metadata -1 -map_chapters -1 \
-                    -vf "scale=-2:480" \
-                    -c:v libvpx-vp9 -b:v 0 -crf 36 -row-mt 1 -deadline good -cpu-used 4 \
-                    -c:a libopus -b:a 64k -ac 2 \
-                    -f webm "$out"; then
-                transcoded=1; break
-              fi
-              if [ "$attempt" -lt "$max_attempts" ]; then
-                backoff=$((attempt * 20))
-                echo "attempt ${attempt}/${max_attempts} failed for ${basename}, waiting ${backoff}s"
-                sleep "$backoff"
-              fi
-            done
-            if [ "$transcoded" -ne 1 ]; then
-              echo "::error::transcode failed for $basename after ${max_attempts} attempts"
-              printf 'FAIL\t%s\t%s\t\t\ttranscode failed after %s attempts\n' "$basename" "$uuid" "$max_attempts" >> report.tsv
-              failed=$((failed + 1)); echo "::endgroup::"; continue
+            echo "::group::${basename}"
+            printf '%s' "$job" | python3 tools/pipeline/curate_theme.py > theme.json
+            rc=$?
+            if [ ! -s theme.json ]; then
+              printf '{"basename":%s,"status":"FAIL","note":"script produced no result"}\n' \
+                "$(jq -Rn --arg b "$basename" '$b')" > theme.json
             fi
-
-            # Measured, not assumed. duration_seconds and bytes end up in question_bank and
-            # are what the client trusts to size the round timer.
-            dur_raw=$(ffprobe -v error -show_entries format=duration -of csv=p=0 "$out" 2>/dev/null || echo 0)
-            dur=$(printf '%.0f' "$dur_raw" 2>/dev/null || echo 0)
-            bytes=$(stat -c%s "$out")
-            echo "duration=${dur}s bytes=${bytes}"
-
-            # A stub this short means the source was shorter than the seek point or the
-            # download truncated. Ingesting it would leave an unplayable round.
-            if [ "$dur" -lt 15 ]; then
-              echo "::error::$basename produced only ${dur}s (expected ~20s)"
-              printf 'FAIL\t%s\t%s\t%s\t%s\tclip shorter than 15s\n' "$basename" "$uuid" "$dur" "$bytes" >> report.tsv
-              failed=$((failed + 1)); echo "::endgroup::"; continue
-            fi
-
-            if [ "$bytes" -gt "$MAX_BYTES" ]; then
-              echo "::error::$basename is ${bytes} bytes, over the bucket limit of ${MAX_BYTES}"
-              printf 'FAIL\t%s\t%s\t%s\t%s\tover bucket size limit\n' "$basename" "$uuid" "$dur" "$bytes" >> report.tsv
-              failed=$((failed + 1)); echo "::endgroup::"; continue
-            fi
-
-            # A 2x2 tile sampled every 5s, taken from the CLIP rather than the source, so it
-            # shows exactly the frames a player will see. This is the evidence for BLOCKERS
-            # B-20: nc=true is supposed to mean no credits, but that it also means no
-            # burned-in title is unverified, and only human eyes on real frames can settle
-            # it. A single frame could easily miss a title card that is only up briefly.
-            ffmpeg -nostdin -hide_banner -loglevel error -y -i "$out" \
-              -vf "fps=1/5,scale=320:-2,tile=2x2" -frames:v 1 \
-              "thumbs/${stem}.jpg" || echo "::warning::thumbnail failed for $basename"
-
-            if [ "$DRY_RUN" = "true" ]; then
-              printf 'DRY\t%s\t%s\t%s\t%s\tnot uploaded\n' "$basename" "$uuid" "$dur" "$bytes" >> report.tsv
-              skipped=$((skipped + 1)); echo "::endgroup::"; continue
-            fi
-
-            # Upload BEFORE the DB write, so a row never points at bytes that do not exist.
-            # x-upsert makes a re-run overwrite the same key instead of 409-ing.
-            code=$(curl -sS -o storage-resp.json -w '%{http_code}' \
-              -X POST "${SUPABASE_URL}/storage/v1/object/clips/${uuid}.webm" \
-              -H "Authorization: Bearer ${SERVICE_KEY}" \
-              -H "apikey: ${SERVICE_KEY}" \
-              -H "Content-Type: video/webm" \
-              -H "x-upsert: true" \
-              --data-binary "@${out}")
-            if [ "$code" != "200" ]; then
-              echo "::error::storage upload for $basename returned HTTP $code"
-              head -c 500 storage-resp.json; echo
-              printf 'FAIL\t%s\t%s\t%s\t%s\tstorage HTTP %s\n' "$basename" "$uuid" "$dur" "$bytes" "$code" >> report.tsv
-              failed=$((failed + 1)); echo "::endgroup::"; continue
-            fi
-
-            # ingest_question owns clip_key and title_norm. Going through the RPC instead of
-            # a PostgREST insert is what guarantees title_norm is produced by the same
-            # normalise_title that grade_guess uses at play time; two normalisers would
-            # drift and break answer matching invisibly.
-            jq -n --argjson job "$job" --arg uuid "$uuid" \
-                  --argjson dur "$dur" --argjson bytes "$bytes" '{
-              clip_uuid: $uuid,
-              duration_seconds: $dur,
-              bytes: $bytes,
-              animethemes_video_id: null,
-              animethemes_theme_id: null,
-              anime_slug:     $job.anime_slug,
-              titles:         $job.titles,
-              synonyms:       $job.synonyms,
-              anime_year:     $job.anime_year,
-              anime_season:   $job.anime_season,
-              anime_format:   $job.anime_format,
-              theme_type:     $job.theme_type,
-              theme_sequence: $job.theme_sequence,
-              difficulty:     $job.difficulty,
-              nc:             $job.nc,
-              subbed:         $job.subbed,
-              overlap:        $job.overlap,
-              spoiler:        $job.spoiler,
-              nsfw:           $job.nsfw
-            }' > payload.json
-
-            code=$(curl -sS -o rpc-resp.json -w '%{http_code}' \
-              -X POST "${SUPABASE_URL}/rest/v1/rpc/ingest_question" \
-              -H "Authorization: Bearer ${SERVICE_KEY}" \
-              -H "apikey: ${SERVICE_KEY}" \
-              -H "Content-Type: application/json" \
-              --data-binary "@payload.json")
-            if [ "$code" != "200" ]; then
-              echo "::error::ingest_question for $basename returned HTTP $code"
-              head -c 500 rpc-resp.json; echo
-              printf 'FAIL\t%s\t%s\t%s\t%s\tRPC HTTP %s\n' "$basename" "$uuid" "$dur" "$bytes" "$code" >> report.tsv
-              failed=$((failed + 1)); echo "::endgroup::"; continue
-            fi
-
-            # The RPC returns the row id. If it is not the uuid we uploaded under, the row
-            # and the object have diverged and the round would 404 at play time.
-            returned=$(jq -r '. // empty' rpc-resp.json | tr -d '"')
-            if [ "$returned" != "$uuid" ]; then
-              echo "::error::RPC returned id '$returned' but clip was uploaded as '$uuid'"
-              printf 'FAIL\t%s\t%s\t%s\t%s\tid mismatch: %s\n' "$basename" "$uuid" "$dur" "$bytes" "$returned" >> report.tsv
-              failed=$((failed + 1)); echo "::endgroup::"; continue
-            fi
-
-            printf 'OK\t%s\t%s\t%s\t%s\t\n' "$basename" "$uuid" "$dur" "$bytes" >> report.tsv
-            ok=$((ok + 1))
+            cat theme.json >> results.jsonl
+            status=$(jq -r '.status // "FAIL"' theme.json)
+            case "$status" in
+              OK)      ok=$((ok + 1)) ;;
+              DRY)     dry=$((dry + 1)) ;;
+              SKIP)    skipped=$((skipped + 1)) ;;
+              *)       failed=$((failed + 1))
+                       echo "::error::$basename: $(jq -r '.note // "unknown"' theme.json)" ;;
+            esac
+            echo "rc=$rc status=$status"
             echo "::endgroup::"
+
+            # The source is the only large file and it is useless once its five
+            # objects exist. Runners have ~14 GB free; 136 x 46.7 MB would not
+            # fit even if the batch never failed.
+            rm -rf "${WORKDIR:?}"/*
           done 3< jobs.jsonl
 
           {
-            echo "### curate: start=$START count=$COUNT dry_run=$DRY_RUN"
+            echo "### curate: start=$START count=$COUNT dry_run=$DRY_RUN types=$THEME_TYPES"
+            echo "detail_pct=$DETAIL_PCT ocr_min_chars=$OCR_MIN_CHARS langs=$OCR_LANGS"
             echo
             echo "| result | count |"
             echo "| --- | --- |"
             echo "| ingested | $ok |"
-            echo "| dry-run only | $skipped |"
+            echo "| dry-run only | $dry |"
+            echo "| skipped (too few clean stills) | $skipped |"
+            echo "| already ingested | $already |"
             echo "| failed | $failed |"
             echo
-            echo '```'
-            column -t -s $'\t' report.tsv || cat report.tsv
-            echo '```'
+            echo "| basename | status | stills | ts | poster | audio s | KB | clean/texty/dropped | note |"
+            echo "| --- | --- | --- | --- | --- | --- | --- | --- | --- |"
+            jq -r '"| \(.basename // "?") | \(.status) | \(.still_count // 0) | \((.still_ts // []) | join(", ")) | \(.poster_source // "-") | \(.audio_seconds // 0) | \(((.bytes_total // 0) / 1024) | floor) | \(.ocr_clean // "-")/\(.ocr_texty // "-")/\(.detail_dropped // "-") | \(.note // "") |"' \
+              results.jsonl
+            echo
+            echo "Total stored by this slice: $(jq -s '[.[] | select(.status == "OK") | .bytes_total] | add // 0 | . / 1048576 | .*10 | round / 10' results.jsonl) MB"
           } >> "$GITHUB_STEP_SUMMARY"
 
-          echo "ok=$ok skipped=$skipped failed=$failed"
-          # Non-zero only for real failures, so a fully successful dry run stays green.
+          echo "ok=$ok dry=$dry skipped=$skipped already=$already failed=$failed"
+          # SKIP is a designed outcome (a sequence that yielded fewer than two
+          # clean frames), so it must not fail the run. Only real errors do.
           [ "$failed" -eq 0 ]
 
-      # Uploaded even when the job fails: on a failure the thumbnails and report are the
-      # only way to see what went wrong without re-running the encode.
-      - name: Upload thumbnails and report
+      # Uploaded even when the job fails, because these frames ARE the evidence
+      # for B-28 and a green run proves nothing by itself. out/stills holds
+      # every image a player would see -- inspect all of them for a title, which
+      # is an OCR false negative. out/rejected holds the text-positive frames,
+      # which is how to confirm OCR caught the title cards at all rather than
+      # merely not crashing.
+      - name: Upload built objects and report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: curate-${{ inputs.start }}-${{ inputs.count }}
+          name: curate-${{ inputs.start }}-${{ inputs.count }}-${{ inputs.theme_types }}
           path: |
-            thumbs/
-            report.tsv
+            out/
+            results.jsonl
+            jobs.jsonl
           if-no-files-found: warn
           retention-days: 14

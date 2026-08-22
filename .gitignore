@@ -35,6 +35,26 @@ supabase/.branches/
 *.mp4
 *.mkv
 
+# --- Curation run artifacts --------------------------------------------------
+# .github/workflows/curate.yml writes these into the working directory: the
+# flattened/deduped/sliced job lists, the question_bank pre-check, per-theme
+# results and the built objects. On a runner they vanish with the VM, but the
+# local harness in .tmp/ runs the same steps from the repo root, and none of it
+# should ever be committed. The built stills and audio in particular belong in
+# Supabase Storage and in the run artifact, nowhere else.
+/flat.jsonl
+/deduped.jsonl
+/pool.jsonl
+/jobs.jsonl
+/results.jsonl
+/theme.json
+/existing.json
+/existing.keys
+/out/
+/work/
+__pycache__/
+*.pyc
+
 # --- Logs / OS / editor ------------------------------------------------------
 *.log
 npm-debug.log*
