@@ -333,25 +333,86 @@ died before reaching them. Only one real clip size is known (2.0 MB, double the 
 estimate), so 136 clips is now projected at ~272 MB stored rather than ~136 MB.
 
 ---
+## 2026-08-22 - pipeline runs green, and immediately proves the game does not work
+
+**Third dry run passed: run `32590411786`, `ok=0 skipped=10 failed=0`.** All ten themes
+transcoded, **zero retries fired and zero 5XX** - so moving the pause to the top of the
+loop and raising it to 5 s fixed the throttling outright, and the retry ladder never had
+to be used. Every clip came out at exactly 20 s. That closes the three workflow bugs.
+
+Two things are still unexercised and should not be described as working: **the Storage
+upload and the ingest RPC have never run**, because a dry run returns before both. The
+retry path has also never actually executed.
+
+**Then the artifact killed the premise.** The whole point of the thumbnails was B-20 -
+whether a clip shows the anime's title. It does. **Five of ten clips render the title
+logo in Latin script inside the played window**: Attack on Titan OP1 (logo plus romanised
+`attack on titan`), Death Note OP1 and OP2 (`DEATH NOTE`), and Fullmetal Alchemist
+Brotherhood OP1 and OP2 (logo plus `FULLMETAL ALCHEMIST`). Split by type it is
+**5 of 6 openings, 0 of 4 endings**.
+
+**The filter was not defective; the assumption behind it was.** All ten clips passed
+`nc: true, subbed: false, overlap: NONE`. `nc` means *creditless*, which strips the
+**staff credit overlay** - but a show's title card is **part of the animation**, not an
+overlay, so a creditless master keeps it deliberately. No value of any AnimeThemes flag
+would have excluded these. `subbed: false` does not help either, since that flag concerns
+translation subtitles, not artwork.
+
+The cut is `-ss 5 -t 20`, i.e. source seconds 5-25, and openings conventionally place the
+title card in the first ~15 seconds. The window was chosen to skip the cold open; it
+happens to frame the logo.
+
+**Being honest about the measurement: it understates the problem.** The tile samples
+**4 frames out of about 600**. "None seen" means "no title at these four instants", not
+"clean" - a logo held for two seconds between samples is invisible to this check. So the
+real leak rate is **at least** 50%. The four clean-looking clips are not cleared.
+
+**Also measured, and worse than assumed: clip size.** Mean **2.09 MB**, min **0.94 MB**,
+max **4.70 MB** against the **5 MB** bucket cap - the largest is at **93.9%** of it, with
+318 KB of headroom. The encode is `-b:v 0 -crf 36`, constant quality with an *unbounded*
+bitrate, so with 126 clips still to go some will exceed the cap and be rejected by
+Storage after paying the full download and encode cost. 136 clips now project to about
+**284 MB** stored rather than ~136 MB.
+
+**What this makes possible, and what it stops.** The pipeline is mechanically sound and
+could ingest all 136 themes right now. It should not. Whatever fixes the spoiler decides
+the encode - audio-only, a different window, a different resolution - so ingesting first
+means encoding everything twice. Recorded as **B-25** (the spoiler decision) and **B-26**
+(the size cap), with B-20 answered and reclassified.
+
+Worth noting for the decision: **audio-only was already written down in `RESEARCH.md` 4.7
+as the cheapest egress lever**, at ~160 KB against the measured 2.09 MB, about **13x**
+cheaper - roughly 390 games/month instead of 30. This finding promotes it from a cost
+optimisation to a correctness fix, and it is the only candidate that removes the leak for
+**every** clip rather than most of them. It also changes what the game is, which is why it
+is the owner's call and not mine.
+
+---
 ## Project state at a glance
 
 - **Live DB:** full game schema on Supabase Free (`mxkqivivqultfuattuin`), zero content
   rows. Registry tracks migrations 1-9.
 - **Storage:** `clips` bucket live - public read, 5 MB cap, `video/webm` only, no write
   policy (service_role only).
-- **Pipeline:** `pipeline/manifest.json` built - 46 anime, 136 themes, 5469 MB source,
-  difficulty spread 13/32/28/28/35. `.github/workflows/curate.yml` **run twice, failed
-  twice, three bugs fixed** (ffmpeg stealing stdin, AnimeThemes 5XX throttling, and
-  pacing that was unreachable in dry runs). Not yet green.
+- **Pipeline:** **green.** `curate` dry run `32590411786` returned
+  `ok=0 skipped=10 failed=0`, all clips 20 s, no retries, no 5XX. Three bugs fixed along
+  the way: ffmpeg stealing stdin, AnimeThemes throttling, and pacing that was unreachable
+  on the dry-run path. **Storage upload and the ingest RPC remain unexercised** - a dry run
+  returns before both.
 - **Hosting:** frontend is **GitHub Pages** - limits verified, B-14 and B-15 closed.
   Deploy target `https://sayandeep1013.github.io/Rein-Bot/`; hash routing required.
 - **Repo:** design docs, migrations, manifest builder, curate workflow, README; no app
   code yet.
-- **Measured, not estimated:** one 20 s clip at 480p crf36 = **2,046,639 bytes**. So 136
-  clips is about **272 MB** stored, and a 4-player 20-round game about **160 MB** of
-  egress uncached - roughly **30 games/month** against the 5 GB budget. The reserved
-  levers, cheapest first, are audio-only rounds (~160 KB), 360p (~40% cut) and 15 s clips.
-- **Next step:** re-run `curate` with `dry_run: true`, `start: 0`, `count: 10`. Download
-  the artifact, eyeball the thumbnail tiles for burned-in titles to settle B-20, and check
-  byte sizes against the 5 MB cap. If both look right, re-run with `dry_run: false` and
-  work through the 136 themes in batches. Then the single-file HTML test page.
+- **Measured, not estimated:** 20 s at 480p crf36 gives mean **2.09 MB**, max **4.70 MB**
+  against a 5 MB cap. 136 clips is about **284 MB** stored; a 4-player 20-round game is
+  about **167 MB** of egress uncached, so roughly **30 games/month** against the 5 GB
+  budget.
+- **BLOCKED, and this is the live question:** **B-25** - at least half of all opening clips
+  show the anime's title on screen, so the round gives itself away. `nc: true` cannot fix
+  it, because the title card is part of the animation rather than a credit overlay.
+  Curation is deliberately paused until the owner decides whether guessing is **aural**
+  (audio only while guessing, video on reveal - removes the leak entirely and cuts egress
+  ~13x) or **visual** (keep video, and pay for OCR window-picking or manual review).
+  **B-26** (bitrate vs the 5 MB cap) is deferred behind it, since audio-only makes it moot.
+- **Next step:** get that decision, then re-encode accordingly and ingest all 136. After
+  that, the single-file HTML test page.

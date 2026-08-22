@@ -14,7 +14,7 @@ headings therefore overstates how much is outstanding. The real split:
 
 | | Entries | Meaning |
 | --- | --- | --- |
-| **Actionable — genuinely blocking** | **B-11** (item 2 only), **B-13**, **B-16**, **B-20**, **B-21** | Needs work or a decision before launch. |
+| **Actionable — genuinely blocking** | **B-11** (item 2 only), **B-13**, **B-16**, **B-21**, **B-25**, **B-26** | Needs work or a decision before launch. |
 | **Needs one verification step** | **B-19** | Mitigated already; only needs an opencode restart to confirm. |
 | **Permanent constraints — not clearable** | B-9, B-10 | Provider behaviour. Keep for reference; never "fix". |
 | **Closed, left in place** | B-4, B-14, B-15 | Resolved; retained here for the reasoning trail. |
@@ -185,7 +185,50 @@ frontend is on GitHub Pages, whose bandwidth limit is soft (B-15). Historically,
 - **Impact:** Low but non-zero. Failure mode is recoverable (restore preserves
   data), just disruptive.
 
-### B-20 — AnimeThemes `nc` / `subbed` / `overlap` semantics unverified by eye
+### B-20 — AnimeThemes `nc` does NOT mean spoiler-free — ANSWERED 2026-08-22, and the answer is bad
+- **ANSWERED 2026-08-22 by looking at real output.** Ran `curate` as a dry run over the
+  first 10 themes (run `32590411786`, `ok=0 skipped=10 failed=0`) and inspected the 2x2
+  thumbnail tiles. **Five of the ten clips show the anime's own title logo, in Latin
+  script, inside the 20-second window:**
+
+  | Clip | Leak |
+  | --- | --- |
+  | `ShingekiNoKyojin-OP1` | title logo + romanised `attack on titan`, 2 of 4 sampled frames |
+  | `ShingekiNoKyojin-OP2` | none seen |
+  | `ShingekiNoKyojin-ED1` | none seen |
+  | `ShingekiNoKyojin-ED2` | none seen |
+  | `DeathNote-OP1` | `DEATH NOTE` logo, 2 of 4 |
+  | `DeathNote-OP2` | `DEATH NOTE` logo, 1 of 4 |
+  | `DeathNote-ED1` | none seen |
+  | `DeathNote-ED2` | none seen |
+  | `FullmetalAlchemistBrotherhood-OP1` | title logo + `FULLMETAL ALCHEMIST`, 1 of 4 |
+  | `FullmetalAlchemistBrotherhood-OP2` | title logo + `FULLMETAL ALCHEMIST`, 1 of 4 |
+
+  **5 of 6 openings leak. 0 of 4 endings leak.** All ten passed the
+  `nc: true, subbed: false, overlap: NONE` filter, so the filter is not defective - the
+  assumption behind it was.
+
+- **Why the filter could never have caught this.** `nc` means *creditless*: it strips the
+  **staff credit text** overlaid on the sequence. The **show's own title card is part of
+  the animation**, not an overlay, so a creditless master keeps it by design. There was
+  never a flag that would have excluded it. The romanised line under the logo
+  (`attack on titan`, `FULLMETAL ALCHEMIST`) is likewise baked into the art, which is why
+  `subbed: false` does not help either - that flag is about translation subtitles.
+
+- **The measurement understates the problem.** The tile samples **4 frames out of roughly
+  600**. "None seen" therefore means "no title at these four instants", not "clean". A
+  logo held for two seconds between sample points is invisible to this check, so the true
+  leak rate is **at least** 50% and probably higher. Do not treat the four "none seen"
+  rows as cleared.
+
+- **It also lands squarely in our window.** The pipeline cuts `-ss 5 -t 20`, i.e. source
+  seconds 5-25, and anime openings conventionally place the title card in the first ~15
+  seconds. The window was chosen to skip the cold open; it happens to centre the logo.
+
+- **Consequence:** the premise that "the filters are the only thing standing between the
+  catalogue and that outcome" is now settled - **they are not sufficient**, and no
+  catalogue metadata would make them sufficient. Any fix has to act on the pixels or on
+  the audio, which is a **product decision**, not a filter tweak. Tracked as **B-25**.
 - **What:** The variant filter chain in `doc/GAME-DESIGN.md` §5 selects clips by
   `nc: true`, `subbed: false`, `overlap: NONE`. The **field names and filter
   behaviour are verified live**; what is **not** verified is whether `nc: false`
@@ -219,6 +262,51 @@ frontend is on GitHub Pages, whose bandwidth limit is soft (B-15). Historically,
   but it is discovered at play time, in front of players, which is the worst place.
   The `dry_run` default of **true** exists specifically so this is discovered in an
   artifact instead.
+
+### B-25 — How to stop the clip showing the answer — OPEN, needs a product decision
+- **What:** following from B-20, at least half of all opening clips render the anime's
+  title on screen during the played window. A round in which the answer is legible is not
+  a round. Something must change about what the player is shown.
+- **Why it is a decision and not a fix:** the candidates trade away different things, and
+  the cheapest one changes what the game *is*.
+
+  | Option | Effect | Cost |
+  | --- | --- | --- |
+  | **Audio only while guessing, video on reveal** | Removes the leak completely, for every clip, permanently | Changes the game from visual to aural |
+  | **OCR a clean window per clip** | Keeps video; automatable with `tesseract` in CI | Fails where no clean 20 s window exists, so it needs a fallback anyway |
+  | **Endings instead of openings** | 0 of 4 leaked in the sample | Halves the pool, and endings are far less recognisable |
+  | **Shift the cut later** | Trivial to implement | Title timing varies per show, and many sequences show the logo again at the end |
+  | **Mask or crop the logo region** | Keeps video | Logo position varies per show; not automatable |
+  | **Human review of all 136** | Highest quality | 136 manual reviews, and it does not scale to a larger pool |
+
+- **Note in favour of audio-only:** it was already recorded in `doc/RESEARCH.md` 4.7 as the
+  cheapest **egress** lever, at roughly **160 KB** per clip against the measured **2.09 MB**
+  average - about **13x** cheaper, which turns ~30 games/month into ~390. This finding
+  promotes it from a cost optimisation to a **correctness fix**. That is a strong argument
+  for it, and a reason to choose it deliberately rather than by accident.
+- **What would settle it:** a decision from the project owner on whether guessing is aural
+  or visual. Everything downstream depends on it - clip encoding, egress arithmetic, the
+  reveal moment, and whether the 5 MB bucket cap matters at all.
+- **Blocked on:** owner decision. No further curation should run until it is made, because
+  a full ingest under the wrong choice wastes the compute and has to be redone.
+
+### B-26 — Clip size runs closer to the 5 MB bucket cap than assumed — OPEN
+- **What:** measured sizes across the 10-clip dry run: mean **2,189,494 bytes (2.09 MB)**,
+  min **985,327**, max **4,924,415 (4.70 MB)**. The bucket cap set in migration 0009 is
+  **5,242,880**. The largest clip sits at **93.9% of the cap**, with 318 KB of headroom.
+- **Why it matters:** the encode is `-b:v 0 -crf 36`, constant quality with an **unbounded**
+  bitrate, so a high-motion sequence can produce an arbitrarily large file. With 126 clips
+  still unencoded it is likely, not merely possible, that some exceed the cap - and Storage
+  will reject those uploads, failing the item after paying the full download and encode
+  cost.
+- **Also corrects an estimate:** 136 clips project to about **284 MB** stored, against the
+  ~136 MB assumed when a clip was thought to be ~1 MB.
+- **What would settle it:** either bound the bitrate (`-maxrate` / `-bufsize`, or re-encode
+  at a higher crf when the output exceeds a threshold), or raise the bucket cap. Bounding
+  is preferable, because the cap is a deliberate safety rail and because egress, not
+  storage, is the scarce resource.
+- **Moot if B-25 is decided as audio-only**, since a 20 s Opus stream is ~160 KB. Deferred
+  until B-25 is settled so the work is not done twice.
 
 ### B-21 — Free-tier egress is org-shared, and consumption cannot be read — **RESOLVED 2026-08-22**
 - ~~**What:**~~ **What was:** `doc/ARCHITECTURE.md` §10 originally budgeted the full **5 GB** egress
