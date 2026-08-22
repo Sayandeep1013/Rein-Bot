@@ -14,15 +14,12 @@ headings therefore overstates how much is outstanding. The real split:
 
 | | Entries | Meaning |
 | --- | --- | --- |
-| **Actionable — genuinely blocking** | **B-11** (item 2 only), **B-13**, **B-16**, **B-21**, **B-25**, **B-26** | Needs work or a decision before launch. |
+| **Actionable — genuinely blocking** | **B-11** (item 2 only), **B-13**, **B-16**, **B-27** | Needs work or a decision before launch. |
 | **Needs one verification step** | **B-19** | Mitigated already; only needs an opencode restart to confirm. |
 | **Permanent constraints — not clearable** | B-9, B-10 | Provider behaviour. Keep for reference; never "fix". |
-| **Closed, left in place** | B-4, B-14, B-15 | Resolved; retained here for the reasoning trail. |
+| **Closed, left in place** | B-4, B-14, B-15, B-20, B-21, B-25, B-26 | Resolved or decided; retained here for the reasoning trail. |
 
-So the honest count is **five actionable items**, of which **two** need the user rather
-than me: **B-21** (reading current egress from the Supabase dashboard) and **B-11 item 2**
-(the seed list). B-22, B-23 and B-24 were opened and closed on 2026-08-22 and live under
-`## Resolved`.
+So the honest count is **four actionable items**, and as of 2026-08-23 **none of them is waiting on the user**: B-21 was resolved on 2026-08-22 once the dashboard showed 0% egress, and B-25 was decided on 2026-08-23 (three progressive stills, audio optional per room, no video anywhere). B-27 was opened the same day and is mine to fix. 
 
 The single hardest blocker remains **B-11 item 2** — the hand-built seed list of titles.
 It gates the entire curation pipeline, no amount of engineering removes it, and it is the
@@ -263,12 +260,48 @@ frontend is on GitHub Pages, whose bandwidth limit is soft (B-15). Historically,
   The `dry_run` default of **true** exists specifically so this is discovered in an
   artifact instead.
 
-### B-25 — How to stop the clip showing the answer — OPEN, needs a product decision
+### B-25 — How to stop the clip showing the answer — **DECIDED 2026-08-23**
 - **What:** following from B-20, at least half of all opening clips render the anime's
   title on screen during the played window. A round in which the answer is legible is not
   a round. Something must change about what the player is shown.
-- **Why it is a decision and not a fix:** the candidates trade away different things, and
-  the cheapest one changes what the game *is*.
+- **Decision (owner, 2026-08-23):** **no video is stored or served, ever.** A round shows
+  **three still frames**, revealed progressively, and **audio is optional per room**:
+
+  | Mode | While guessing | On reveal |
+  | --- | --- | --- |
+  | **Frames only** | 3 stills at 0 s / ~7 s / ~14 s | poster + title |
+  | **Audio + frames** | the same 3 stills, plus the song | poster + title |
+
+  The host chooses with an audio toggle at room creation. The mode is fixed for the room:
+  it must not change mid-game, or scores from different rounds are not comparable.
+- **Why stills succeed where every option below failed:** a video window is **contiguous**,
+  so if the title card sits at 0:12 there is no way to exclude it without losing the window.
+  Stills are chosen **independently** — sample ~50 candidate frames across the whole
+  sequence, OCR every one, discard every frame carrying text, keep the cleanest three. The
+  constraint that made video unfixable simply does not apply to frames.
+- **The reveal gets the leak for free:** the frames that spoil a round — the ones showing
+  the title card — are the *ideal* reveal image once the answer is known. The title card
+  is a liability while guessing and an asset immediately afterwards.
+- **Cost correction, recorded because the first version of this entry was wrong:** an
+  earlier draft claimed audio-only was ~13x cheaper and would turn ~30 games/month into
+  ~390. That was wrong as written: it also assumed **video on reveal**, which costs the full
+  2.09 MB and cancels the whole saving. The honest arithmetic under the decision:
+
+  | Mode | Per round per player | Per 4p / 20-round game | Games/month on 5 GB |
+  | --- | --- | --- | --- |
+  | Frames only | ~120 KB | ~10 MB | **~530** |
+  | Audio + frames | ~280 KB | ~22 MB | **~220** |
+  | *(rejected)* always video on reveal | 2.25 MB | ~180 MB | ~27 |
+
+  Storage for all 136 questions drops from ~284 MB of video to about **38 MB**.
+- **One download still produces everything.** The ~40 MB source fetch is the expensive part
+  and is paid once per theme, so audio, candidate frames and the poster all come out of the
+  same download. Adding stills did not add a network cost to curation.
+- **What this costs instead:** the frame filtering is real engineering — rejecting text
+  needs `tesseract`, and rejecting *useless* frames (near-black, cross-fades, motion blur,
+  near-duplicates) needs a detail heuristic on top. A question that yields too few clean
+  frames must be rejectable at ingest the way `NO_TITLES` already is.
+- **Superseded options,** kept because the reasoning is why the decision looks like this:
 
   | Option | Effect | Cost |
   | --- | --- | --- |
@@ -279,34 +312,48 @@ frontend is on GitHub Pages, whose bandwidth limit is soft (B-15). Historically,
   | **Mask or crop the logo region** | Keeps video | Logo position varies per show; not automatable |
   | **Human review of all 136** | Highest quality | 136 manual reviews, and it does not scale to a larger pool |
 
-- **Note in favour of audio-only:** it was already recorded in `doc/RESEARCH.md` 4.7 as the
-  cheapest **egress** lever, at roughly **160 KB** per clip against the measured **2.09 MB**
-  average - about **13x** cheaper, which turns ~30 games/month into ~390. This finding
-  promotes it from a cost optimisation to a **correctness fix**. That is a strong argument
-  for it, and a reason to choose it deliberately rather than by accident.
-- **What would settle it:** a decision from the project owner on whether guessing is aural
-  or visual. Everything downstream depends on it - clip encoding, egress arithmetic, the
-  reveal moment, and whether the 5 MB bucket cap matters at all.
-- **Blocked on:** owner decision. No further curation should run until it is made, because
-  a full ingest under the wrong choice wastes the compute and has to be redone.
+- **Every row above assumed video had to survive in some form.** Dropping video did not
+  resolve that trade, it dissolved it.
 
-### B-26 — Clip size runs closer to the 5 MB bucket cap than assumed — OPEN
+### B-26 — Clip size runs closer to the 5 MB bucket cap than assumed — **CLOSED 2026-08-23 (moot)**
 - **What:** measured sizes across the 10-clip dry run: mean **2,189,494 bytes (2.09 MB)**,
   min **985,327**, max **4,924,415 (4.70 MB)**. The bucket cap set in migration 0009 is
   **5,242,880**. The largest clip sits at **93.9% of the cap**, with 318 KB of headroom.
-- **Why it matters:** the encode is `-b:v 0 -crf 36`, constant quality with an **unbounded**
-  bitrate, so a high-motion sequence can produce an arbitrarily large file. With 126 clips
-  still unencoded it is likely, not merely possible, that some exceed the cap - and Storage
-  will reject those uploads, failing the item after paying the full download and encode
-  cost.
-- **Also corrects an estimate:** 136 clips project to about **284 MB** stored, against the
-  ~136 MB assumed when a clip was thought to be ~1 MB.
-- **What would settle it:** either bound the bitrate (`-maxrate` / `-bufsize`, or re-encode
-  at a higher crf when the output exceeds a threshold), or raise the bucket cap. Bounding
-  is preferable, because the cap is a deliberate safety rail and because egress, not
-  storage, is the scarce resource.
-- **Moot if B-25 is decided as audio-only**, since a 20 s Opus stream is ~160 KB. Deferred
-  until B-25 is settled so the work is not done twice.
+- **Closed because B-25 removed video entirely.** The largest object a question now owns is
+  the ~160 KB audio track, and stills are ~30 KB each, so against the 5,242,880-byte cap
+  the worst case is roughly **3%** utilisation. The unbounded-bitrate hazard cannot fire
+  because nothing encodes video any more.
+- **The cap stays as written.** It costs nothing and is now a generous guard rather than a
+  live constraint. What *must* change is `allowed_mime_types`, which migration 0009 pinned
+  to `{video/webm}`: audio and JPEG uploads would be rejected outright. Widening it is
+  folded into migration 0010, and it is a genuine prerequisite — without it the new
+  pipeline fails on its first upload.
+
+### B-27 — `create_room` never persists the host's settings, so `advance_round` reads defaults — OPEN, fix drafted
+- **What:** `create_room` validates `round_count`, `difficulty_min` and `difficulty_max`
+  into local variables, then its INSERT writes **only `code`** (migration 0005, L292). The
+  three settings are used once to pre-select questions and then discarded. `round_count` is
+  written **nowhere** in any migration, yet `advance_round` reads it back off the room row
+  at L535 to decide when the game is over — so it always reads the column default, 10.
+- **Consequences, by what the host picks:**
+
+  | Host picks | Behaviour |
+  | --- | --- |
+  | **10** (the default) | correct, by coincidence |
+  | **3—9** | `v_round > v_count` never trips at the real final round. Rounds past the last have no row, so the round stamp updates nothing and players sit through empty rounds until round 11 |
+  | **11—20** | `GAME_OVER` fires at round 11 and every remaining round is silently discarded |
+
+- **Why it went unnoticed:** the design default and the column default are both 10, so the
+  only round count anyone would exercise casually is the one that happens to work. Neither
+  value is wrong in isolation; the write that should connect them is missing.
+- **Why it blocks B-25 rather than merely coexisting with it:** the audio toggle *is* a room
+  setting. Clients read `audio_enabled` off the room row to decide whether to fetch the audio
+  object at all. Shipping the toggle through a path that drops settings would make it a
+  silent no-op — frames-only rooms would still pay for audio, which is exactly the egress
+  guarantee the decision was chosen for.
+- **Fix:** write the columns in `create_room`'s INSERT rather than adding a follow-up UPDATE,
+  so the room row is correct atomically and cannot be observed half-configured. Being
+  reviewed together with the asset-key design before it goes into migration 0010.
 
 ### B-21 — Free-tier egress is org-shared, and consumption cannot be read — **RESOLVED 2026-08-22**
 - ~~**What:**~~ **What was:** `doc/ARCHITECTURE.md` §10 originally budgeted the full **5 GB** egress
@@ -628,3 +675,66 @@ This substantially reduces classifier dependence but cannot eliminate it: a call
 that matches neither the allow list nor the deny list still needs classification,
 and will still fail if that service is down. If a new capability is needed later,
 add it to the `allow` list rather than relying on auto mode to adjudicate it.
+
+---
+
+## Resolution log — 2026-08-23
+
+Migration `20260823000010_still_assets.sql` was applied live to `mxkqivivqultfuattuin`,
+schema-verified, and then verified behaviourally. It closes three of these items and opens
+one.
+
+### B-25 — IMPLEMENTED
+
+Decided round format is now schema. No video column, no video MIME type, `still_count`
+constrained to 2—3, `rooms.audio_enabled` for the host toggle. See
+`doc/DATA-MODEL.md` §3.1 and `doc/GAME-DESIGN.md` §3.
+
+### B-27 — RESOLVED
+
+`create_room` validated `round_count` / `difficulty_min` / `difficulty_max` and inserted
+none of them. All settings now travel in the same INSERT that generates the room code, so
+a room is never observable half-configured. **Proven:** `round_count=5, audio_enabled=false`
+→ persisted, exactly 5 rounds created. Full breakage analysis in `doc/DATA-MODEL.md` §6.3.
+
+### B-27a — RESOLVED (found while fixing B-27)
+
+**`rounds.clip_key` leaked unplayed content to every room member.**
+`rounds_select_for_members` gates on `is_room_member(room_id)` alone — no
+`ordinal <= current_round` predicate — and `create_room` inserts every round up front.
+With `grant select on rounds`, any player could read the asset key of every *future* round
+during round 1 and fetch it from the public bucket.
+
+No title string leaked, so nothing in the guess-grading path would have caught it. The fix
+removes the data rather than guarding it: `clip_key` is dropped from both tables, keys are
+computed server-side from `question_bank.asset_slug` (a second uuid, deliberately not `id`,
+because `rounds.question_id` *is* client-readable), and delivery moves to
+`get_current_round`, which returns one round and strips the poster always and the audio key
+in stills-only rooms. Rejected alternatives, and why, in `doc/DATA-MODEL.md` §6.6.
+**Proven:** `assets` contained `stills` alone — no `poster`, no `audio`.
+
+### B-28 — OPEN · OCR reliability on stylised anime logos
+
+**The riskiest unverified premise in the pipeline.** Frame selection is now the *only*
+thing standing between a title card and the player, since `nc:true` was measured not to
+protect the answer at all (B-20: 5/10 clips show the title, all ten `nc:true`). The filter
+is `tesseract --psm 11` with `eng+jpn`, run per candidate frame and tuned aggressively —
+a false positive costs one frame out of ~60, a false negative ships the answer.
+
+Anime title logos are the adversarial case for OCR: heavy stylisation, outlines, gradients,
+rotation, overlap with artwork. Tesseract may simply not see them.
+
+Cannot be tested locally: `tesseract`, `ffmpeg` and ImageMagick are all absent from this
+machine (`convert.exe` on PATH is the Windows filesystem converter, not ImageMagick), so
+the workflow's OCR step is provable only in CI.
+
+**Verification plan:** dry-run 10 themes, then inspect the artifact *specifically for false
+negatives* — every surviving still viewed by eye — rather than only checking the run
+went green. A green run proves nothing here.
+
+**Fallback if OCR proves unreliable:** stills-only rooms lose their safety margin, so the
+fallback is not "ship it anyway". Options, in order of preference: bias selection to
+endings (0/4 EDs leaked a title versus 5/6 OPs), sample frames from the back half of the
+sequence where title cards are rare, or gate low-confidence themes into a manual review
+list rather than the question bank.
+

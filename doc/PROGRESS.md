@@ -416,3 +416,97 @@ is the owner's call and not mine.
   **B-26** (bitrate vs the 5 MB cap) is deferred behind it, since audio-only makes it moot.
 - **Next step:** get that decision, then re-encode accordingly and ingest all 136. After
   that, the single-file HTML test page.
+
+---
+
+## 2026-08-23 — Still-frame content model (migration 0010) applied and verified
+
+### What was done
+
+Replaced the one-video-per-question content model with a five-object model (audio, 2—3
+stills, poster), added a per-room audio toggle, fixed a settings-persistence bug, and closed
+a content-leak hole found while fixing it. Migration
+`supabase/migrations/20260823000010_still_assets.sql` (~605 lines) is **applied live** to
+`mxkqivivqultfuattuin`.
+
+### How
+
+**Decided the format from measurement, not preference.** Sampling the 10 dry-run thumbnail
+tiles showed 5 of 10 clips display the anime's title in Latin script while satisfying
+`nc:true, subbed:false, overlap:NONE` (B-20). Split 5/6 openings, 0/4 endings — the title
+card is an opening convention, so a credits-related flag was never going to catch it. Since
+a video window is contiguous, a title card at 0:12 cannot be excluded without losing the
+window; independently chosen stills can be vetted one at a time. The spoiling frame then
+becomes the reveal poster instead of being thrown away.
+
+**Built the frame-quality rule from data.** Measured mean luma, luma std, mean absolute
+gradient and JPEG-bytes-at-q82 over 40 real frames (10 tiles × 2×2 quadrants, PIL + numpy),
+using two known-dead frames as ground truth. A brightness/`blackframe` filter would have been
+actively wrong: the worst frame of the 40 (flat grey) has luma 180.0 and ranks 39/40 on
+brightness. JPEG-bytes-versus-**per-theme** median ranks both dead frames 1st and 2nd; the
+median must be per-theme because one theme's frames all sit below the global median. Written
+up as `doc/RESEARCH.md` §4.10.
+
+**Wrote the migration defensively.** A guard DO-block refuses to run if `question_bank` or
+the bucket is non-empty, turning "ran this too late" into a loud failure instead of silent
+divergence. Bucket limits were **tightened** rather than widened: `video/webm` removed
+outright, 5 MB → 512 KB. Renamed `clips` → `media` while empty, the only moment that is free.
+
+**Two failures worth recording.** First apply died on
+`delete from storage.buckets where id='clips'` — `storage.protect_delete()` raises `42501`
+on any direct delete; because Management API multi-statement queries run as one transaction,
+the entire migration rolled back. Replaced with a comment; second apply clean. Separately,
+two Oracle consultations returned empty after 7m43s and 2m10s, bringing failed specialist
+invocations to 4 across 2 agent types — the asset-key design was decided directly.
+
+### What it changed in the live project
+
+- `question_bank`: `+asset_slug uuid unique`, `+still_count smallint check 2..3`,
+  `duration_seconds` → `audio_seconds`, `bytes` → `bytes_total`, `clip_key` **dropped**.
+- `rounds.clip_key` **dropped**; `rooms.audio_enabled boolean not null default true` added.
+- New `question_asset_keys` (sole definition of the Storage layout) and `get_current_round`
+  (sole delivery path for asset keys). `create_room` and `ingest_question` at v2.
+- Storage: `media` bucket, public read, `{audio/webm, image/jpeg}`, 512 KB cap.
+- Content rows: still **0** — nothing to migrate, by design.
+
+### Security fix included
+
+`rounds.clip_key` handed every room member the asset keys of all *future* rounds:
+`rounds_select_for_members` gates on membership alone and `create_room` pre-inserts all
+rounds, so round 1 exposed the whole game from a public bucket. Fixed by removing the data,
+not guarding it. Keys now derive from `asset_slug`, which lives only on the ungranted
+`question_bank` — not from `id`, because `rounds.question_id` is client-readable and
+id-derived keys would rebuild the same leak. Rejected an `ordinal <= current_round` RLS
+predicate (permanently correctness-critical) and the ROUND_START broadcast (public channel,
+~1M room-code keyspace). See B-27a.
+
+### Verified
+
+Schema verification confirmed every column, constraint, function signature, bucket and
+policy, and that `clip_key` is absent from **every** table. Behavioural test then proved the
+parts schema cannot: `round_count=5` persisted with exactly 5 rounds (B-27 dead),
+`audio_enabled=false` persisted, `get_current_round` returned ordinal 1 with 3 stills and
+**neither poster nor audio**, and zero residue after rollback.
+
+### What became possible next
+
+The write path's contract is now fixed and proven, so `.github/workflows/curate.yml` can be
+rewritten against a stable target: one source download → audio + ~60 candidate frames +
+poster, per-theme-median detail filter, OCR spoiler filter, five uploads, `ingest_question`
+v2. Egress arithmetic is now known for both modes: ~120 KB/round/player stills-only
+(~530 games/month inside 5 GB) versus ~280 KB with audio (~220 games/month); 136 questions
+≈ 38 MB stored.
+
+### Still unproven
+
+The Storage upload path and RPC-over-curl have never executed. **B-28** is the real risk:
+OCR against stylised anime logos is now the only thing protecting the answer, it cannot be
+tested locally (no `tesseract`/`ffmpeg`/ImageMagick), and a green CI run does not prove it
+— the artifact must be inspected for false negatives by eye.
+
+### Docs updated in this pass
+
+`doc/DATA-MODEL.md` 736 → 878 lines (§3.1, §4.1, §4.3, §6.3, new §6.6, §8.3, §8.4, §9);
+`doc/GAME-DESIGN.md` §1 row 1 and §3; `doc/RESEARCH.md` §4.10 (→ 1275 lines);
+`doc/BLOCKERS.md` resolution log (B-25 implemented, B-27 + B-27a resolved, B-28 opened).
+

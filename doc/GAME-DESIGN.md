@@ -12,7 +12,7 @@ come from `doc/BLOCKERS.md`.
 
 | # | Decision | Choice |
 | --- | --- | --- |
-| 1 | What the player gets each round | **Video, muted during guessing, revealed after** |
+| 1 | What the player gets each round | **2–3 progressively revealed still frames, text-free; audio optional per room** (revised 2026-08-23, §3) |
 | 2 | How the player answers | **Free text with fuzzy matching** |
 | 3 | Player model | **Realtime multiplayer rooms** |
 | 4 | Content pool | **Curated pool from a popularity cut** |
@@ -134,14 +134,41 @@ the advantage a patient cheater gains.
 
 ---
 
-## 3. Media delivery — **DECIDED 2026-08-22**
+## 3. Media delivery — **DECIDED 2026-08-22, CONTENT MODEL REVISED 2026-08-23**
 
-**Decision: Option B — preprocess curated clips into Supabase Storage, re-encoded to
-~1 MB per clip.**
+**Decision: Option B — preprocess into Supabase Storage.** The transport half of this
+decision stands and everything below it still applies. What each question *contains*
+changed on 2026-08-23 (`doc/BLOCKERS.md` B-25), so read Option A/B as an argument about
+hot-linking versus preprocessing, not about video.
 
-Both options assume the `nc: true` variant-selection rules in `doc/RESEARCH.md` §4.8,
-which are mandatory: a credited video can burn the show's title into the picture
-and give the answer away.
+**No video is stored or served, ever.** Each question is five objects: one ~160 KB Opus
+audio track, two or three text-free stills, and one poster used only on reveal
+(`doc/DATA-MODEL.md` §8.3). A round reveals stills progressively at roughly 0 s / 7 s /
+14 s; the reveal then shows poster + title. The host chooses **stills-only** or
+**audio + stills** when creating the room (`rooms.audio_enabled`).
+
+**Why stills instead of a muted video window.** A video window is contiguous, and that is
+the whole problem. `-ss 5 -t 20` takes whatever happens to be in that span, and OP title
+cards routinely land inside the first ~15 s — the exact window a 20-second round wants.
+There is no way to exclude a title card at 0:12 without discarding the surrounding footage
+too. Stills are chosen *independently*, so each one can be vetted on its own and a spoiling
+frame simply is not picked. The reveal is strictly better as well: the frame that spoils
+the round is the ideal poster, so the title card graduates from liability to asset instead
+of being discarded.
+
+**Correction: `nc: true` never protected the answer.** The previous text here claimed the
+credit-free variant rules in `doc/RESEARCH.md` §4.8 were mandatory because a credited video
+"can burn the show's title into the picture and give the answer away". That was measured on
+2026-08-23 and is false: **5 of 10** sampled clips display the title in Latin script, and
+all ten satisfied `nc:true, subbed:false, overlap:NONE` (`doc/BLOCKERS.md` B-20). The split
+was 5 of 6 openings versus 0 of 4 endings — the title card is an *opening* convention, not a
+credits artefact, so a flag about credits was never going to catch it.
+
+The `nc:true` constraint is kept, but for a weaker and honest reason: credit-free sources
+carry less on-screen text overall, so they yield more usable frames per sequence. The thing
+that actually protects the answer is per-frame OCR rejection at selection time
+(`doc/RESEARCH.md` §4.10), and it is the riskiest unverified premise in the pipeline
+(`doc/BLOCKERS.md` B-28).
 
 ### Option A — hot-link AnimeThemes directly · REJECTED
 

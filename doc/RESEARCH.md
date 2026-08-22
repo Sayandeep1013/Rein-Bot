@@ -1070,6 +1070,76 @@ beyond the site ToS. Not found; not obviously existing.
 
 ---
 
+### 4.10 Frame quality — MEASURED 2026-08-23
+
+Once B-20 forced the round away from video and onto still frames (doc/BLOCKERS.md
+B-25), the pipeline needed a rule for "is this frame worth showing". The obvious
+implementation is wrong, and this was established by measurement rather than argument.
+
+**What was measured.** The dry-run artifact `.tmp/artifact/curate-0-10/thumbs/*.jpg`
+holds ten 640x360 contact sheets, each a 2x2 mosaic of four frames sampled across one
+theme — **40 real frames** from the actual content source. Each was split into its
+320x180 quadrants and scored four ways with PIL and numpy: mean luma, luma standard
+deviation, mean absolute gradient ("edge density"), and the byte size of a re-encode at
+a fixed JPEG quality of 82.
+
+Two of the 40 frames are independently known to be unusable: `DeathNote-ED1` quadrant 3
+is a flat grey field, and `FullmetalAlchemistBrotherhood-OP2` quadrant 1 is near-black.
+They are the ground truth the four scores were tested against.
+
+**Result — rank of each known-bad frame out of 40, where rank 1 means "most
+rejectable":**
+
+| Score | flat-grey frame | near-black frame | Usable as a rejection rule? |
+| --- | --- | --- | --- |
+| mean luma | **39** | 1 | **No** |
+| luma std dev | 1 | 2 | Not on its own |
+| edge density | 1 | 2 | Yes |
+| JPEG bytes @ q82 | 1 | 2 | Yes |
+
+**A brightness rule is actively wrong, not merely weak.** The worst frame in the set
+has mean luma **180.0** — it is a bright flash, not a dark one — and therefore
+ranks 39th of 40 on brightness, i.e. a near-black test would grade it as one of the
+*best* frames in the sample. `ffmpeg`'s `blackframe` filter is the obvious off-the-shelf
+choice here and it would have passed this frame straight into a round. Its actual
+signature is absence of *variation*, not absence of *light*: std dev 0.2 and edge
+density 0.01, both the lowest of all 40.
+
+**Standard deviation alone is also insufficient.** `DeathNote-OP1` quadrant 2 scores std
+93.4, third-highest in the set, while its edge density is 1.81 and its re-encode is 48%
+of the sample median. It is a bimodal frame — a large flat bright region against a
+large flat dark one — so its distribution is wide while its detail is poor. Only edge
+density and JPEG size agree that it is weak.
+
+**Chosen rule: JPEG bytes at fixed quality, relative to the per-theme median.** At a
+fixed quality setting, encoded size is a direct proxy for visual complexity: flat fields
+and motion blur compress small, detailed artwork compresses large. It ranks the known-bad
+frames identically to computed edge density while requiring **no tooling beyond the JPEG
+encoder already in the pipeline** — no ImageMagick, no OpenCV, no numpy in CI.
+
+Cutting at **45% of the median** encoded size rejects 3 of 40 frames: the flat grey, the
+near-black, and one further near-black at 40%. All ten themes retain at least two
+survivors, which is the minimum the round format needs.
+
+The median must be computed **per theme, not across the library.** Every frame of
+`DeathNote-ED2` (4651—7095 bytes) sits below the 40-frame global median of 8894; a
+uniformly dark, moody sequence would be wholly rejected by a global threshold while
+being perfectly playable. The question being asked is "which frames of *this* sequence
+are the good ones", and that is inherently a relative question.
+
+**Two limits on this result, stated plainly.**
+
+- These are quadrants of downscaled contact sheets, so the **absolute** byte figures do
+  not transfer to full-resolution stills. The ratio-to-median does, and the rule is
+  expressed as a ratio for exactly that reason.
+- This validates only the *quality* half of frame selection. The *spoiler* half —
+  whether OCR can actually detect a stylised anime title logo — is *not* yet proven.
+  `tesseract` is not installed on the development machine, so that assumption can only
+  be tested in CI, and it remains the single riskiest unverified premise in the pipeline:
+  a false negative ships a frame that spells out its own answer, which is precisely the
+  failure B-20 documented. The first dry run of the new pipeline must be inspected for
+  this specifically, not just for crashes.
+
 ## 5. AniList terms of use — closes blocker B-5
 
 Source: `https://docs.anilist.co/guide/terms-of-use`, read **2026-08-21**. The

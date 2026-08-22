@@ -70,9 +70,10 @@ directly by clients** (§7.1).
 ```sql
 create table question_bank (
   id                  uuid primary key default gen_random_uuid(),
-  clip_key            text        not null unique,
-  duration_seconds    int         not null,
-  bytes               int         not null,
+  asset_slug          uuid        not null unique default gen_random_uuid(),
+  still_count         smallint    not null check (still_count between 2 and 3),
+  audio_seconds       int         not null,
+  bytes_total         int         not null,
 
   -- provenance
   animethemes_video_id  int,
@@ -106,9 +107,35 @@ create table question_bank (
 );
 ```
 
-**`clip_key` must be an opaque identifier, never the AnimeThemes basename.**
-`KimiSen-OP1-NCBD1080.webm` spells the answer in the network panel
-(`doc/GAME-DESIGN.md` §2.1). Use the row's own uuid: `clips/{uuid}.webm`.
+**Amended by migration `20260823000010_still_assets.sql`.** A question no longer owns
+one video; it owns five objects — one audio, two or three stills, one poster
+(`doc/BLOCKERS.md` B-25). `clip_key`, `duration_seconds` and `bytes` are gone, replaced
+by the four columns above.
+
+**Object keys are derived from `asset_slug`, and `asset_slug` is deliberately NOT the
+row's `id`.** The old rule — "use the row's own uuid" — became a content leak the
+moment a question owned more than one object. `rounds.question_id` is readable by every
+room member (§7.2), and `create_room` pre-selects every round of the game up front, so a
+player can read the `question_id` of every *future* round during round 1. If keys are a
+function of that id, then reading the id is equivalent to holding the keys, and because
+the bucket is public-read, holding the keys is equivalent to holding the content.
+
+`asset_slug` is an independent random uuid living only on `question_bank`, which carries
+no client grant at all (§7.1). Keys are computed server-side by
+`question_asset_keys(asset_slug, still_count)`, the single place the Storage layout is
+written down. Two uuids per row is intentional: `id` is public, `asset_slug` is not.
+They are not meant to agree.
+
+**`still_count` is 2 or 3, never 0 or 1.** Frame selection rejects any frame containing
+text and any frame too flat to be recognisable (`doc/RESEARCH.md` §4.10), so yield per
+sequence varies. One usable frame is not a guessable round, so the check makes that row
+unrepresentable rather than merely discouraged; `ingest_question` also raises
+`INSUFFICIENT_STILLS` first so a CI log states the reason instead of quoting a
+constraint name. The upper bound is 3 because the progressive reveal has three slots.
+
+The same migration adds **`rooms.audio_enabled`** (host toggle, §4.1), fixes
+**`create_room`** to persist the settings it validates (`doc/BLOCKERS.md` B-27), and adds
+**`get_current_round`** as the only way asset keys reach a client (§6.6).
 
 **The three `check` constraints are the point.** `doc/ARCHITECTURE.md` §8.1 states the
 variant-selection rules as pipeline policy; encoding them as constraints means a unsafe
@@ -172,6 +199,7 @@ create table rooms (
                      check (round_count between 3 and 20),
   round_duration   interval    not null default '20 seconds',
   reveal_duration  interval    not null default '8 seconds',
+  audio_enabled    boolean     not null default true,
 
   difficulty_min   smallint    not null default 1 check (difficulty_min between 1 and 5),
   difficulty_max   smallint    not null default 5 check (difficulty_max between 1 and 5),
@@ -249,7 +277,6 @@ create table rounds (
   ordinal      smallint not null,
   question_id  uuid     not null references question_bank(id),
 
-  clip_key     text     not null,
   started_at   timestamptz,
   ends_at      timestamptz,
 
@@ -260,10 +287,23 @@ create table rounds (
 create index rounds_by_room on rounds (room_id);
 ```
 
-**`clip_key` is denormalised from `question_bank` deliberately.** It means `rounds` can
-be exposed to clients wholesale without a join to the content tables, so there is no
-path from a client-readable row to an answer. `question_id` is kept for provenance and
-is harmless to expose because `question_bank` carries no client grant at all (§7.1).
+**`clip_key` was removed from `rounds` by migration `20260823000010`, and the reasoning
+that put it here was wrong.** The original argument appears above in spirit: `rounds`
+could be exposed to clients wholesale because no join reached an answer. That is true of
+the *answer* and false of the *content*. `rounds_select_for_members` gates on room
+membership alone — there is no `ordinal <= current_round` predicate — and
+`create_room` inserts every round up front, so the denormalised key handed each player
+the asset key of every future round. Nothing leaked the title *string*; the artwork and
+audio for rounds not yet played were directly fetchable, the bucket being public-read.
+
+The stated benefit did not survive scrutiny either. Avoiding a join to `question_bank`
+was never necessary: the round is served by a `SECURITY DEFINER` function, which reads
+that table regardless of grants.
+
+Assets now reach clients only through `get_current_round` (§6.6), which re-checks
+membership and returns one round. `question_id` stays on the row and remains harmless:
+`question_bank` and `question_titles` carry no client grant (§7.1), and keys derive from
+`asset_slug`, which lives only on `question_bank`.
 
 `unique (room_id, question_id)` prevents the same clip appearing twice in one game.
 
@@ -478,6 +518,29 @@ range, generates a short code, and retries on collision against `rooms.code`'s u
 index. It selects the round's questions up front — filtered by `difficulty_min/max`,
 excluding `retired_at is not null` — so a game cannot begin and then run out of content.
 
+**Fixed by migration `20260823000010` (`doc/BLOCKERS.md` B-27).** v1 validated all three
+settings and then inserted **none** of them: `insert into rooms (code) values (v_code)`
+discarded `round_count`, `difficulty_min` and `difficulty_max`, leaving every room on the
+column defaults. The bug was invisible because the default `round_count` is 10 and 10 was
+the value everyone tested. Off the default it broke both ways: a 5-round room built 5
+rounds but `advance_round` compared against 10, so the game never ended at the real last
+round and served empty rounds until 11; a 15-round room ended at 11 and silently discarded
+the rest. The difficulty bounds were harmless-but-wrong — used in the selection CTE, then
+never re-read.
+
+The fix carries every setting in the **same INSERT** that generates the code, so a room is
+never observable half-configured. `host_player_id` remains a separate UPDATE, because that
+is a genuine circular dependency: the row must exist before a player can reference it.
+
+`p_settings` also accepts **`audio_enabled`** (default `true`), the host's toggle between
+the two round formats — stills-only, or audio + stills (`doc/GAME-DESIGN.md` §3). It is a
+boolean rather than a mode enum: that matches the flat-column style of the table and the
+toggle the host actually sees, and a speculative third format is one more column later
+rather than an enum whose values must be interpreted everywhere today.
+
+Verified end-to-end 2026-08-23: `round_count=5, audio_enabled=false` → row persisted with
+those values and exactly 5 rounds created.
+
 `join_room(p_code text, p_display_name text)` inserts a `players` row, surfacing the
 two unique violations as friendly errors ("name taken", "already in this room") rather
 than raw SQL errors. Rejects rooms not in `lobby`.
@@ -588,6 +651,49 @@ guard inside `advance_round`, where `state` is not written (`doc/GAME-DESIGN.md`
 Callable by the host only; every other player waits for the broadcast. Double-clicking
 "Start" is harmless by the gate above.
 
+### 6.6 `get_current_round(p_room_id uuid) → jsonb`
+
+**Added by migration `20260823000010`.** The only path by which an asset key reaches a
+client. `security definer`, `stable`, granted to `authenticated` only.
+
+```
+{ state, ordinal, ends_at, audio_enabled,
+  assets: { stills: [key, ...], audio?: key } }
+```
+
+It re-checks `is_room_member(p_room_id)` rather than trusting the caller, reads the
+room's `current_round`, and returns **that round only**. Keys come from
+`question_asset_keys(asset_slug, still_count)` (§3.1), so the Storage layout is written
+down once.
+
+**Two keys are withheld, for two different reasons.**
+
+`poster` is removed **always**, and this is a correctness requirement, not caution. The
+poster is the title card — frame selection deliberately harvests it from the frames the
+OCR filter *rejected* for containing text (`doc/RESEARCH.md` §4.10). The single most
+spoiling frame in the sequence is exactly the frame the reveal wants, so it is the one
+frame that must not ship early. Returning it during play would hand over the answer in a
+form no fuzzy-match rule can intercept.
+
+`audio` is removed when `audio_enabled` is false, and that is an **egress control, not a
+security control**. The bucket is public-read, so a determined player who guessed the key
+could fetch the audio regardless; the point is that in a stills-only room nobody should
+be *handed* a key to ~160 KB the host explicitly opted out of. Omitting it means a
+client-side bug cannot spend the bandwidth the toggle exists to save (§10 arithmetic:
+~120 KB/round stills-only versus ~280 KB with audio).
+
+**Why an RPC rather than the two alternatives.** Keeping `clip_key` on `rounds` and adding
+an `ordinal <= current_round` predicate to `rounds_select_for_members` was rejected: it
+makes a correctness-critical security property depend on a policy expression that must stay
+right through every future change to round progression, and it still exposes the key for
+the current round to a spectator who is merely a member. Putting keys in the ROUND_START
+broadcast was rejected because `emit_room_event` publishes with `realtime.send(..., false)`
+— a public channel keyed by a 4-character room code, a keyspace of about 1M. Neither
+alternative removes the data; only dropping the column does.
+
+Verified 2026-08-23 against the live database: in a room with `audio_enabled=false`,
+`assets` contained `stills` alone — no `poster`, no `audio`.
+
 ---
 
 ## 7. RLS and grants
@@ -675,7 +781,25 @@ periodic write activity helps mitigate the 7-day inactivity auto-pause (B-16).
 
 ### 8.3 Storage
 
-One bucket, `clips`, objects keyed `clips/{question_bank.id}.webm`.
+One bucket, `media`, five objects per question, all keyed from `question_bank.asset_slug`
+and never from `id` (§3.1):
+
+| Object | Key | Approx |
+| --- | --- | --- |
+| audio | `audio/{asset_slug}.webm` | ~160 KB Opus |
+| still *n* | `stills/{asset_slug}-{n}.jpg`, *n* = 1..`still_count` | ~30 KB each |
+| poster | `posters/{asset_slug}.jpg` | ~30 KB |
+
+The bucket was renamed from `clips` while it was empty, the only moment that is free.
+Its limits **tightened** rather than widened: `allowed_mime_types` is
+`{audio/webm, image/jpeg}` with `video/webm` *removed*, so the one upload the design
+forbids is now impossible; `file_size_limit` dropped 5 MB → 512 KB, since the largest
+object is ~160 KB and the old ceiling existed to catch a transcode that passed the
+~40 MB source through.
+
+The empty `clips` bucket still exists. Supabase's `storage.protect_delete()` trigger
+rejects any direct `DELETE` on `storage.buckets` (`42501`), so removing it is a Storage
+API call rather than schema. Its read policy is dropped, so it is inert.
 
 Public read with unguessable uuid keys, rather than signed URLs. Signed URLs would add a
 round trip per round and defeat CDN caching; since the original concern was that the
@@ -704,25 +828,43 @@ service_role key, which bypasses RLS.
    function `grade_guess` applies to the player's guess (3). A pipeline that normalised
    titles itself would let the two implementations drift, and answers would silently
    stop matching with nothing wrong on either side.
-2. The caller passes a bare `clip_uuid`; the function derives **both** `id` and
-   `clip_key` from it. Accepting `clip_key` directly would create two independent uuids
-   that must agree forever, and the first disagreement is a live round resolving to a
-   missing object. Deriving the key server-side also means the AnimeThemes basename
-   cannot be supplied at all, rather than being rejected by a guard.
+2. No object key is ever supplied by the caller. The pipeline passes `asset_slug` and
+   `still_count`; every key is computed by `question_asset_keys` (§3.1). The AnimeThemes
+   basename therefore cannot be supplied at all, rather than being rejected by a guard.
 
-Because the pipeline chooses the uuid, it uploads the object **before** inserting the
-row. The reverse order can leave a row pointing at bytes that never arrived.
+**Amended by migration `20260823000010`.** v1 took a single `clip_uuid` and derived both
+`id` and `clip_key` from it. v2 takes `asset_slug` (plus `still_count`, `audio_seconds`,
+`bytes_total`) and lets `id` default independently.
 
-The function is idempotent on the uuid, so a batch that fails partway can be retried;
-it raises `NO_TITLES` rather than inserting an unwinnable question; and it is granted to
-`service_role` only, with `anon` and `authenticated` explicitly revoked (7.1).
+That reverses the shape of the original rule, so it is worth being precise about what the
+rule was protecting. The 0008 warning was against **a derived key string disagreeing with
+the row that owns it** — one uuid in the path, another in the column, and a live round
+resolving to a missing object. It was never an argument that a row may hold only one
+uuid. Here the second uuid exists precisely because the two values need different
+visibility: `id` is client-readable, `asset_slug` must not be (§3.1). Nothing has to
+agree, because no key is stored — keys are a pure function of `asset_slug`, computed in
+one place.
+
+Because the pipeline chooses `asset_slug`, it uploads all five objects **before**
+inserting the row. The reverse order can leave a row pointing at bytes that never
+arrived, and with five objects the window is five times wider.
+
+The function is idempotent on `asset_slug`, so a batch that fails partway can be retried
+without duplicating rows or orphaning uploads. Its named failures are `MISSING_ASSET_SLUG`
+(caller bug), `INSUFFICIENT_STILLS` (fewer than 2 usable frames survived selection —
+the theme is skipped, not degraded) and `NO_TITLES (slug %)`, which refuses to insert an
+unwinnable question and now identifies *which* one in a 136-item CI log. It is granted to
+`service_role` only, with `anon` and `authenticated` explicitly revoked (§7.1).
 
 ---
 ## 9. Open items
 
 | Item | Blocks | Tracked |
 | --- | --- | --- |
-| Nothing validated against a live database | All of it, weakly | B-19 |
+| OCR reliability on stylised anime logos is unverified; no local `tesseract`, so it is provable only in CI | Content correctness of every question | **B-28** |
+| ~~Nothing validated against a live database~~ **CLOSED 2026-08-23** — migrations 0001—0010 applied to `mxkqivivqultfuattuin` and schema-verified; `create_room`/`get_current_round` proven behaviourally (§6.6) | Nothing | ~~B-19~~ |
+| ~~`rounds.clip_key` hands every room member the asset keys of all future rounds~~ **RESOLVED 2026-08-23** — column dropped, delivery moved to `get_current_round` (§4.3, §6.6) | Nothing | **B-27a** |
+| ~~`create_room` validates `round_count` / `difficulty_min` / `difficulty_max` then inserts none of them~~ **RESOLVED 2026-08-23** — single INSERT carries all settings; verified `round_count=5` → 5 rounds | Nothing | **B-27** |
 | ~~§4.3 says Damerau–Levenshtein; `fuzzystrmatch` has only Levenshtein~~ **AMENDED 2026-08-22** — §4.3 now specifies `levenshtein_less_equal`, proof in §4.3.1 | Nothing | §2.1 |
 | ~~**CONTRADICTION:** §6.2 scores *every* correct guess 100–200; `grade_guess` step 7 scores a correct-but-second guess **0**~~ **RESOLVED 2026-08-22** — winner-takes-all chosen, so the `0` is correct and `doc/GAME-DESIGN.md` §6.2 was rewritten to match | Nothing | **B-22** |
 | ~~**BROKEN:** `rounds.started_at` / `ends_at` are never written by any function; grading compares against `NULL` and rejects every guess~~ **RESOLVED 2026-08-22** — stamped by `start_game` (§6.5) for round 1 and `advance_round` (§6.4) thereafter, both behind the race gate | Nothing | **B-23** |
