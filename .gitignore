@@ -1,0 +1,45 @@
+# --- Secrets -----------------------------------------------------------------
+# This repository is intended to be public. .env.local holds a real Supabase
+# personal access token; it must never be committed.
+.env.local
+.env*.local
+.env
+!.env.example
+
+# --- Scratch -----------------------------------------------------------------
+# CLAUDE.md mandates that temp output lives in .tmp/ inside this folder.
+.tmp/
+
+# Agent scratch state
+.sisyphus/
+
+# Machine-specific agent settings; .claude/settings.json IS committed on purpose
+# (CLAUDE.md keeps permissions config inside the project).
+.claude/settings.local.json
+
+# --- Node / Vercel (implementation phase) ------------------------------------
+node_modules/
+dist/
+build/
+.next/
+.vercel/
+*.tsbuildinfo
+
+# --- Supabase CLI ------------------------------------------------------------
+supabase/.temp/
+supabase/.branches/
+
+# --- Media -------------------------------------------------------------------
+# Transcoded clips belong in Supabase Storage, never in git.
+*.webm
+*.mp4
+*.mkv
+
+# --- Logs / OS / editor ------------------------------------------------------
+*.log
+npm-debug.log*
+Thumbs.db
+Desktop.ini
+.DS_Store
+.idea/
+*.swp

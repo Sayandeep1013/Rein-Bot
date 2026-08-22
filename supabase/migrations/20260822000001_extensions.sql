@@ -1,0 +1,31 @@
+-- 20260822000001_extensions.sql
+-- ReIN Bot -- required Postgres extensions.
+--
+-- Neither of these was installed on this project. Verified 2026-08-22 against
+-- pg_extension on mxkqivivqultfuattuin: only pg_stat_statements 1.11, pgcrypto 1.3,
+-- plpgsql 1.0, supabase_vault 0.3.1 and uuid-ossp 1.1 were present. Both are
+-- genuinely required, not conveniences:
+--
+--   unaccent       diacritic folding for normalise_title  (GAME-DESIGN.md 4.2 step 2)
+--   fuzzystrmatch  levenshtein_less_equal() near-match     (GAME-DESIGN.md 4.3.1)
+--
+-- fuzzystrmatch ships plain Levenshtein only. It has NO Damerau-Levenshtein, so a
+-- transposition costs 2 rather than 1. This was proven from the extension source
+-- rather than by trial: the cost-parameterised variant takes (ins, del, sub) with no
+-- transposition cost. Consequence, accepted deliberately: 'Bleach' -> 'Belach' will
+-- NOT match at threshold 1. That errs toward false negatives, which is the safe
+-- direction for a scoring function.
+--
+-- Supabase installs extensions into the dedicated `extensions` schema. That schema is
+-- NOT on the search_path of any function in this project, because they all run with
+-- `set search_path = ''` to close the CVE-2018-1058 mutable-search_path hole. Every
+-- call site must therefore fully qualify: extensions.unaccent(...),
+-- extensions.levenshtein_less_equal(...). Such a mistake does not surface at CREATE
+-- time -- only at first execution -- so functions are execution-tested, not just
+-- created. See 20260822000002 for the wrapper this forces.
+--
+-- gen_random_uuid() needs no extension: it has been a core pg_catalog function since
+-- PG 13 and this project runs PG 17.6.1.155. pgcrypto is present regardless.
+
+create extension if not exists unaccent      with schema extensions;
+create extension if not exists fuzzystrmatch with schema extensions;
