@@ -57,6 +57,11 @@ jobs:
       # Bucket ceiling from migration 0009 (file_size_limit = 5242880). Checked locally so
       # an oversized clip is reported with its real size instead of a bare 413 from Storage.
       MAX_BYTES: "5242880"
+      # Courtesy, not a workaround. A bare ranged GET to v.animethemes.moe was verified
+      # locally to return 206 with no User-Agent at all, so this is not what fixes the
+      # 5XX failures - the retry loop below is. This just makes our traffic identifiable
+      # to AnimeThemes so they can contact us instead of guessing who is hammering them.
+      UA: "GuessTheAnime-curate/1.0 (+https://github.com/Sayandeep1013/Rein-Bot)"
 
     steps:
       - uses: actions/checkout@v4
@@ -144,7 +149,7 @@ jobs:
           : > report.tsv
           printf 'status\tbasename\tuuid\tseconds\tbytes\tnote\n' >> report.tsv
 
-          ok=0; failed=0; skipped=0
+          ok=0; failed=0; skipped=0; processed=0
 
           # Reading on FD 3, not stdin. ffmpeg has an interactive console and reads stdin
           # when it is a pipe, so with `done < jobs.jsonl` it swallowed the remaining job
@@ -154,6 +159,15 @@ jobs:
           # future command in the body that decides to read stdin.
           while IFS= read -r job <&3; do
             [ -z "$job" ] && continue
+
+            # Pace the AnimeThemes fetches. This sits at the TOP of the loop on purpose.
+            # A pause at the bottom is unreachable exactly when it is needed: every error
+            # path below uses `continue`, and the dry-run path exits the iteration before
+            # the end, so a dry run never paced at all. That is how run 32586647506 pulled
+            # ~200 MB in about two minutes and earned five consecutive 5XXs. Guarded on
+            # `processed` so the first item does not pay the cost.
+            if [ "$processed" -gt 0 ]; then sleep 5; fi
+            processed=$((processed + 1))
 
             basename=$(jq -r '.basename' <<< "$job")
             link=$(jq -r '.link // empty' <<< "$job")
@@ -180,15 +194,36 @@ jobs:
             # Skipping the first 5s avoids the near-silent intro on many OPs.
             # -map_metadata -1 -map_chapters -1 is a correctness requirement, not tidiness:
             # source containers carry title tags that would hand the player the answer.
-            if ! ffmpeg -nostdin -hide_banner -loglevel error -y \
-                  -ss 5 -i "$link" -t 20 \
-                  -map_metadata -1 -map_chapters -1 \
-                  -vf "scale=-2:480" \
-                  -c:v libvpx-vp9 -b:v 0 -crf 36 -row-mt 1 -deadline good -cpu-used 4 \
-                  -c:a libopus -b:a 64k -ac 2 \
-                  -f webm "$out"; then
-              echo "::error::transcode failed for $basename"
-              printf 'FAIL\t%s\t%s\t\t\ttranscode failed\n' "$basename" "$uuid" >> report.tsv
+            #
+            # Retried with backoff because AnimeThemes returned 5XX on five consecutive
+            # items after the first five had pulled ~200 MB in two minutes. A 5XX is
+            # transient by definition and the run that discovered this threw away half a
+            # batch by treating the first one as fatal. -user_agent identifies this crawler
+            # to a free community service; it is courtesy, not a workaround (a plain ranged
+            # GET with no UA was verified to return 206).
+            attempt=0; max_attempts=3; transcoded=0
+            while [ "$attempt" -lt "$max_attempts" ]; do
+              attempt=$((attempt + 1))
+              if ffmpeg -nostdin -hide_banner -loglevel error -y \
+                    -user_agent "$UA" \
+                    -reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 30 \
+                    -ss 5 -i "$link" -t 20 \
+                    -map_metadata -1 -map_chapters -1 \
+                    -vf "scale=-2:480" \
+                    -c:v libvpx-vp9 -b:v 0 -crf 36 -row-mt 1 -deadline good -cpu-used 4 \
+                    -c:a libopus -b:a 64k -ac 2 \
+                    -f webm "$out"; then
+                transcoded=1; break
+              fi
+              if [ "$attempt" -lt "$max_attempts" ]; then
+                backoff=$((attempt * 20))
+                echo "attempt ${attempt}/${max_attempts} failed for ${basename}, waiting ${backoff}s"
+                sleep "$backoff"
+              fi
+            done
+            if [ "$transcoded" -ne 1 ]; then
+              echo "::error::transcode failed for $basename after ${max_attempts} attempts"
+              printf 'FAIL\t%s\t%s\t\t\ttranscode failed after %s attempts\n' "$basename" "$uuid" "$max_attempts" >> report.tsv
               failed=$((failed + 1)); echo "::endgroup::"; continue
             fi
 
@@ -295,9 +330,6 @@ jobs:
             printf 'OK\t%s\t%s\t%s\t%s\t\n' "$basename" "$uuid" "$dur" "$bytes" >> report.tsv
             ok=$((ok + 1))
             echo "::endgroup::"
-            # Courtesy pause; AnimeThemes allows 90 req/min and an encode already takes far
-            # longer than that, but this keeps a cached-source fast path from bursting.
-            sleep 1
           done 3< jobs.jsonl
 
           {

@@ -44,7 +44,7 @@ Three properties drive every decision below:
 
 | Layer | Choice | Why |
 | --- | --- | --- |
-| Frontend | Vercel Hobby (static + client JS) | Free, no domain needed. Edge Functions *cannot* serve HTML without a custom domain (`doc/RESEARCH.md` §3.5) |
+| Frontend | **GitHub Pages** (static HTML + client JS, no build step) | Free, no domain needed, and the licence permits a non-commercial game where Vercel Hobby did not (`doc/RESEARCH.md` §3.9) |
 | Realtime transport | Supabase Realtime | Only free option that survived review; 200 peak connections |
 | Authority / state | Supabase Postgres | Transactional; see §4 |
 | Server logic (data) | Postgres functions via PostgREST | One hop, atomic; §5.2 |
@@ -54,43 +54,71 @@ Three properties drive every decision below:
 | Content source | AnimeThemes.moe | No key, no auth, stable URLs (`doc/RESEARCH.md` §4) |
 
 **Rejected:** Vercel Functions as room server (300 s cap vs 280 s game, billed live,
-no cross-instance state — `doc/RESEARCH.md` §3.8); Cloudflare Durable Objects (stack
-mandated to Vercel + Supabase); trace.moe as content source (it is a labeller, not a
-source — `doc/RESEARCH.md` §1.1); AniList (terms prohibit mass collection, §5).
+no cross-instance state — `doc/RESEARCH.md` §3.8); **Vercel Hobby for static hosting**
+(superseded 2026-08-22 by GitHub Pages, whose licence permits a non-commercial game
+where Hobby forbade all commercial use — `doc/RESEARCH.md` §3.9); Cloudflare Durable
+Objects (stack settled on Supabase); trace.moe as content source (it is a labeller, not
+a source — `doc/RESEARCH.md` §1.1); AniList (terms prohibit mass collection, §5).
 
 ---
 
 ## 3. Component map
 
 ```
-                    ┌─────────────────────────────┐
-   one-off /         │   GitHub Actions (ffmpeg)   │
-   scheduled         │   transcode → ~1 MB clips   │
-                     └──────────────┬──────────────┘
-                                    │ upload
-┌──────────────────┐                ▼
-│ AnimeThemes.moe  │◄──fetch──┬──────────────────┐
-│  GraphQL + CDN   │          │  Edge Functions  │
-└──────────────────┘          │  ingest, curate, │
-                              │  difficulty calc │
-                              └────────┬─────────┘
-                                       │ writes question bank
-                                       ▼
-┌──────────────┐   Realtime    ┌──────────────────────────┐
-│              │◄─────────────►│  Supabase Postgres       │
-│  Browser     │   (transport) │  ── AUTHORITY ──         │
-│  Vercel-     │               │  rooms, rounds, guesses  │
-│  hosted      │──── RPC ─────►│  grade_guess()           │
-│              │  (guesses,    │  advance_round()         │
-│              │   room ops)   │  + pg_cron liveness      │
-└──────┬───────┘               └──────────────────────────┘
-       │
-       │ signed/opaque URL
-       ▼
-┌──────────────────┐
-│ Supabase Storage │
-│  clip bucket     │
-└──────────────────┘
+CURATION  (offline; runs in CI, never during a game)
+----------------------------------------------------
+
+  tools/pipeline/build-manifest.ps1          pipeline/manifest.json
+  (local, one-off)                  ---->    46 anime / 136 themes
+                                             difficulty, safety flags
+                                                        |
+                                                        | read by CI
+                                                        v
+  +--------------------+   fetch    +--------------------------------+
+  |  AnimeThemes.moe   | <--------- |  GitHub Actions + ffmpeg       |
+  |  GraphQL + CDN     |            |  20 s clip, VP9 + Opus, 480p   |
+  +--------------------+            |  ~2 MB, metadata stripped      |
+                                    +----+----------------------+----+
+                        upload bytes     |                      |  ingest_question()
+                                         v                      v  (service_role RPC)
+                            +-------------------+   +--------------------------+
+                            | Supabase Storage  |   |  Supabase Postgres       |
+                            |  clips bucket     |   |  question_bank           |
+                            |  public, opaque   |   |  (answers + title_norm)  |
+                            +-------------------+   +--------------------------+
+
+
+GAMEPLAY  (online)
+------------------
+
+                          +----------------------------------+
+                          |  Supabase Postgres               |
+                          |  ==== THE AUTHORITY ====         |
+                          |  rooms, rounds, guesses          |
+                          |  grade_guess()  advance_round()  |
+                          |  + pg_cron liveness sweep        |
+                          |                                  |
+                          |  answers have NO anon grant --   |
+                          |  they never leave this box        |
+                          +----+------------------------+-----+
+                               ^                        |
+                    RPC        |          Realtime      |
+                    (guesses,  |          (transport,   |
+                     room ops) |           broadcast)   v
+                               |                   +----------+
+                          +----+-------------------+          |
+                          |  Browser                          |
+                          |  served by GitHub Pages           |
+                          |  static HTML + JS, no build step  |
+                          |  hash routing (no rewrites)       |
+                          +----------------+------------------+
+                                           |
+                                           | public opaque URL
+                                           v
+                                 +---------------------+
+                                 |  Supabase Storage   |
+                                 |   clips bucket      |
+                                 +---------------------+
 ```
 
 Note what is *not* on the diagram: no persistent room server, no WebSocket server of
@@ -486,10 +514,12 @@ with a one-time non-renewing grace period. B-13 remains open on the precise egre
 trigger. **Note the org-level consequence: a restriction triggered by Mubitracker's usage
 would take ReIN Bot down with it.**
 
-**Two permanent constraints:** Vercel Hobby is **non-commercial only** (B-14), and
-AnimeThemes' terms forbid commercial use (`doc/RESEARCH.md` §4.9). ReIN Bot must never
-monetise. This aligns with the user's stated intent ("it will be a free all project")
-but is now a contractual obligation, not a preference.
+**One permanent constraint.** The old Vercel non-commercial clause (B-14) is moot now
+that the frontend is on GitHub Pages, which forbids commercial *transactions* and SaaS
+but not non-commercial projects. What remains is upstream and unavoidable:
+**AnimeThemes' terms forbid commercial use** (`doc/RESEARCH.md` §4.9). ReIN Bot must
+never monetise. This aligns with the user's stated intent ("it will be a free all
+project") but it is a contractual obligation, not a preference.
 
 ---
 
@@ -530,4 +560,4 @@ but is now a contractual obligation, not a preference.
 | Curation seed list | Curation pipeline | B-11 item 2 |
 | Difficulty weighting | Nothing — playtest | `doc/GAME-DESIGN.md` §8 |
 | Egress overage trigger | Nothing — capacity planning | B-13 |
-| Vercel Hobby function overage lock | Nothing at current scale | B-15 |
+| ~~Vercel Hobby function overage lock~~ — moot, frontend moved to GitHub Pages (no functions) | None | B-15 closed |

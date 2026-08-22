@@ -192,7 +192,10 @@ store it under an **opaque key**.
 
 ### Where it is stored — Supabase Storage, not R2
 
-The stack mandate (Vercel + Supabase, `doc/RESEARCH.md` §3) rules out R2 as the default.
+The stack mandate (GitHub Pages + Supabase, `doc/RESEARCH.md` §3) rules out R2 as
+the default. (It read "Vercel + Supabase" until 2026-08-22; the frontend host
+changed, the R2 conclusion did not — R2 was rejected for being a third provider,
+not for anything Vercel-specific.)
 Supabase Storage is tighter but clears actual expected usage. Per-game media is
 `rounds` (3-20, default 10) × 8 players × clip size, and Supabase's egress is a **single pool shared by
 Database, Auth, Storage, Edge Functions and Realtime** (`doc/RESEARCH.md` §3.5), so the

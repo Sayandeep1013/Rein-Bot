@@ -20,13 +20,14 @@ Free-tier terms change. Re-verify before relying on any number below.
 > | 3.5 | **Supabase** | ✅ **LIVE — chosen** |
 > | 3.6 | Neon | ➖ Not used; documented fallback only |
 > | 3.7 | **GitHub Actions** | ✅ **LIVE — chosen** (CI + transcode) |
-> | 3.8 | **Vercel Hobby** | ✅ **LIVE — chosen** (frontend) |
+> | 3.8 | Vercel Hobby | 🗄️ **Superseded 2026-08-22** by §3.9 — kept as the record of why its functions were rejected |
+> | 3.9 | **GitHub Pages** | ✅ **LIVE — chosen** (frontend) |
 > | 4.1–4.6, 4.8–4.9 | **AnimeThemes.moe** | ✅ **LIVE** — content source and answer key |
 > | 4.7 | Bandwidth arithmetic → "audio-first" | ⚠️ **Conclusions reversed** (see the callout in §4.7) |
 > | 5 | AniList terms | ✅ Live *as a prohibition* — it is why §2 is dead |
 > | 6 | Ruled in / out summary | ⚠️ **5 of 8 entries reversed** — see current list |
 >
-> **If you want only the current design, read §3.5, §3.7, §3.8, §4 and §6.**
+> **If you want only the current design, read §3.5, §3.7, §3.9, §4 and §6.**
 >
 > Two specific withdrawals worth naming: §1's premise that trace.moe would be called
 > live in-round is withdrawn (§6, "Ruled out"), and §2's recommendation to cache AniList
@@ -287,6 +288,28 @@ AniList as a build-time/curation-time dependency, not a per-round runtime call.
 > unmetered egress, versus Supabase's 1 GB storage and a shared 5 GB egress pool.
 > That trade and its arithmetic are in `doc/GAME-DESIGN.md` §3.
 
+> **SUPERSEDED 2026-08-22 (same day, later) — the frontend moved to GitHub Pages.**
+> The stack is now **GitHub Pages (frontend) + Supabase (Postgres, Realtime,
+> Storage)**, still a public repo, no custom domain, no paid plan. Verified limits
+> are in **§3.9**, which replaces §3.8 as the authoritative frontend section.
+>
+> Vercel was never *load-bearing*: the design had already ruled out Vercel Functions
+> as the room server (§3.8, ARCHITECTURE §5), so Vercel's only job was serving static
+> files — which Pages does under a more permissive licence. What the move actually
+> buys:
+> - **B-14 dies.** Vercel Hobby forbids *all* commercial use; Pages forbids only
+>   commercial *transactions* and SaaS. A free friends' game was a latent ToS problem
+>   on Vercel and is explicitly fine on Pages.
+> - **B-15 dies.** No functions means no function-overage lock.
+>
+> What it costs, and this is the one real regression: **Pages has no server-side
+> rewrites.** There is no way to route `/room/ABCD` to `index.html`. Deep links must
+> therefore use the **hash** (`index.html#ABCD`) or a `404.html` fallback copy. This
+> is now a hard constraint on the client design, recorded in ARCHITECTURE §8.
+>
+> §3.8 is kept below as the historical record of why Vercel was chosen and why its
+> functions were rejected; do not cite it as current.
+
 ### 3.1 Cloudflare Workers — Free plan
 
 Source: `https://developers.cloudflare.com/workers/platform/limits/`
@@ -335,7 +358,7 @@ is the single best fit found"*, and on the technical merits that assessment stil
 holds: one Durable Object per room gives an authoritative, single-threaded game
 server with built-in WebSockets and its own SQLite, on the free plan, with no idle
 billing between rounds. **It is nevertheless not being used** — the stack was
-mandated to Vercel + Supabase.
+mandated to Supabase plus a static host (Vercel at first, GitHub Pages since 2026-08-22).
 
 What the substitution actually costs is **ergonomics, not capability**. The
 guarantees a DO would have given for free must now be reconstructed in Postgres:
@@ -406,8 +429,9 @@ above rather than having a separate allowance.
 **UNVERIFIED → MOOT 2026-08-22:** Pages free bandwidth was never confirmed. The
 limits page does not state it, and the Workers *"no additional charges for egress or
 bandwidth"* line sits inside the **Paid**-plan paragraph, so it could not be cited for
-Free either. The question is now moot — the frontend is on Vercel, whose equivalent
-figure **is** confirmed (**Fast Data Transfer up to 100 GB** on Hobby, §3.8). Closed as
+Free either. The question is now moot — the frontend is on GitHub Pages, whose equivalent
+figure **is** confirmed (**100 GB / month**, though a *soft* limit rather than a
+hard cap, §3.9). Closed as
 **B-7**.
 
 ### 3.4 Cloudflare R2 — Free tier
@@ -457,7 +481,8 @@ Sources: `https://supabase.com/pricing`,
 
 **Status note (2026-08-22):** this section previously ended *"the 7-day inactivity
 pause is disqualifying … Rejected as the primary datastore."* That conclusion is
-**withdrawn.** The stack was subsequently mandated to Vercel + Supabase, and on
+**withdrawn.** The stack was subsequently mandated to Supabase (with Vercel,
+later GitHub Pages, for the frontend only), and on
 re-reading the pausing docs the risk is manageable rather than fatal — see
 *Inactivity pause* below and **B-16**.
 
@@ -603,13 +628,21 @@ of which at most **5** may be macOS. Two further findings from the same check:
 - **`ffmpeg` is NOT preinstalled on `ubuntu-latest`.** The curation workflow must
   install it explicitly. Closed as **B-12**.
 
-The GitHub Pages half of the original question is moot: the frontend is on Vercel and
-the repo is public.
+The GitHub Pages half of the original question is **no longer moot** — as of
+2026-08-22 the frontend *is* GitHub Pages (§3.9). Pages' own limits are verified
+there; this section covers only the Actions side.
 
 **Design consequence:** ample for CI. This is where cloud-based testing runs, so
-nothing needs to be installed on the laptop.
+nothing needs to be installed on the laptop. Because deployment publishes through a
+custom Actions workflow, Pages' 10-builds-per-hour soft limit does not apply (§3.9).
 
-### 3.8 Vercel — Hobby plan · **CHOSEN (frontend + HTTP functions)**
+### 3.8 Vercel — Hobby plan · 🗄️ **SUPERSEDED 2026-08-22 — see §3.9**
+
+> Kept as the historical record. Vercel was the chosen frontend host for part of one
+> day; the frontend is now **GitHub Pages** (§3.9). This section is still worth
+> reading for one reason: the analysis of why Vercel *Functions* cannot be the room
+> server is still live and still the reason authority lives in Postgres. The plan
+> limits and the two ToS clauses below no longer bind the project.
 
 Sources: `https://vercel.com/docs/plans/hobby`,
 `https://vercel.com/docs/functions/limitations`,
@@ -636,7 +669,11 @@ Sources: `https://vercel.com/docs/plans/hobby`,
 Edge runtime must begin responding within **25 s**, though it may stream for up to
 300 s.
 
-#### Two clauses that constrain the project permanently
+#### Two clauses that constrained the project — both void since 2026-08-22
+
+> These were the two reasons Vercel was uncomfortable, and between them they are why
+> the frontend moved to Pages (§3.9). **B-14 and B-15 are closed as moot**: neither
+> clause applies to a host the project no longer uses.
 
 **Non-commercial only.** Verbatim: *"Hobby teams are restricted to non-commercial
 personal use only. All commercial usage of the platform requires either a Pro or
@@ -679,6 +716,95 @@ ceiling and does not consume Vercel function time. Authority lives in Postgres
 (§3.5). One residual unknown: the WebSocket docs carry a *"Permissions Required:
 WebSockets"* gate whose plan eligibility is unstated — untested, and irrelevant while
 Realtime is the transport.
+
+---
+
+### 3.9 GitHub Pages — **CHOSEN (frontend), VERIFIED 2026-08-22**
+
+Source: `https://docs.github.com/en/pages/getting-started-with-github-pages/github-pages-limits`
+(usage limits and prohibited use), and
+`https://docs.github.com/en/pages/getting-started-with-github-pages/what-is-github-pages`
+(site types and URL shape).
+
+This replaces §3.8 as the frontend. It was chosen because the frontend is static
+HTML/CSS/JS with no build step and no server-side logic — every piece of game logic
+is a Postgres RPC (§3.5) — so a pure static host is a complete solution, not a
+compromise.
+
+| Limit | Free value |
+| --- | --- |
+| Published site size | **≤ 1 GB** |
+| Source repository | **recommended ≤ 1 GB** |
+| Bandwidth | **100 GB / month — explicitly a *soft* limit** |
+| Builds | **10 / hour — *soft*, and does not apply when publishing via a custom GitHub Actions workflow** |
+| Deployment timeout | **10 minutes** |
+| Rate limiting | May apply; a throttled request gets **HTTP 429** with an HTML body |
+| Sites per repository | 1 (project site) |
+| Sites per account | 1 (user/organisation site) |
+
+**Site URL.** A project site publishes at
+`https://<owner>.github.io/<repository>` — here
+`https://sayandeep1013.github.io/Rein-Bot`. Note the **subpath**: every asset
+reference must be relative (`./app.js`, not `/app.js`), or it will 404 in production
+while working locally.
+
+**Enforcement is a conversation, not a cliff.** Verbatim: *"we may not be able to
+serve your site, or you may receive a polite email from GitHub Support suggesting
+strategies for reducing your site's impact on our servers, including putting a
+third-party content distribution network (CDN) in front of your site, making use of
+other GitHub features such as releases, or moving to a different hosting service."*
+This is a materially better failure mode than Vercel's 30-day feature lock (§3.8,
+B-15) and than an unknown Supabase egress cliff (B-13).
+
+**Bandwidth is a non-issue here, and deliberately so.** The 100 GB applies only to
+what Pages serves, and Pages serves **no video**. Clips live in Supabase Storage;
+the Pages site is HTML, CSS, JS and a handful of icons — call it well under 1 MB.
+Even a generous 500 KB per first visit is ~200,000 cold loads inside the soft limit,
+which is not the binding constraint on this project. **Supabase egress remains the
+only real media budget** (§3.5, `doc/GAME-DESIGN.md` §3).
+
+#### Prohibited use — checked against this project
+
+Verbatim: *"GitHub Pages is not intended for or allowed to be used as a free
+web-hosting service to run your online business, e-commerce site, or any other
+website that is primarily directed at either facilitating commercial transactions or
+providing commercial software as a service (SaaS)."* Also: *"GitHub Pages sites
+shouldn't be used for sensitive transactions like sending passwords or credit card
+numbers."*
+
+Applied here:
+
+- **Not a commercial site.** Free game, no transactions, no SaaS, nothing sold. Clear.
+- **No sensitive transactions.** The identity model is a room code plus a display
+  name — no accounts, no passwords, no PII (`doc/GAME-DESIGN.md` §6.1). The
+  no-auth decision, made for other reasons, happens to satisfy this clause exactly.
+- **ToS content rules** (no sexually obscene content) are already enforced upstream:
+  the curation manifest filters `nsfw=false` and `spoiler=false` per theme.
+
+**This is strictly more permissive than Vercel Hobby**, which restricted *all*
+commercial use including donations (B-14). Pages restricts only commercial
+transactions and SaaS. Accepting donations or sponsorship later would need checking
+against GitHub's ToS, but it is not foreclosed by the plan the way it was on Hobby.
+
+#### The one real regression: no server-side rewrites
+
+Pages serves static files and cannot rewrite `/room/ABCD` → `index.html`. There is no
+`vercel.json`-style rewrite rule. Consequences for the client:
+
+- Room deep links must be **hash-based** — `index.html#ABCD` — or rely on a
+  `404.html` that duplicates the app shell. Hash routing is the simpler and more
+  reliable of the two and is the default choice.
+- No redirects, no custom headers, no server-side anything. None of which the design
+  wanted: the answer never travels to the client, so there is no header or middleware
+  doing security work that would need replacing.
+
+**Design consequence:** the frontend deploys from a GitHub Actions workflow, at a
+subpath, with relative asset paths and hash routing. Because publishing goes through
+a custom Actions workflow, the 10-builds-per-hour soft limit does not apply — so
+deploy-on-every-push is fine.
+
+**Not verified, and moot:** whether Pages on a *private* repo requires a paid plan.
+This repo is public, so the question never arises. Do not cite an answer for it.
 
 ---
 
@@ -1042,7 +1168,10 @@ requires no API call at all.
   "Workers + SQLite Durable Objects with WebSocket Hibernation". Same state model, no
   DO-equivalent primitive; see §3.2 and **B-17** (resolved 2026-08-22 — verified, with
   four corrections applied along the way).
-- **Vercel Hobby for the frontend** (§3.8) — *reverses* "Cloudflare Pages".
+- **GitHub Pages for the frontend** (§3.9) — *reverses* "Cloudflare Pages", and
+  also reverses the same-day choice of Vercel Hobby (§3.8), which survived less
+  than a day. Pages wins on licence terms, not on capability: Vercel Hobby bans
+  *all* commercial use, Pages bans only commercial transactions and SaaS.
 - **R2: not used**, retained as a documented escape hatch if egress becomes bursty
   (§3.4) — *reverses* "R2 only if we add a mode needing preprocessed frames", since we
   now preprocess by default but host it on Supabase instead.

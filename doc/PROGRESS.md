@@ -232,6 +232,107 @@ thumbnails and true clip sizes, which closes B-20 and confirms clips fit under t
 bucket cap before any row is written.
 
 ---
+## 2026-08-22 - curate run twice, two real bugs found; frontend moved to GitHub Pages
+
+**Ran the curate workflow for the first time, and it failed twice for two unrelated
+reasons.** Both are worth recording because neither was guessable from reading the
+script.
+
+**Bug 1 - ffmpeg ate the job list (run `32586028644`, failed after one clip).** The loop
+was `while read ... done < jobs.jsonl`, which hands the loop body's stdin to every command
+inside it. ffmpeg has an interactive console and reads stdin when it is a pipe, so it
+consumed the remaining job lines and fed them to its own command parser - the log shows
+`Enter command: <target>|all <time>|-1 <command>` and `Parse error, at least 3 arguments
+were expected`. `read` then picked up a half-consumed line and `jq` died with
+`Invalid numeric literal at line 1, column 8`, exit 5.
+
+Fixed by reading the job list on **file descriptor 3** (`while IFS= read -r job <&3` /
+`done 3< jobs.jsonl`) and adding `-nostdin` to both ffmpeg calls. FD 3 is the actual fix
+because it protects the loop from *any* stdin-consuming command, not just ffmpeg;
+`-nostdin` is kept as documentation of the specific intent. **The valuable part of that
+run: the first clip transcoded correctly - 20 s, 2,046,639 bytes.**
+
+**Bug 2 - AnimeThemes throttling (run `32586647506`, failed in 2m16s).** The stdin fix
+worked: all ten jobs were iterated, `ok=0 skipped=5 failed=5`. But items 6-10 all died
+with `Server returned 5XX Server Error reply`. The failures were tail-clustered, not
+random, after the first five had pulled roughly 200 MB in two minutes.
+
+Checked the obvious hypothesis before acting on it: that AnimeThemes was rejecting a
+missing User-Agent. **Locally disproved** - `HEAD` returns 403, but a plain ranged `GET`
+returns **206** with no UA, with a browser UA, and with a bot UA alike. So the 5XX is
+genuine transient throttling and a UA would not have fixed it. Recorded in the workflow
+comments so nobody later mistakes the UA line for the fix.
+
+Fixed with a bounded retry loop (`max_attempts=3`, backoff `attempt*20`s),
+`-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 30`, an identifying `UA` sent as
+courtesy rather than as a workaround, and the FAIL row now records the attempt count. A
+5XX from a free community service is transient by definition; the previous behaviour threw
+away half a batch on the first one.
+
+**A third bug found while fixing the second, and this one only existed in dry runs.** The
+courtesy `sleep` was at the *bottom* of the loop, on the success path. Every error path
+uses `continue`, and the dry-run path exits the iteration early - so **a dry run never
+paced at all**, which is exactly the run that got throttled. The pause now sits at the
+**top** of the loop, guarded on a `processed` counter so the first item does not pay it,
+and is 5 s rather than 1 s. Pacing that is unreachable on the fast path is worse than no
+pacing, because it reads as protection that is not there.
+
+**Frontend moved from Vercel Hobby to GitHub Pages** (user directive). Verified Pages'
+limits against the official docs rather than assuming: published site and source repo
+**1 GB** each, bandwidth **100 GB/month but explicitly a *soft* limit**, deployments time
+out at **10 minutes**, throttled requests get **HTTP 429**, and the 10-builds-per-hour
+soft limit **does not apply when publishing via a custom Actions workflow** - so
+deploy-on-every-push is fine. Over-quota behaviour is a polite email, not a lockout.
+
+The move was nearly free because Vercel was never load-bearing: Vercel *Functions* had
+already been rejected as the room server, so Vercel's only job was serving static files.
+What it buys is licence terms. **Vercel Hobby forbids all commercial use; Pages forbids
+only commercial *transactions* and SaaS**, which a free party game is not. That closes
+**B-14** and **B-15** outright - the second because there are no functions left to lock.
+
+Two things worth not rediscovering:
+
+- **Monetisation is still permanently foreclosed**, but the reason changed. It was the
+  host's licence; it is now **AnimeThemes' terms**, which forbid commercial use. The ban
+  follows the *content*, so changing hosts again will not unlock it. B-14 was re-based
+  rather than deleted to make that explicit.
+- **Pages has no server-side rewrites.** There is no way to route `/room/ABCD` to
+  `index.html`. Room deep links must be **hash-based** (`index.html#ABCD`), and every
+  asset path must be relative because the site serves from the subpath
+  `https://sayandeep1013.github.io/Rein-Bot/`. This is the one real regression and it is
+  now a hard constraint on the client.
+
+Bandwidth is a non-issue on Pages specifically because Pages serves **no video** - clips
+come from Supabase Storage, so the site is well under 1 MB. **Supabase egress remains the
+only real media budget.**
+
+**Docs corrected in the same pass.** Added a verified `doc/RESEARCH.md` **3.9 GitHub
+Pages**, marked 3.8 Vercel superseded rather than deleting it (its analysis of why Vercel
+Functions cannot be the room server is still live and still why authority is in Postgres),
+and updated the section index. Rewrote B-14 and B-15, and reclassified B-15 from
+"permanent constraint" to "closed". Updated `doc/ARCHITECTURE.md`, `doc/GAME-DESIGN.md`
+and `README.md`, and swapped the repo topic `vercel` for `github-pages`.
+
+**Rebuilt the ARCHITECTURE component map**, which was doing real damage in two ways: its
+box-drawing characters were unreadable mojibake, and it was factually stale - it credited
+Supabase **Edge Functions** with ingest, curation and difficulty, none of which is true.
+In reality transcode, upload and ingest all run in GitHub Actions, ingest goes through the
+`ingest_question()` RPC as `service_role`, difficulty is computed locally by
+`build-manifest.ps1`, and **no Edge Function is deployed at all**. Redrawn in pure ASCII
+so it cannot be corrupted again, split into curation and gameplay halves, and corrected
+from the estimated ~1 MB clip to the **measured ~2 MB**.
+
+**What this makes possible:** the workflow's three known failure modes are fixed and the
+next dry run should reach the artifact stage, which is what actually settles B-20. It also
+means the deployment target is decided, so client work can start without a hosting
+question hanging over it.
+
+**Still unproven, and worth being honest about:** the retry path has never executed, and
+the Storage upload and RPC-over-curl paths have *never run at all* - both previous runs
+died before reaching them. Only one real clip size is known (2.0 MB, double the earlier
+estimate), so 136 clips is now projected at ~272 MB stored rather than ~136 MB.
+
+---
 ## Project state at a glance
 
 - **Live DB:** full game schema on Supabase Free (`mxkqivivqultfuattuin`), zero content
@@ -239,10 +340,18 @@ bucket cap before any row is written.
 - **Storage:** `clips` bucket live - public read, 5 MB cap, `video/webm` only, no write
   policy (service_role only).
 - **Pipeline:** `pipeline/manifest.json` built - 46 anime, 136 themes, 5469 MB source,
-  difficulty spread 13/32/28/28/35. `.github/workflows/curate.yml` written and validated,
-  not yet run.
-- **Repo:** design docs, migrations, manifest builder, curate workflow; no app code yet.
-- **Next step:** run `curate` with `dry_run: true`, `start: 0`, `count: 10`. Download the
-  artifact and eyeball the thumbnail tiles for burned-in titles to settle B-20, and check
-  reported byte sizes against the 5 MB bucket cap. If both look right, re-run with
-  `dry_run: false` and work through the 136 themes in batches.
+  difficulty spread 13/32/28/28/35. `.github/workflows/curate.yml` **run twice, failed
+  twice, three bugs fixed** (ffmpeg stealing stdin, AnimeThemes 5XX throttling, and
+  pacing that was unreachable in dry runs). Not yet green.
+- **Hosting:** frontend is **GitHub Pages** - limits verified, B-14 and B-15 closed.
+  Deploy target `https://sayandeep1013.github.io/Rein-Bot/`; hash routing required.
+- **Repo:** design docs, migrations, manifest builder, curate workflow, README; no app
+  code yet.
+- **Measured, not estimated:** one 20 s clip at 480p crf36 = **2,046,639 bytes**. So 136
+  clips is about **272 MB** stored, and a 4-player 20-round game about **160 MB** of
+  egress uncached - roughly **30 games/month** against the 5 GB budget. The reserved
+  levers, cheapest first, are audio-only rounds (~160 KB), 360p (~40% cut) and 15 s clips.
+- **Next step:** re-run `curate` with `dry_run: true`, `start: 0`, `count: 10`. Download
+  the artifact, eyeball the thumbnail tiles for burned-in titles to settle B-20, and check
+  byte sizes against the 5 MB cap. If both look right, re-run with `dry_run: false` and
+  work through the 136 themes in batches. Then the single-file HTML test page.

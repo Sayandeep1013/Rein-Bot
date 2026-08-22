@@ -16,8 +16,8 @@ headings therefore overstates how much is outstanding. The real split:
 | --- | --- | --- |
 | **Actionable — genuinely blocking** | **B-11** (item 2 only), **B-13**, **B-16**, **B-20**, **B-21** | Needs work or a decision before launch. |
 | **Needs one verification step** | **B-19** | Mitigated already; only needs an opencode restart to confirm. |
-| **Permanent constraints — not clearable** | B-9, B-10, B-15 | Provider behaviour. Keep for reference; never "fix". |
-| **Closed, left in place** | B-4, B-14 | Resolved; retained here for the reasoning trail. |
+| **Permanent constraints — not clearable** | B-9, B-10 | Provider behaviour. Keep for reference; never "fix". |
+| **Closed, left in place** | B-4, B-14, B-15 | Resolved; retained here for the reasoning trail. |
 
 So the honest count is **five actionable items**, of which **two** need the user rather
 than me: **B-21** (reading current egress from the Supabase dashboard) and **B-11 item 2**
@@ -39,7 +39,8 @@ one item that needs the user's own taste rather than a decision I can make.
      re-encoded to ~1 MB.** Option A leaks the answer through the filename
      (`KimiSen-OP1-NCBD1080.webm`), so B was close to forced. The storage target
      changed from R2 to Supabase Storage when the stack was mandated to
-     Vercel + Supabase; see B-13. No longer blocks `doc/ARCHITECTURE.md`.
+     Supabase (with GitHub Pages serving the static frontend); see B-13. No longer
+blocks `doc/ARCHITECTURE.md`.
   2. **Curation source** — hand-built seed list of 100–500 titles the group knows,
      vs a public popularity list. AniList is unavailable for this (its terms
      prohibit mass collection). *Blocks the curation pipeline.*
@@ -109,7 +110,9 @@ one item that needs the user's own taste rather than a decision I can make.
   actually happens on exceeding it — throttle, hard block, or forced upgrade — was
   not found in the docs. Verified by contrast: **database** overage causes
   read-only mode (*"your database can go into read-only mode which can prevent you
-  inserting and deleting data"*), and **Vercel** locks the offending feature for
+  inserting and deleting data"*). The Vercel half of this no longer applies - the
+frontend is on GitHub Pages, whose bandwidth limit is soft (B-15). Historically,
+**Vercel** locked the offending feature for
   30 days. Supabase's egress equivalent is unknown.
 - **Why it matters:** Media is ~98% of our egress draw, and the ceiling is
   ~62 games/month at the chosen ~1 MB clip size. If overage is a hard block, the
@@ -130,30 +133,44 @@ one item that needs the user's own taste rather than a decision I can make.
   single largest unknown in the chosen stack and must be settled before any public
   launch.
 
-### B-14 — Vercel Hobby is non-commercial only · CLOSED 2026-08-22
-- **What:** Verbatim: *"Hobby teams are restricted to non-commercial personal use
-  only. All commercial usage of the platform requires either a Pro or Enterprise
-  plan."* And separately: *"Asking for Donations fall under commercial usage."*
-- **Resolution:** User confirmed on 2026-08-22, when asked directly, that the project
-  will carry **zero monetisation forever** — no Ko-fi, no GitHub Sponsors, no ads, no
-  donate link. Hobby eligibility therefore holds indefinitely and this is **not a
-  risk**.
-- **Standing constraint (do not rediscover):** the day any donation or sponsorship
-  link ships, Vercel Hobby becomes a ToS violation and the project must move to Pro
-  (paid), which the free-tier-only rule forbids. Monetisation and this hosting choice
-  are mutually exclusive, permanently.
-- **Impact:** None. Closed as a non-risk, retained as a documented constraint.
+### B-14 - Monetisation is permanently foreclosed - CLOSED 2026-08-22, re-based 2026-08-22
+- **Originally:** Vercel Hobby is non-commercial only. Verbatim: *"Hobby teams are
+  restricted to non-commercial personal use only. All commercial usage of the platform
+  requires either a Pro or Enterprise plan."* And: *"Asking for Donations fall under
+  commercial usage."*
+- **Resolution:** User confirmed on 2026-08-22 that the project will carry **zero
+  monetisation forever** - no Ko-fi, no GitHub Sponsors, no ads, no donate link.
+- **Re-based the same day (frontend moved to GitHub Pages).** The Vercel clause no
+  longer applies to us at all. GitHub Pages is materially more permissive: it forbids
+  only sites *"primarily directed at either facilitating commercial transactions or
+  providing commercial software as a service (SaaS)"* - which a free party game is not.
+  This blocker was one of the two reasons for the move (`doc/RESEARCH.md` 3.9).
+- **Standing constraint (do not rediscover, and do not assume the host change lifted
+  it):** monetisation is still foreclosed, now by the **content licence rather than the
+  host**. **AnimeThemes' terms forbid commercial use** (`doc/RESEARCH.md` 4.9). Every
+  clip in `question_bank` comes from AnimeThemes, so the ban follows the content, not
+  the deployment target. Moving hosts again would not unlock it; only dropping
+  AnimeThemes as the content source would, and that would end the project.
+- **Impact:** None as a hosting risk. Retained as a permanent product constraint whose
+  source is now upstream and unavoidable.
 
-### B-15 — Vercel Hobby function overage locks the feature for 30 days
-- **What:** Hobby has **no overage billing**. Exceeding a limit locks that feature
-  until **30 days** have passed (Web Analytics resumes after 7).
-- **Why it matters:** Combined with B-13, both halves of the stack fail as a cliff
-  rather than a slope. Relevant Hobby ceilings: 1,000,000 function invocations,
-  **Fast Data Transfer up to 100 GB**, Fast Origin Transfer 10 GB, Active CPU
+### B-15 - Vercel Hobby function overage locks the feature for 30 days - CLOSED 2026-08-22 (moot)
+- **What:** Hobby had **no overage billing**. Exceeding a limit locked that feature for
+  **30 days** (Web Analytics after 7). Relevant ceilings were 1,000,000 function
+  invocations, Fast Data Transfer up to 100 GB, Fast Origin Transfer 10 GB, Active CPU
   4 CPU-hrs, Provisioned Memory 360 GB-hrs.
-- **How to clear:** Not clearable. Mitigate by keeping media off Vercel entirely
-  (already the plan — clips are served from Supabase Storage, not through Vercel).
-- **Impact:** Low as designed, provided media never routes through Vercel.
+- **Resolution: moot.** The frontend moved to **GitHub Pages** on 2026-08-22
+  (`doc/RESEARCH.md` 3.9). There are no functions to lock, because there is no Vercel.
+  The design had already refused to put media or game logic behind Vercel functions, so
+  nothing was lost in the move.
+- **What replaces it, and it is better:** Pages' bandwidth ceiling is **100 GB/month and
+  explicitly a *soft* limit**. Over-quota behaviour is verbatim *"we may not be able to
+  serve your site, or you may receive a polite email from GitHub Support suggesting
+  strategies for reducing your site's impact"* - a conversation, not a 30-day lockout.
+  Pages also serves **no video** (clips come from Supabase Storage), so the site itself
+  is well under 1 MB and the bandwidth limit is not the binding constraint. **Supabase
+  egress (B-13) is the only real media budget.**
+- **Impact:** None. Closed as moot.
 
 ### B-16 — Supabase 7-day inactivity pause: mitigation is documented but soft
 - **What:** Free projects pause after 7 days of inactivity. The docs indicate a few
@@ -438,15 +455,17 @@ checking:
 - Artifacts and Packages **share one 500 MB pool** on Free.
 
 The second half of the original question (GitHub Pages hosting on private repos) is
-moot: the frontend is on Vercel, and the repo is public.
+moot: the frontend is on GitHub Pages (whose limits are verified in
+`doc/RESEARCH.md` 3.9), and the repo is public.
 
 ### B-7 — Cloudflare Pages free bandwidth · RESOLVED 2026-08-22 (no longer applicable)
-Closed as **moot, not answered.** The stack was mandated to Vercel + Supabase, so
+Closed as **moot, not answered.** The stack settled on Supabase plus a static host, so
 Cloudflare Pages is no longer in the design. Recorded for accuracy: the question was
 never resolvable from the Pages *limits* page, and the Workers *"no additional
 charges for egress or bandwidth"* line sits inside the **Paid**-plan paragraph, so it
-could not be cited for Free. The equivalent Vercel figure **is** confirmed —
-**Fast Data Transfer up to 100 GB** on Hobby (see B-15).
+could not be cited for Free. The equivalent GitHub Pages figure **is** confirmed —
+**100 GB / month** on GitHub Pages, though a soft limit rather than a hard cap
+(see B-15 and doc/RESEARCH.md 3.9).
 
 Note the original rationale in this entry was also **stale**: it claimed all heavy
 media came from AnimeThemes' CDN, which the Option B decision had already
@@ -470,7 +489,7 @@ is text-only: a few thousand rows at roughly 300 bytes each is well under 5 MB, 
 any plausible free storage allowance accommodates it.
 
 **Superseded 2026-08-22:** Durable Objects are no longer in the design (stack
-mandated to Vercel + Supabase), and media **is** now stored by us — preprocessed
+settled on Supabase), and media **is** now stored by us — preprocessed
 clips live in Supabase Storage per the Option B decision. The storage sizing that
 matters is tracked in `doc/GAME-DESIGN.md` §3 and B-13, not here.
 
@@ -497,7 +516,7 @@ are recorded in `doc/RESEARCH.md` §3. Residual gaps were tracked as **B-6**, **
 and **B-8** — all three are now closed or moot.
 
 **Note 2026-08-22:** the Cloudflare half of this research is now historical only.
-The stack was mandated to Vercel + Supabase; those providers' limits were verified
+The stack settled on Supabase + GitHub Pages; those providers' limits were verified
 separately and are recorded in `doc/RESEARCH.md` §3.
 
 ---
