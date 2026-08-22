@@ -577,13 +577,70 @@ that evening. Needs a source whose terms permit it — unresearched.
    > filter.** The bandwidth argument is weak anyway: every clip is re-encoded to ~1 MB
    > at step 6, so source size affects only the one-off ingest download, not per-game
    > egress.
-4. Spot-check a frame visually — the `nc` flag is trusted but not proven
-   (`doc/RESEARCH.md` §4.8, UNVERIFIED).
-5. Cut a ~20 s clip, avoiding the first ~5 s (title cards often appear there).
-6. Transcode to ~480p, **target ~1 MB** (see §3 — 1 MB is what keeps the library at
-   50% of Supabase's 1 GB and per-game egress at 80 MB).
-7. Upload to **Supabase Storage** under a random opaque key.
-8. Write one row to the question bank.
+4. **Download the source once.** Everything below is derived from that one file; the
+   ~46.7 MB fetch is the expensive step and must not be repeated per asset.
+5. **Extract the audio** — ~20 s from the musical body, Opus, ~160 KB.
+6. **Extract ~60 candidate frames**, evenly spaced, skipping the first and last ~2 s so
+   fades and hard cuts are excluded.
+7. **Reject low-detail frames** (§5.2.1).
+8. **Reject frames containing text** (§5.2.2). This is the step that protects the answer.
+9. **Choose 2–3 survivors with temporal spread** (§5.2.3). Fewer than 2 → skip the theme.
+10. **Choose the poster from the text-positive rejects** — the title card is the ideal
+    reveal image, and step 8 has already identified it.
+11. **Upload all five objects** to the `media` bucket under keys derived from a fresh
+    `asset_slug`, **then** write the row via `ingest_question` v2. Objects first: a row
+    pointing at bytes that never arrived is worse than an orphaned upload, and with five
+    objects that window is five times wider.
+
+Step 4's old form said "spot-check a frame visually". That was never going to scale to 136
+themes and, per B-20, four sampled frames out of ~600 would not have caught the title cards
+anyway. Steps 7—9 replace human spot-checking with per-frame filters.
+
+#### 5.2.1 Detail filter — JPEG bytes vs the per-theme median
+
+Encode each candidate at a fixed quality and reject any frame whose byte size is **below 45%
+of the median for that theme**. Compressed size is a proxy for visual complexity, so this
+removes fades, flat colour fields and near-black frames using nothing but the encoder already
+in the pipeline.
+
+**The median must be per-theme, not global.** One sampled theme's frames all fall below the
+global median; a global cut would over-reject dark shows wholesale while barely touching
+bright ones.
+
+**Do not use brightness or `ffmpeg blackframe` for this.** Measured over 40 real frames, the
+single worst frame in the set — a flat grey card — has mean luma **180.0** and ranks
+**39th of 40** on brightness, so a brightness filter would rank it as one of the *best*
+frames. Its real signature is luma std **0.2**, mean gradient **0.01**, and **1702 bytes
+(19% of its theme's 8894-byte median)**. Luma std alone is also insufficient: a bimodal flat
+frame measured the 3rd-highest std in the set while sitting at 48% of median. Full
+measurements in `doc/RESEARCH.md` §4.10.
+
+At 45% the cut rejects 3 of 40 frames and leaves every one of the ten sampled themes with
+≥2 survivors.
+
+#### 5.2.2 Text filter — OCR, tuned to over-reject
+
+Run `tesseract --psm 11` with `eng+jpn` on each surviving candidate and reject any frame
+with a text hit. **Tune aggressively: a false positive costs one frame out of ~60; a false
+negative ships the answer.** The asymmetry is total, so there is no reason to be
+conservative.
+
+This is now the *only* protection against a title card reaching the player, because
+`nc: true` was measured not to provide any (§3). It is also the pipeline's biggest
+unverified assumption — stylised anime logos are the adversarial case for OCR, and it
+cannot be tested on the dev machine. Tracked as **`doc/BLOCKERS.md` B-28**, including the
+fallback ladder if it proves unreliable.
+
+#### 5.2.3 Spread — best frame from each third
+
+Split the surviving candidates into three equal spans by timestamp and take the
+highest-detail survivor from each. This guarantees the three stills come from different
+moments, so the progressive reveal adds genuinely new information rather than three near
+duplicates of one shot.
+
+Perceptual hashing to deduplicate is deliberately **not** used: thirds already enforce
+temporal distance, and a hash threshold would be one more tuned constant with no measured
+basis.
 
 ### 5.3 Question bank row
 
@@ -591,13 +648,20 @@ A single Postgres table (`doc/RESEARCH.md` §3.5). Read-only to clients except t
 guess-checking function; the answer-bearing columns are not exposed (§4.4).
 
 ```
-id, clip_key, anime_slug, title_romaji, title_english, title_native,
+id, asset_slug, still_count, audio_seconds, bytes_total,
+anime_slug, title_romaji, title_english, title_native,
 synonyms_json, year, season, theme_type, theme_sequence,
-song_title, cover_image_url, anilist_id, mal_id, duration_s, difficulty
+song_title, cover_image_url, anilist_id, mal_id, difficulty
 ```
 
-`clip_key` was named `r2_key` before the stack decision; renamed because the bucket is
-no longer R2.
+`clip_key` is gone as of migration `20260823000010`. It was `r2_key` before the stack
+decision, then `clip_key`, and is now nothing at all: no object key is stored on the row.
+Keys are computed from `asset_slug` by `question_asset_keys`, so the Storage layout exists
+in exactly one place and a row can never disagree with the bucket.
+
+`asset_slug` is a *second* uuid, separate from `id`, because the two need different
+visibility: `id` is client-readable via `rounds.question_id`, and anything derived from it
+is therefore effectively public. `doc/DATA-MODEL.md` §3.1 has the full argument.
 
 At ~400 bytes/row, 500 rows is ~200 KB — trivially inside any plausible free
 storage allowance, which is what retired B-6.
