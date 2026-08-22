@@ -67,9 +67,22 @@ on:
         required: true
         default: "45"
       ocr_min_chars:
-        description: "Text filter: this many OCR'd alphanumeric chars rejects a frame. 1 = any text at all."
+        description: "Text filter: this many high-confidence alphanumeric chars rejects a frame"
         required: true
         default: "1"
+      ocr_min_conf:
+        description: "Text filter: ignore OCR words below this confidence (0-100). 0 counts everything, which measurably rejects ~95% of frames."
+        required: true
+        default: "0"
+      ocr_psm:
+        description: "tesseract page segmentation mode. 11 = sparse text anywhere."
+        required: true
+        default: "11"
+      ocr_dump:
+        description: "Write out/ocr-<theme>.tsv with per-frame confidence metrics, for choosing thresholds from data"
+        type: boolean
+        required: true
+        default: false
 
 # Two concurrent runs would race the same question_bank pre-check and waste
 # minutes. Queue them.
@@ -93,6 +106,9 @@ jobs:
       THEME_TYPES: ${{ inputs.theme_types }}
       DETAIL_PCT: ${{ inputs.detail_pct }}
       OCR_MIN_CHARS: ${{ inputs.ocr_min_chars }}
+      OCR_MIN_CONF: ${{ inputs.ocr_min_conf }}
+      OCR_PSM: ${{ inputs.ocr_psm }}
+      OCR_DUMP: ${{ inputs.ocr_dump }}
       # media bucket file_size_limit from migration 0010. Checked before upload
       # so an oversized object is reported with its real size instead of a bare
       # 413 from Storage.
@@ -125,7 +141,7 @@ jobs:
       - name: Guard inputs and secret
         run: |
           set -euo pipefail
-          for v in START COUNT DETAIL_PCT OCR_MIN_CHARS; do
+          for v in START COUNT DETAIL_PCT OCR_MIN_CHARS OCR_MIN_CONF OCR_PSM; do
             val="${!v}"
             if ! [[ "$val" =~ ^[0-9]+$ ]]; then
               echo "::error::$v must be a non-negative integer (got '$val')"; exit 1
@@ -133,6 +149,12 @@ jobs:
           done
           if [ "$COUNT" -lt 1 ]; then echo "::error::count must be >= 1"; exit 1; fi
           if [ "$DETAIL_PCT" -gt 100 ]; then echo "::error::detail_pct must be <= 100"; exit 1; fi
+          if [ "$OCR_MIN_CONF" -gt 100 ]; then
+            echo "::error::ocr_min_conf is a 0-100 confidence, got $OCR_MIN_CONF"; exit 1
+          fi
+          if [ "$OCR_PSM" -gt 13 ]; then
+            echo "::error::ocr_psm must be 0-13, got $OCR_PSM"; exit 1
+          fi
           if [ "$OCR_MIN_CHARS" -lt 1 ]; then
             echo "::error::ocr_min_chars must be >= 1; 0 would reject every frame"; exit 1
           fi
@@ -333,7 +355,7 @@ jobs:
 
           {
             echo "### curate: start=$START count=$COUNT dry_run=$DRY_RUN types=$THEME_TYPES"
-            echo "detail_pct=$DETAIL_PCT ocr_min_chars=$OCR_MIN_CHARS langs=$OCR_LANGS"
+            echo "detail_pct=$DETAIL_PCT ocr_min_chars=$OCR_MIN_CHARS ocr_min_conf=$OCR_MIN_CONF psm=$OCR_PSM langs=$OCR_LANGS"
             echo
             echo "| result | count |"
             echo "| --- | --- |"

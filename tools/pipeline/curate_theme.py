@@ -27,6 +27,7 @@ ingest_question is called, so a row can never point at bytes that never
 arrived (doc/GAME-DESIGN.md 5.2 step 11).
 """
 
+import io
 import json
 import os
 import shutil
@@ -49,7 +50,17 @@ CANDIDATES = int(os.environ.get("CANDIDATES", "60"))
 EDGE_SKIP = float(os.environ.get("EDGE_SKIP", "2"))        # seconds trimmed off each end
 DETAIL_PCT = float(os.environ.get("DETAIL_PCT", "45"))     # % of per-theme median JPEG bytes
 OCR_MIN_CHARS = int(os.environ.get("OCR_MIN_CHARS", "1"))  # >= this many chars rejects a frame
+OCR_MIN_CONF = float(os.environ.get("OCR_MIN_CONF", "0"))  # ignore words below this confidence
+OCR_PSM = os.environ.get("OCR_PSM", "11")
 OCR_LANGS = os.environ.get("OCR_LANGS", "eng+jpn+jpn_vert")
+# Write out/ocr-<stem>.tsv: one row per (frame, OCR pass, word) with its
+# confidence. This exists because the first real run showed the text filter
+# rejecting 44-58 of ~55 frames per theme, and inspecting the images proved the
+# rejections were mostly hallucination -- a plain blue sky scored 29 characters
+# while the genuine "Angel Beats!" title card scored 43. Character counts alone
+# cannot separate those, so the replacement threshold has to be chosen from a
+# measured confidence distribution rather than guessed at a second time.
+OCR_DUMP = os.environ.get("OCR_DUMP", "false").lower() == "true"
 AUDIO_SECONDS = float(os.environ.get("AUDIO_SECONDS", "20"))
 AUDIO_START = float(os.environ.get("AUDIO_START", "5"))    # skip the near-silent OP intro
 AUDIO_BITRATE = os.environ.get("AUDIO_BITRATE", "64k")     # 64k x 20 s ~= 160 KB
@@ -233,23 +244,60 @@ def detail_filter(cands):
 # information but does make marginal text legible to the engine. Either pass
 # finding text rejects the frame. The upscale is a throwaway: the shipped file
 # is always the original candidate.
-def ocr_text_chars(path, workdir):
-    def read(target):
-        p = run([
-            "tesseract", str(target), "stdout",
-            "--psm", "11", "--oem", "1", "-l", OCR_LANGS,
-        ])
-        if p.returncode != 0:
-            # A crashed OCR pass must never be read as "no text found".
-            raise RuntimeError(
-                "tesseract failed on %s: %s"
-                % (target, p.stdout.decode("utf-8", "replace")[-400:])
-            )
-        text = p.stdout.decode("utf-8", "replace")
-        return "".join(ch for ch in text if ch.isalnum())
+def ocr_words(path):
+    """OCR one image, returning [(confidence, alnum_text), ...] per word.
 
-    found = read(path)
-    if len(found) < OCR_MIN_CHARS and OCR_UPSCALE > 1:
+    TSV rather than plain stdout because plain text discards the one number
+    that actually separates a rendered title card from a cloud: tesseract's
+    per-word confidence. Measured on a real run, character count does not
+    separate them at all -- a blank sky scored 29 characters and the real
+    "Angel Beats!" card scored 43.
+
+    Words with no alphanumeric content are dropped; tesseract emits many
+    punctuation-only fragments from texture and they cannot spell a title.
+    """
+    p = run([
+        "tesseract", str(path), "stdout",
+        "--psm", OCR_PSM, "--oem", "1", "-l", OCR_LANGS, "tsv",
+    ])
+    if p.returncode != 0:
+        # A crashed OCR pass must never be read as "no text found": that would
+        # silently turn the one safety filter into a no-op.
+        raise RuntimeError(
+            "tesseract failed on %s: %s"
+            % (path, p.stdout.decode("utf-8", "replace")[-400:])
+        )
+    words = []
+    for line in p.stdout.decode("utf-8", "replace").splitlines()[1:]:
+        col = line.split("\t")
+        if len(col) < 12:
+            continue
+        try:
+            conf = float(col[10])
+        except ValueError:
+            continue
+        if conf < 0:            # -1 marks layout rows that carry no word
+            continue
+        alnum = "".join(ch for ch in col[11] if ch.isalnum())
+        if alnum:
+            words.append((conf, alnum))
+    return words
+
+
+def ocr_frame(path, workdir):
+    """Both OCR passes for one frame, merged into one measurement.
+
+    The second pass on a 2x lanczos upscale is kept because small or thin title
+    text can be unreadable at 854px and readable at 1708px. Passes are merged by
+    taking the worst case per metric: if either pass sees high-confidence text,
+    the frame is text-positive. That preserves the asymmetry -- a false positive
+    costs one frame out of sixty, a false negative ships the answer.
+
+    Returns a dict of metrics at several confidence floors, so a threshold can
+    be chosen later from the dump without re-running the whole pipeline.
+    """
+    passes = [("orig", ocr_words(path))]
+    if OCR_UPSCALE > 1:
         big = workdir / ("up-" + path.stem + ".png")
         p = run([
             "ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error", "-y",
@@ -258,20 +306,78 @@ def ocr_text_chars(path, workdir):
             str(big),
         ])
         if p.returncode == 0:
-            found = read(big)
+            passes.append(("up%dx" % OCR_UPSCALE, ocr_words(big)))
             big.unlink(missing_ok=True)
-    return found
+
+    m = {"passes": passes}
+    for floor in (0, 50, 60, 70, 80, 90):
+        best_chars = 0
+        best_word = 0
+        for _, words in passes:
+            kept = [(c, t) for c, t in words if c >= floor]
+            chars = sum(len(t) for _, t in kept)
+            longest = max([len(t) for _, t in kept], default=0)
+            best_chars = max(best_chars, chars)
+            best_word = max(best_word, longest)
+        m["chars_%d" % floor] = best_chars
+        m["longest_%d" % floor] = best_word
+    all_confs = [c for _, words in passes for c, _ in words]
+    m["max_conf"] = max(all_confs, default=0.0)
+    m["words"] = sum(len(w) for _, w in passes)
+    # Highest-confidence words first: this is what a human reads to judge
+    # whether a rejection was real text or noise.
+    top = sorted(((c, t) for _, words in passes for c, t in words),
+                 key=lambda ct: -ct[0])[:6]
+    m["sample"] = " ".join("%s(%d)" % (t, int(c)) for c, t in top)
+    return m
 
 
-def text_filter(cands, workdir):
+def text_filter(cands, workdir, outdir, stem):
+    """Split candidates into (clean, text-positive).
+
+    The rejection rule is `chars at or above OCR_MIN_CONF >= OCR_MIN_CHARS`.
+    Both halves are configurable from the workflow because B-28's fallback
+    ladder is operated through them, and because the first measured run proved
+    the original rule (any single character at any confidence) rejected
+    essentially every frame.
+    """
     clean, texty = [], []
+    rows = []
     for c in cands:
-        chars = ocr_text_chars(c["path"], workdir)
-        c["ocr_chars"] = len(chars)
-        c["ocr_sample"] = chars[:40]
-        (texty if len(chars) >= OCR_MIN_CHARS else clean).append(c)
-    log("  ocr: clean=%d text-positive=%d (threshold=%d chars, langs=%s)"
-        % (len(clean), len(texty), OCR_MIN_CHARS, OCR_LANGS))
+        m = ocr_frame(c["path"], workdir)
+        chars = 0
+        for _, words in m["passes"]:
+            chars = max(chars, sum(len(t) for conf, t in words
+                                   if conf >= OCR_MIN_CONF))
+        c["ocr_chars"] = chars
+        c["ocr_max_conf"] = round(m["max_conf"], 1)
+        c["ocr_sample"] = m["sample"]
+        c["ocr_metrics"] = m
+        (texty if chars >= OCR_MIN_CHARS else clean).append(c)
+        rows.append((c, m, chars))
+
+    if OCR_DUMP:
+        dump = outdir / ("ocr-" + stem + ".tsv")
+        with io.open(dump, "w", encoding="utf-8", newline="\n") as f:
+            cols = ["index", "ts", "bytes", "verdict", "chars_at_min_conf",
+                    "max_conf", "words"]
+            cols += ["chars_%d" % n for n in (0, 50, 60, 70, 80, 90)]
+            cols += ["longest_%d" % n for n in (0, 50, 60, 70, 80, 90)]
+            cols += ["top_words"]
+            f.write("\t".join(cols) + "\n")
+            for c, m, chars in rows:
+                vals = [c["index"], "%.1f" % c["ts"], c["bytes"],
+                        "TEXTY" if chars >= OCR_MIN_CHARS else "CLEAN",
+                        chars, "%.1f" % m["max_conf"], m["words"]]
+                vals += [m["chars_%d" % n] for n in (0, 50, 60, 70, 80, 90)]
+                vals += [m["longest_%d" % n] for n in (0, 50, 60, 70, 80, 90)]
+                vals += [m["sample"].replace("\t", " ")]
+                f.write("\t".join(str(v) for v in vals) + "\n")
+        log("  ocr dump: %s" % dump.name)
+
+    log("  ocr: clean=%d text-positive=%d (>=%d chars at conf>=%g, psm=%s, langs=%s)"
+        % (len(clean), len(texty), OCR_MIN_CHARS, OCR_MIN_CONF,
+           OCR_PSM, OCR_LANGS))
     return clean, texty
 
 
@@ -437,7 +543,7 @@ def process(job, result):
         raise RuntimeError("no candidate frames produced")
 
     kept, dropped, median = detail_filter(cands)
-    clean, texty = text_filter(kept, work)
+    clean, texty = text_filter(kept, work, out_dir, stem)
     chosen = spread(clean)
 
     result["candidates"] = len(cands)
