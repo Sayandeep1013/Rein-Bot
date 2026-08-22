@@ -97,14 +97,88 @@ Secrets safe: `.env.local` gitignored and verified untracked; `.tmp/` ignored;
 
 ---
 
+## 2026-08-22 - manifest builder, ingest RPC, clips bucket
+
+**Manifest builder.** `tools/pipeline/build-manifest.ps1` turns `doc/SEED-LIST.md` into
+`pipeline/manifest.json`: 46 of 50 titles, 130 themes, 5469 MB of source video.
+
+How it works, and what had to be discovered first:
+
+- AnimeThemes slugs are romaji, lowercase, **underscore**-separated
+  (`shingeki_no_kyojin`, `hunter_x_hunter`) - not hyphenated. Probed live against
+  `https://graphql.animethemes.moe/`.
+- `resources { site link }` does not exist on `ExternalResourceConnection`;
+  `animeSearch` is not a root field (it is `search(search:, first:, page:)`);
+  `AnimeSort` has no `SLUG` member. All three were assumptions that failed, now removed.
+- Resolution is three-tier: explicit override, then slug derived from the romaji title,
+  then `search` ranked by year + exact title + format + shortest slug. The naive
+  "first search hit" is wrong - "Steins;Gate" returns `steinsgate_0` (2018) ahead of
+  `steinsgate` (2011). The ladder is what rescued `ao_no_exorcist`, `enen_no_shouboutai`,
+  `kimi_no_na_wa`, `fatezero` and six others, because the seed list's "Romaji" column
+  sometimes holds an English title.
+- Two PowerShell 5.1 traps, both now avoided in-file: `$PSScriptRoot` is empty inside
+  `param()` defaults under `-File`, and a literal multiplication-sign character never
+  matched because a `.ps1` with no BOM is read as ANSI - so `Hunter x Hunter` and
+  `Spy x Family` silently failed. Use `[char]0x00D7`; no non-ASCII literals in `.ps1`.
+- UTF-8 was verified rather than assumed: native titles survive as codepoints
+  (`36914,25731,12398,24040,20154`). The earlier `?????` was a console *display*
+  artefact, not data loss.
+
+Four titles are excluded, each checked rather than accepted: three are films, and
+`kuroko_no_basket` has no usable variant - every one is `nc:false` except an ED flagged
+`spoiler`. **Credit-free availability, not popularity, is the real content ceiling.**
+
+Per-anime cap of 4 themes: uncapped, `naruto_shippuuden` alone contributes 59 themes and
+downloads reach 10.7 GB. Capping gives answer variety and halves the transfer.
+
+Difficulty is `ceil(seed_rank / 10)`, +1 each for ED, sequence >= 3, non-TV format, and
+pre-2000, clamped 1-5. Seed rank supplies exactly the recognisability signal
+`doc/ARCHITECTURE.md` A8.3 records AnimeThemes as lacking. **Caveat: only 13
+difficulty-1 questions result, so a 20-round difficulty-1-only room will correctly fail
+`INSUFFICIENT_CONTENT`.** Tuning deferred to playtest (A5), not silently patched.
+
+**Ingest RPC - migration 0008, applied and execution-tested.** `ingest_question(jsonb)`
+is the pipeline's only write path.
+
+- An RPC rather than a PostgREST insert because `question_titles.title_norm` must come
+  from `normalise_title` - the same function `grade_guess` applies to a guess. Computing
+  it in PowerShell or bash would let the two normalisers drift, and answers would stop
+  matching for reasons invisible in both codebases.
+- It takes a bare `clip_uuid` and derives **both** `id` and `clip_key`
+  (`clips/{id}.webm`, per A8.3). An earlier draft accepted `clip_key` from the caller,
+  which meant two independent uuids that had to agree forever; the day they disagreed a
+  live round would resolve to a missing object. Deriving the key server-side also makes
+  a leaky key impossible rather than merely rejected, and fixes the ordering - the
+  pipeline uploads the object first and inserts only after the upload succeeds.
+- Verified live: `id` equals the supplied uuid; `clip_key` provably equals
+  `clips/{id}.webm`; a retried batch returns the same id without duplicating titles; a
+  duplicate synonym folds to 4 title rows instead of aborting on the composite key;
+  `nc:false` is stopped by the `credit_free_only` CHECK; a title-less payload raises
+  `NO_TITLES` rather than shipping an unwinnable question; the AnimeThemes basename is
+  rejected by the uuid cast. Test rows deleted - the bank is back to 0.
+
+**`clips` bucket - migration 0009, applied.** A8.3 specified the bucket but no migration
+created it, so the pipeline had nowhere to upload. Now: public read (uuid keys make
+signed URLs unnecessary, and public caching keeps repeat plays in the separate 5 GB
+cached-egress allowance), 5 MB per-object limit, `video/webm` only. No write policy
+exists, so anon and authenticated cannot upload; only the service_role key can.
+
+**What this makes possible next:** every input the transcode workflow needs now exists -
+a manifest, a bucket, and one idempotent RPC. The workflow itself is the only step left.
+
+---
 ## Project state at a glance
 
-- **Live DB:** full game schema on Supabase Free (`mxkqivivqultfuattuin`), zero
-  content rows. Registry tracks migrations 1–7.
-- **Repo:** design docs + migrations only; no app code yet.
-- **Next phase:** curation pipeline — SEED-LIST → AnimeThemes fetch → variant
-  filter (nc=true, subbed=false, nsfw=false, CHECK-enforced) → clip transcode →
-  Storage upload (`clips/{uuid}.webm`) → `question_bank`/`question_titles` rows.
-  Open practical question: ffmpeg is NOT installed locally; portable binary in-repo
-  vs GitHub Actions transcoding is the first decision of that phase
-  (`doc/ARCHITECTURE.md` §5.5 already sketches Actions owning compute).
+- **Live DB:** full game schema on Supabase Free (`mxkqivivqultfuattuin`), zero content
+  rows. Registry tracks migrations 1-9.
+- **Storage:** `clips` bucket live - public read, 5 MB cap, `video/webm` only, no write
+  policy (service_role only).
+- **Pipeline:** `pipeline/manifest.json` built - 46 anime, 130 themes, 5469 MB source,
+  difficulty spread 13/32/28/28/35.
+- **Repo:** design docs, migrations, and the manifest builder; no app code yet.
+- **Next step:** `.github/workflows/curate.yml` - install ffmpeg (B-12: not preinstalled),
+  transcode 20 s clips with `-ss` **before** `-i` so HTTP range-seek avoids pulling the
+  full 5469 MB, upload to `clips/{uuid}.webm`, then call `ingest_question`. Needs the
+  `SUPABASE_SERVICE_ROLE_KEY` repo secret (user action). Emit thumbnails as an artifact
+  to settle B-20, which is still open: whether `nc:false` reliably implies on-screen text
+  is unverified, so clips need a visual spot-check before they go live.

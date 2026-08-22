@@ -1,0 +1,2568 @@
+{
+    "generated_at":  "2026-08-22T15:22:50.1670389Z",
+    "source":  "AnimeThemes GraphQL (https://graphql.animethemes.moe/)",
+    "selection_rule":  "nc=true mandatory; subbed=false; overlap NONE preferred; then smallest size",
+    "cap_per_anime":  4,
+    "difficulty_rule":  "base = ceil(seed rank / 10); +1 each for ED, sequence\u003e=3, non-TV format, year\u003c2000; clamped 1-5",
+    "seed_rows":  50,
+    "item_count":  46,
+    "theme_count":  130,
+    "items":  [
+                  {
+                      "rank":  1,
+                      "slug":  "shingeki_no_kyojin",
+                      "resolved_by":  "derived",
+                      "title_romaji":  "Shingeki no Kyojin",
+                      "title_english":  "Attack on Titan",
+                      "title_native":  "進撃の巨人",
+                      "synonyms":  [
+                                       "Attack on Titan",
+                                       "進撃の巨人"
+                                   ],
+                      "year":  2013,
+                      "season":  "SPRING",
+                      "format":  "TV",
+                      "themes":  [
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "ShingekiNoKyojin-OP1.webm",
+                                         "link":  "https://v.animethemes.moe/ShingekiNoKyojin-OP1.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  62128452,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  1
+                                     },
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  2,
+                                         "entry_version":  1,
+                                         "basename":  "ShingekiNoKyojin-OP2.webm",
+                                         "link":  "https://v.animethemes.moe/ShingekiNoKyojin-OP2.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  60777572,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  1
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "ShingekiNoKyojin-ED1.webm",
+                                         "link":  "https://v.animethemes.moe/ShingekiNoKyojin-ED1.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  48345271,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  2
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  2,
+                                         "entry_version":  1,
+                                         "basename":  "ShingekiNoKyojin-ED2.webm",
+                                         "link":  "https://v.animethemes.moe/ShingekiNoKyojin-ED2.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  48231569,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  2
+                                     }
+                                 ]
+                  },
+                  {
+                      "rank":  2,
+                      "slug":  "death_note",
+                      "resolved_by":  "derived",
+                      "title_romaji":  "Death Note",
+                      "title_english":  "Death Note",
+                      "title_native":  "デスノート",
+                      "synonyms":  [
+                                       null
+                                   ],
+                      "year":  2006,
+                      "season":  "FALL",
+                      "format":  "TV",
+                      "themes":  [
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "DeathNote-OP1.webm",
+                                         "link":  "https://v.animethemes.moe/DeathNote-OP1.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  45404312,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  1
+                                     },
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  2,
+                                         "entry_version":  1,
+                                         "basename":  "DeathNote-OP2.webm",
+                                         "link":  "https://v.animethemes.moe/DeathNote-OP2.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  42875663,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  1
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "DeathNote-ED1.webm",
+                                         "link":  "https://v.animethemes.moe/DeathNote-ED1.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  41840645,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  2
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  2,
+                                         "entry_version":  1,
+                                         "basename":  "DeathNote-ED2.webm",
+                                         "link":  "https://v.animethemes.moe/DeathNote-ED2.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  38122290,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  2
+                                     }
+                                 ]
+                  },
+                  {
+                      "rank":  3,
+                      "slug":  "fullmetal_alchemist_brotherhood",
+                      "resolved_by":  "derived",
+                      "title_romaji":  "Fullmetal Alchemist: Brotherhood",
+                      "title_english":  "Fullmetal Alchemist: Brotherhood",
+                      "title_native":  "鋼の錬金術師 FULLMETAL ALCHEMIST",
+                      "synonyms":  [
+                                       "Hagane no Renkinjutsushi (2009)",
+                                       "Fullmetal Alchemist (2009)",
+                                       "FMA"
+                                   ],
+                      "year":  2009,
+                      "season":  "SPRING",
+                      "format":  "TV",
+                      "themes":  [
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "FullmetalAlchemistBrotherhood-OP1.webm",
+                                         "link":  "https://v.animethemes.moe/FullmetalAlchemistBrotherhood-OP1.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  32238964,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  1
+                                     },
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  2,
+                                         "entry_version":  1,
+                                         "basename":  "FullmetalAlchemistBrotherhood-OP2.webm",
+                                         "link":  "https://v.animethemes.moe/FullmetalAlchemistBrotherhood-OP2.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  32454718,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  1
+                                     },
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  3,
+                                         "entry_version":  1,
+                                         "basename":  "FullmetalAlchemistBrotherhood-OP3.webm",
+                                         "link":  "https://v.animethemes.moe/FullmetalAlchemistBrotherhood-OP3.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  32093728,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  2
+                                     },
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  4,
+                                         "entry_version":  1,
+                                         "basename":  "FullmetalAlchemistBrotherhood-OP4.webm",
+                                         "link":  "https://v.animethemes.moe/FullmetalAlchemistBrotherhood-OP4.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  34548506,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  2
+                                     }
+                                 ]
+                  },
+                  {
+                      "rank":  4,
+                      "slug":  "naruto",
+                      "resolved_by":  "derived",
+                      "title_romaji":  "Naruto",
+                      "title_english":  "Naruto",
+                      "title_native":  "NARUTO -ナルト-",
+                      "synonyms":  [
+                                       null
+                                   ],
+                      "year":  2002,
+                      "season":  "FALL",
+                      "format":  "TV",
+                      "themes":  [
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "Naruto-OP1.webm",
+                                         "link":  "https://v.animethemes.moe/Naruto-OP1.webm",
+                                         "resolution":  576,
+                                         "size_bytes":  35124645,
+                                         "overlap":  "NONE",
+                                         "source":  "DVD",
+                                         "variants_seen":  1,
+                                         "difficulty":  1
+                                     },
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  2,
+                                         "entry_version":  1,
+                                         "basename":  "Naruto-OP2.webm",
+                                         "link":  "https://v.animethemes.moe/Naruto-OP2.webm",
+                                         "resolution":  576,
+                                         "size_bytes":  33897545,
+                                         "overlap":  "NONE",
+                                         "source":  "DVD",
+                                         "variants_seen":  1,
+                                         "difficulty":  1
+                                     },
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  3,
+                                         "entry_version":  1,
+                                         "basename":  "Naruto-OP3.webm",
+                                         "link":  "https://v.animethemes.moe/Naruto-OP3.webm",
+                                         "resolution":  576,
+                                         "size_bytes":  34682088,
+                                         "overlap":  "NONE",
+                                         "source":  "DVD",
+                                         "variants_seen":  1,
+                                         "difficulty":  2
+                                     },
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  4,
+                                         "entry_version":  1,
+                                         "basename":  "Naruto-OP4.webm",
+                                         "link":  "https://v.animethemes.moe/Naruto-OP4.webm",
+                                         "resolution":  576,
+                                         "size_bytes":  34266373,
+                                         "overlap":  "NONE",
+                                         "source":  "DVD",
+                                         "variants_seen":  1,
+                                         "difficulty":  2
+                                     }
+                                 ]
+                  },
+                  {
+                      "rank":  5,
+                      "slug":  "one_piece",
+                      "resolved_by":  "derived",
+                      "title_romaji":  "One Piece",
+                      "title_english":  "ONE PIECE",
+                      "title_native":  "ONE PIECE",
+                      "synonyms":  [
+                                       "ONE PIECE"
+                                   ],
+                      "year":  1999,
+                      "season":  "FALL",
+                      "format":  "TV",
+                      "themes":  [
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "OnePiece-OP1-NCDVD480.webm",
+                                         "link":  "https://v.animethemes.moe/OnePiece-OP1-NCDVD480.webm",
+                                         "resolution":  480,
+                                         "size_bytes":  17620862,
+                                         "overlap":  "NONE",
+                                         "source":  "DVD",
+                                         "variants_seen":  2,
+                                         "difficulty":  2
+                                     },
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  2,
+                                         "entry_version":  1,
+                                         "basename":  "OnePiece-OP2-NCDVD480.webm",
+                                         "link":  "https://v.animethemes.moe/OnePiece-OP2-NCDVD480.webm",
+                                         "resolution":  480,
+                                         "size_bytes":  18290280,
+                                         "overlap":  "NONE",
+                                         "source":  "DVD",
+                                         "variants_seen":  2,
+                                         "difficulty":  2
+                                     },
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  3,
+                                         "entry_version":  1,
+                                         "basename":  "OnePiece-OP3-NCDVD480.webm",
+                                         "link":  "https://v.animethemes.moe/OnePiece-OP3-NCDVD480.webm",
+                                         "resolution":  480,
+                                         "size_bytes":  19277369,
+                                         "overlap":  "NONE",
+                                         "source":  "DVD",
+                                         "variants_seen":  2,
+                                         "difficulty":  3
+                                     },
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  4,
+                                         "entry_version":  1,
+                                         "basename":  "OnePiece-OP4-NCDVD480.webm",
+                                         "link":  "https://v.animethemes.moe/OnePiece-OP4-NCDVD480.webm",
+                                         "resolution":  480,
+                                         "size_bytes":  19077934,
+                                         "overlap":  "NONE",
+                                         "source":  "DVD",
+                                         "variants_seen":  2,
+                                         "difficulty":  3
+                                     }
+                                 ]
+                  },
+                  {
+                      "rank":  6,
+                      "slug":  "bleach",
+                      "resolved_by":  "derived",
+                      "title_romaji":  "BLEACH",
+                      "title_english":  "Bleach",
+                      "title_native":  "BLEACH",
+                      "synonyms":  [
+                                       null
+                                   ],
+                      "year":  2004,
+                      "season":  "FALL",
+                      "format":  "TV",
+                      "themes":  [
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  9,
+                                         "entry_version":  1,
+                                         "basename":  "Bleach-OP9.webm",
+                                         "link":  "https://v.animethemes.moe/Bleach-OP9.webm",
+                                         "resolution":  480,
+                                         "size_bytes":  16298995,
+                                         "overlap":  "NONE",
+                                         "source":  "DVD",
+                                         "variants_seen":  1,
+                                         "difficulty":  2
+                                     },
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  10,
+                                         "entry_version":  1,
+                                         "basename":  "Bleach-OP10.webm",
+                                         "link":  "https://v.animethemes.moe/Bleach-OP10.webm",
+                                         "resolution":  480,
+                                         "size_bytes":  10583669,
+                                         "overlap":  "NONE",
+                                         "source":  "DVD",
+                                         "variants_seen":  1,
+                                         "difficulty":  2
+                                     },
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  11,
+                                         "entry_version":  1,
+                                         "basename":  "Bleach-OP11.webm",
+                                         "link":  "https://v.animethemes.moe/Bleach-OP11.webm",
+                                         "resolution":  480,
+                                         "size_bytes":  14907022,
+                                         "overlap":  "NONE",
+                                         "source":  "DVD",
+                                         "variants_seen":  1,
+                                         "difficulty":  2
+                                     },
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  12,
+                                         "entry_version":  1,
+                                         "basename":  "Bleach-OP12.webm",
+                                         "link":  "https://v.animethemes.moe/Bleach-OP12.webm",
+                                         "resolution":  480,
+                                         "size_bytes":  15799078,
+                                         "overlap":  "NONE",
+                                         "source":  "DVD",
+                                         "variants_seen":  1,
+                                         "difficulty":  2
+                                     }
+                                 ]
+                  },
+                  {
+                      "rank":  7,
+                      "slug":  "kimetsu_no_yaiba",
+                      "resolved_by":  "derived",
+                      "title_romaji":  "Kimetsu no Yaiba",
+                      "title_english":  "Demon Slayer: Kimetsu no Yaiba",
+                      "title_native":  "鬼滅の刃",
+                      "synonyms":  [
+                                       "Blade of Demon Destruction",
+                                       "Demon Slayer: Kimetsu no Yaiba",
+                                       "鬼滅の刃"
+                                   ],
+                      "year":  2019,
+                      "season":  "SPRING",
+                      "format":  "TV",
+                      "themes":  [
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  null,
+                                         "entry_version":  1,
+                                         "basename":  "KimetsuNoYaiba-OP1-NCBD1080.webm",
+                                         "link":  "https://v.animethemes.moe/KimetsuNoYaiba-OP1-NCBD1080.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  51323461,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  2,
+                                         "difficulty":  1
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "KimetsuNoYaiba-ED1-NCBD1080.webm",
+                                         "link":  "https://v.animethemes.moe/KimetsuNoYaiba-ED1-NCBD1080.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  43187152,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  2,
+                                         "difficulty":  2
+                                     }
+                                 ]
+                  },
+                  {
+                      "rank":  8,
+                      "slug":  "jujutsu_kaisen",
+                      "resolved_by":  "derived",
+                      "title_romaji":  "Jujutsu Kaisen",
+                      "title_english":  "JUJUTSU KAISEN",
+                      "title_native":  "呪術廻戦",
+                      "synonyms":  [
+                                       "Sorcery Fight",
+                                       "JUJUTSU KAISEN",
+                                       "呪術廻戦"
+                                   ],
+                      "year":  2020,
+                      "season":  "FALL",
+                      "format":  "TV",
+                      "themes":  [
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "JujutsuKaisen-OP1-NCBD1080.webm",
+                                         "link":  "https://v.animethemes.moe/JujutsuKaisen-OP1-NCBD1080.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  63256721,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  2,
+                                         "difficulty":  1
+                                     },
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  2,
+                                         "entry_version":  1,
+                                         "basename":  "JujutsuKaisen-OP2-NCBD1080.webm",
+                                         "link":  "https://v.animethemes.moe/JujutsuKaisen-OP2-NCBD1080.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  62559820,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  2,
+                                         "difficulty":  1
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "JujutsuKaisen-ED1-NCBD1080.webm",
+                                         "link":  "https://v.animethemes.moe/JujutsuKaisen-ED1-NCBD1080.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  44316029,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  2,
+                                         "difficulty":  2
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  2,
+                                         "entry_version":  1,
+                                         "basename":  "JujutsuKaisen-ED2-NCBD1080.webm",
+                                         "link":  "https://v.animethemes.moe/JujutsuKaisen-ED2-NCBD1080.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  55486713,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  2,
+                                         "difficulty":  2
+                                     }
+                                 ]
+                  },
+                  {
+                      "rank":  9,
+                      "slug":  "tokyo_ghoul",
+                      "resolved_by":  "derived",
+                      "title_romaji":  "Tokyo Ghoul",
+                      "title_english":  "Tokyo Ghoul",
+                      "title_native":  "東京喰種 トーキョーグール",
+                      "synonyms":  [
+                                       "Tokyo Kushu"
+                                   ],
+                      "year":  2014,
+                      "season":  "SUMMER",
+                      "format":  "TV",
+                      "themes":  [
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  null,
+                                         "entry_version":  1,
+                                         "basename":  "TokyoGhoul-OP1.webm",
+                                         "link":  "https://v.animethemes.moe/TokyoGhoul-OP1.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  63419603,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  1
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  null,
+                                         "entry_version":  1,
+                                         "basename":  "TokyoGhoul-ED1.webm",
+                                         "link":  "https://v.animethemes.moe/TokyoGhoul-ED1.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  17656399,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  2
+                                     }
+                                 ]
+                  },
+                  {
+                      "rank":  10,
+                      "slug":  "sword_art_online",
+                      "resolved_by":  "derived",
+                      "title_romaji":  "Sword Art Online",
+                      "title_english":  "Sword Art Online",
+                      "title_native":  "ソードアート・オンライン",
+                      "synonyms":  [
+                                       "S.A.O",
+                                       "SAO"
+                                   ],
+                      "year":  2012,
+                      "season":  "SUMMER",
+                      "format":  "TV",
+                      "themes":  [
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "SwordArtOnline-OP1.webm",
+                                         "link":  "https://v.animethemes.moe/SwordArtOnline-OP1.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  42350705,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  1
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "SwordArtOnline-ED1.webm",
+                                         "link":  "https://v.animethemes.moe/SwordArtOnline-ED1.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  36923421,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  2
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  2,
+                                         "entry_version":  1,
+                                         "basename":  "SwordArtOnline-ED2.webm",
+                                         "link":  "https://v.animethemes.moe/SwordArtOnline-ED2.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  18483443,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  2
+                                     }
+                                 ]
+                  },
+                  {
+                      "rank":  11,
+                      "slug":  "hunter_x_hunter",
+                      "resolved_by":  "derived",
+                      "title_romaji":  "Hunter x Hunter",
+                      "title_english":  "Hunter × Hunter",
+                      "title_native":  "HUNTER×HUNTER",
+                      "synonyms":  [
+                                       "HxH"
+                                   ],
+                      "year":  1999,
+                      "season":  "FALL",
+                      "format":  "TV",
+                      "themes":  [
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "HunterHunter-OP1.webm",
+                                         "link":  "https://v.animethemes.moe/HunterHunter-OP1.webm",
+                                         "resolution":  720,
+                                         "size_bytes":  21335312,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  2
+                                     },
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  2,
+                                         "entry_version":  1,
+                                         "basename":  "HunterHunter-OP2.webm",
+                                         "link":  "https://v.animethemes.moe/HunterHunter-OP2.webm",
+                                         "resolution":  720,
+                                         "size_bytes":  20148771,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  2
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "HunterHunter-ED1.webm",
+                                         "link":  "https://v.animethemes.moe/HunterHunter-ED1.webm",
+                                         "resolution":  720,
+                                         "size_bytes":  26113347,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  3
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  2,
+                                         "entry_version":  1,
+                                         "basename":  "HunterHunter-ED2.webm",
+                                         "link":  "https://v.animethemes.moe/HunterHunter-ED2.webm",
+                                         "resolution":  720,
+                                         "size_bytes":  26791694,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  3
+                                     }
+                                 ]
+                  },
+                  {
+                      "rank":  12,
+                      "slug":  "steinsgate",
+                      "resolved_by":  "search",
+                      "title_romaji":  "Steins;Gate",
+                      "title_english":  "Steins;Gate",
+                      "title_native":  "シュタインズ・ゲート",
+                      "synonyms":  [
+                                       null
+                                   ],
+                      "year":  2011,
+                      "season":  "SPRING",
+                      "format":  "TV",
+                      "themes":  {
+                                     "theme_type":  "OP",
+                                     "theme_sequence":  null,
+                                     "entry_version":  1,
+                                     "basename":  "SteinsGate-OP1.webm",
+                                     "link":  "https://v.animethemes.moe/SteinsGate-OP1.webm",
+                                     "resolution":  1080,
+                                     "size_bytes":  54646646,
+                                     "overlap":  "NONE",
+                                     "source":  "BD",
+                                     "variants_seen":  1,
+                                     "difficulty":  2
+                                 }
+                  },
+                  {
+                      "rank":  13,
+                      "slug":  "cowboy_bebop",
+                      "resolved_by":  "derived",
+                      "title_romaji":  "Cowboy Bebop",
+                      "title_english":  "Cowboy Bebop",
+                      "title_native":  "カウボーイビバップ",
+                      "synonyms":  [
+                                       null
+                                   ],
+                      "year":  1998,
+                      "season":  "SPRING",
+                      "format":  "TV",
+                      "themes":  {
+                                     "theme_type":  "ED",
+                                     "theme_sequence":  1,
+                                     "entry_version":  1,
+                                     "basename":  "CowboyBebop-ED1.webm",
+                                     "link":  "https://v.animethemes.moe/CowboyBebop-ED1.webm",
+                                     "resolution":  720,
+                                     "size_bytes":  14410607,
+                                     "overlap":  "NONE",
+                                     "source":  "BD",
+                                     "variants_seen":  1,
+                                     "difficulty":  4
+                                 }
+                  },
+                  {
+                      "rank":  14,
+                      "slug":  "neon_genesis_evangelion",
+                      "resolved_by":  "derived",
+                      "title_romaji":  "Neon Genesis Evangelion",
+                      "title_english":  "Neon Genesis Evangelion",
+                      "title_native":  "新世紀エヴァンゲリオン",
+                      "synonyms":  [
+                                       "Shinseiki Evangelion"
+                                   ],
+                      "year":  1995,
+                      "season":  "FALL",
+                      "format":  "TV",
+                      "themes":  [
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  null,
+                                         "entry_version":  1,
+                                         "basename":  "NeonGenesisEvangelion-OP1.webm",
+                                         "link":  "https://v.animethemes.moe/NeonGenesisEvangelion-OP1.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  32455235,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  3
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "NeonGenesisEvangelion-ED1.webm",
+                                         "link":  "https://v.animethemes.moe/NeonGenesisEvangelion-ED1.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  35708571,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  4
+                                     }
+                                 ]
+                  },
+                  {
+                      "rank":  15,
+                      "slug":  "code_geass_hangyaku_no_lelouch",
+                      "resolved_by":  "derived",
+                      "title_romaji":  "Code Geass: Hangyaku no Lelouch",
+                      "title_english":  "Code Geass: Lelouch of the Rebellion",
+                      "title_native":  "コードギアス 反逆のルルーシュ",
+                      "synonyms":  [
+                                       "Code Geass: Lelouch of the Rebellion",
+                                       "コードギアス 反逆のルルーシュ"
+                                   ],
+                      "year":  2006,
+                      "season":  "FALL",
+                      "format":  "TV",
+                      "themes":  [
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "CodeGeass-OP1.webm",
+                                         "link":  "https://v.animethemes.moe/CodeGeass-OP1.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  45086119,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  2
+                                     },
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  2,
+                                         "entry_version":  1,
+                                         "basename":  "CodeGeass-OP2.webm",
+                                         "link":  "https://v.animethemes.moe/CodeGeass-OP2.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  45096518,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  2
+                                     },
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  3,
+                                         "entry_version":  1,
+                                         "basename":  "CodeGeass-OP3.webm",
+                                         "link":  "https://v.animethemes.moe/CodeGeass-OP3.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  41833231,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  3
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "CodeGeass-ED1.webm",
+                                         "link":  "https://v.animethemes.moe/CodeGeass-ED1.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  36622713,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  3
+                                     }
+                                 ]
+                  },
+                  {
+                      "rank":  16,
+                      "slug":  "naruto_shippuuden",
+                      "resolved_by":  "derived",
+                      "title_romaji":  "Naruto: Shippuuden",
+                      "title_english":  "Naruto: Shippuden",
+                      "title_native":  "NARUTO -ナルト- 疾風伝",
+                      "synonyms":  [
+                                       "Naruto: Shippuden",
+                                       "NARUTO -ナルト- 疾風伝"
+                                   ],
+                      "year":  2007,
+                      "season":  "WINTER",
+                      "format":  "TV",
+                      "themes":  [
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "NarutoShippuuden-OP1.webm",
+                                         "link":  "https://v.animethemes.moe/NarutoShippuuden-OP1.webm",
+                                         "resolution":  576,
+                                         "size_bytes":  36647323,
+                                         "overlap":  "NONE",
+                                         "source":  "DVD",
+                                         "variants_seen":  1,
+                                         "difficulty":  2
+                                     },
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  2,
+                                         "entry_version":  1,
+                                         "basename":  "NarutoShippuuden-OP2.webm",
+                                         "link":  "https://v.animethemes.moe/NarutoShippuuden-OP2.webm",
+                                         "resolution":  576,
+                                         "size_bytes":  35330758,
+                                         "overlap":  "NONE",
+                                         "source":  "DVD",
+                                         "variants_seen":  1,
+                                         "difficulty":  2
+                                     },
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  3,
+                                         "entry_version":  1,
+                                         "basename":  "NarutoShippuuden-OP3.webm",
+                                         "link":  "https://v.animethemes.moe/NarutoShippuuden-OP3.webm",
+                                         "resolution":  576,
+                                         "size_bytes":  33217862,
+                                         "overlap":  "NONE",
+                                         "source":  "DVD",
+                                         "variants_seen":  1,
+                                         "difficulty":  3
+                                     },
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  4,
+                                         "entry_version":  1,
+                                         "basename":  "NarutoShippuuden-OP4.webm",
+                                         "link":  "https://v.animethemes.moe/NarutoShippuuden-OP4.webm",
+                                         "resolution":  576,
+                                         "size_bytes":  30063221,
+                                         "overlap":  "NONE",
+                                         "source":  "DVD",
+                                         "variants_seen":  1,
+                                         "difficulty":  3
+                                     }
+                                 ]
+                  },
+                  {
+                      "rank":  17,
+                      "slug":  "dragon_ball_z",
+                      "resolved_by":  "derived",
+                      "title_romaji":  "Dragon Ball Z",
+                      "title_english":  "Dragon Ball Z",
+                      "title_native":  "ドラゴンボールZ",
+                      "synonyms":  [
+                                       "DBZ"
+                                   ],
+                      "year":  1989,
+                      "season":  "SPRING",
+                      "format":  "TV",
+                      "themes":  {
+                                     "theme_type":  "OP",
+                                     "theme_sequence":  1,
+                                     "entry_version":  1,
+                                     "basename":  "DragonBallZ-OP1-NCBD1080.webm",
+                                     "link":  "https://v.animethemes.moe/DragonBallZ-OP1-NCBD1080.webm",
+                                     "resolution":  1080,
+                                     "size_bytes":  36283122,
+                                     "overlap":  "NONE",
+                                     "source":  "BD",
+                                     "variants_seen":  2,
+                                     "difficulty":  3
+                                 }
+                  },
+                  {
+                      "rank":  18,
+                      "slug":  "fairy_tail",
+                      "resolved_by":  "derived",
+                      "title_romaji":  "Fairy Tail",
+                      "title_english":  "Fairy Tail",
+                      "title_native":  "フェアリーテイル",
+                      "synonyms":  [
+                                       null
+                                   ],
+                      "year":  2009,
+                      "season":  "FALL",
+                      "format":  "TV",
+                      "themes":  [
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "FairyTail-OP1.webm",
+                                         "link":  "https://v.animethemes.moe/FairyTail-OP1.webm",
+                                         "resolution":  720,
+                                         "size_bytes":  25772176,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  2
+                                     },
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  2,
+                                         "entry_version":  1,
+                                         "basename":  "FairyTail-OP2.webm",
+                                         "link":  "https://v.animethemes.moe/FairyTail-OP2.webm",
+                                         "resolution":  720,
+                                         "size_bytes":  29914011,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  2
+                                     },
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  3,
+                                         "entry_version":  1,
+                                         "basename":  "FairyTail-OP3.webm",
+                                         "link":  "https://v.animethemes.moe/FairyTail-OP3.webm",
+                                         "resolution":  720,
+                                         "size_bytes":  26959652,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  3
+                                     },
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  4,
+                                         "entry_version":  1,
+                                         "basename":  "FairyTail-OP4.webm",
+                                         "link":  "https://v.animethemes.moe/FairyTail-OP4.webm",
+                                         "resolution":  720,
+                                         "size_bytes":  25800063,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  3
+                                     }
+                                 ]
+                  },
+                  {
+                      "rank":  19,
+                      "slug":  "rezero_kara_hajimeru_isekai_seikatsu",
+                      "resolved_by":  "search",
+                      "title_romaji":  "Re:Zero kara Hajimeru Isekai Seikatsu",
+                      "title_english":  "Re:ZERO -Starting Life in Another World-",
+                      "title_native":  "Re:ゼロから始める異世界生活",
+                      "synonyms":  [
+                                       "Re:ZERO -Starting Life in Another World-",
+                                       "Re: Life in a different world from zero",
+                                       "ReZero",
+                                       "Re:ゼロから始める異世界生活"
+                                   ],
+                      "year":  2016,
+                      "season":  "SPRING",
+                      "format":  "TV",
+                      "themes":  [
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "ReZero-OP1.webm",
+                                         "link":  "https://v.animethemes.moe/ReZero-OP1.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  65749494,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  2
+                                     },
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  2,
+                                         "entry_version":  1,
+                                         "basename":  "ReZero-OP2.webm",
+                                         "link":  "https://v.animethemes.moe/ReZero-OP2.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  65555464,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  2
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  1,
+                                         "entry_version":  2,
+                                         "basename":  "ReZero-ED1v2.webm",
+                                         "link":  "https://v.animethemes.moe/ReZero-ED1v2.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  29707361,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  3
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  3,
+                                         "entry_version":  1,
+                                         "basename":  "ReZero-ED3.webm",
+                                         "link":  "https://v.animethemes.moe/ReZero-ED3.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  54970384,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  4
+                                     }
+                                 ]
+                  },
+                  {
+                      "rank":  20,
+                      "slug":  "boku_no_hero_academia",
+                      "resolved_by":  "derived",
+                      "title_romaji":  "Boku no Hero Academia",
+                      "title_english":  "My Hero Academia",
+                      "title_native":  "僕のヒーローアカデミア",
+                      "synonyms":  [
+                                       "My Hero Academia",
+                                       "僕のヒーローアカデミア"
+                                   ],
+                      "year":  2016,
+                      "season":  "SPRING",
+                      "format":  "TV",
+                      "themes":  [
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  null,
+                                         "entry_version":  1,
+                                         "basename":  "BokuNoHeroAcademia-OP1-NCBD1080.webm",
+                                         "link":  "https://v.animethemes.moe/BokuNoHeroAcademia-OP1-NCBD1080.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  47291834,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  2,
+                                         "difficulty":  2
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  null,
+                                         "entry_version":  1,
+                                         "basename":  "BokuNoHeroAcademia-ED1-NCBD1080.webm",
+                                         "link":  "https://v.animethemes.moe/BokuNoHeroAcademia-ED1-NCBD1080.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  50643024,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  2,
+                                         "difficulty":  3
+                                     }
+                                 ]
+                  },
+                  {
+                      "rank":  21,
+                      "slug":  "haikyuu",
+                      "resolved_by":  "derived",
+                      "title_romaji":  "Haikyuu!!",
+                      "title_english":  "HAIKYU!!",
+                      "title_native":  "ハイキュー!!",
+                      "synonyms":  [
+                                       "Haikyu!!",
+                                       "High Kyuu!!",
+                                       "HQ!",
+                                       "HAIKYU!!",
+                                       "ハイキュー!!"
+                                   ],
+                      "year":  2014,
+                      "season":  "SPRING",
+                      "format":  "TV",
+                      "themes":  [
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "Haikyuu-OP1.webm",
+                                         "link":  "https://v.animethemes.moe/Haikyuu-OP1.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  39782084,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  3
+                                     },
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  2,
+                                         "entry_version":  1,
+                                         "basename":  "Haikyuu-OP2.webm",
+                                         "link":  "https://v.animethemes.moe/Haikyuu-OP2.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  40386945,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  3
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "Haikyuu-ED1.webm",
+                                         "link":  "https://v.animethemes.moe/Haikyuu-ED1.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  44665627,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  4
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  2,
+                                         "entry_version":  1,
+                                         "basename":  "Haikyuu-ED2.webm",
+                                         "link":  "https://v.animethemes.moe/Haikyuu-ED2.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  44353181,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  4
+                                     }
+                                 ]
+                  },
+                  {
+                      "rank":  22,
+                      "slug":  "kaguya_sama_wa_kokurasetai_tensai_tachi_no_renai_zunousen",
+                      "resolved_by":  "search",
+                      "title_romaji":  "Kaguya-sama wa Kokurasetai: Tensai-tachi no Renai Zunousen",
+                      "title_english":  "Kaguya-sama: Love is War",
+                      "title_native":  "かぐや様は告らせたい～天才たちの恋愛頭脳戦～",
+                      "synonyms":  [
+                                       "Kaguya-sama: Love is War",
+                                       "かぐや様は告らせたい～天才たちの恋愛頭脳戦～"
+                                   ],
+                      "year":  2019,
+                      "season":  "WINTER",
+                      "format":  "TV",
+                      "themes":  [
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  null,
+                                         "entry_version":  1,
+                                         "basename":  "KaguyaSamaWaKokurasetai-OP1-NCBD1080.webm",
+                                         "link":  "https://v.animethemes.moe/KaguyaSamaWaKokurasetai-OP1-NCBD1080.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  41669550,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  3,
+                                         "difficulty":  3
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "KaguyaSamaWaKokurasetai-ED1-NCBD1080.webm",
+                                         "link":  "https://v.animethemes.moe/KaguyaSamaWaKokurasetai-ED1-NCBD1080.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  40919109,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  3,
+                                         "difficulty":  4
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  2,
+                                         "entry_version":  1,
+                                         "basename":  "KaguyaSamaWaKokurasetai-ED2-NCBD1080.webm",
+                                         "link":  "https://v.animethemes.moe/KaguyaSamaWaKokurasetai-ED2-NCBD1080.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  46074016,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  3,
+                                         "difficulty":  4
+                                     }
+                                 ]
+                  },
+                  {
+                      "rank":  23,
+                      "slug":  "vinland_saga",
+                      "resolved_by":  "derived",
+                      "title_romaji":  "Vinland Saga",
+                      "title_english":  "Vinland Saga",
+                      "title_native":  "ヴィンランド・サガ",
+                      "synonyms":  [
+                                       null
+                                   ],
+                      "year":  2019,
+                      "season":  "SUMMER",
+                      "format":  "TV",
+                      "themes":  [
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "VinlandSaga-OP1-NCBD1080.webm",
+                                         "link":  "https://v.animethemes.moe/VinlandSaga-OP1-NCBD1080.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  64688742,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  2,
+                                         "difficulty":  3
+                                     },
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  2,
+                                         "entry_version":  1,
+                                         "basename":  "VinlandSaga-OP2-NCBD1080.webm",
+                                         "link":  "https://v.animethemes.moe/VinlandSaga-OP2-NCBD1080.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  66548407,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  2,
+                                         "difficulty":  3
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "VinlandSaga-ED1-NCBD1080.webm",
+                                         "link":  "https://v.animethemes.moe/VinlandSaga-ED1-NCBD1080.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  65638563,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  2,
+                                         "difficulty":  4
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  2,
+                                         "entry_version":  1,
+                                         "basename":  "VinlandSaga-ED2-NCBD1080.webm",
+                                         "link":  "https://v.animethemes.moe/VinlandSaga-ED2-NCBD1080.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  66674993,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  2,
+                                         "difficulty":  4
+                                     }
+                                 ]
+                  },
+                  {
+                      "rank":  24,
+                      "slug":  "made_in_abyss",
+                      "resolved_by":  "derived",
+                      "title_romaji":  "Made in Abyss",
+                      "title_english":  "Made in Abyss",
+                      "title_native":  "メイドインアビス",
+                      "synonyms":  [
+                                       null
+                                   ],
+                      "year":  2017,
+                      "season":  "SUMMER",
+                      "format":  "TV",
+                      "themes":  [
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  2,
+                                         "entry_version":  1,
+                                         "basename":  "MadeInAbyss-OP2-NCBD1080.webm",
+                                         "link":  "https://v.animethemes.moe/MadeInAbyss-OP2-NCBD1080.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  46934319,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  2,
+                                         "difficulty":  3
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "MadeInAbyss-ED1-NCBD1080.webm",
+                                         "link":  "https://v.animethemes.moe/MadeInAbyss-ED1-NCBD1080.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  29255119,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  2,
+                                         "difficulty":  4
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  2,
+                                         "entry_version":  1,
+                                         "basename":  "MadeInAbyss-ED2-NCBD1080.webm",
+                                         "link":  "https://v.animethemes.moe/MadeInAbyss-ED2-NCBD1080.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  29342728,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  2,
+                                         "difficulty":  4
+                                     }
+                                 ]
+                  },
+                  {
+                      "rank":  25,
+                      "slug":  "mob_psycho_100",
+                      "resolved_by":  "derived",
+                      "title_romaji":  "Mob Psycho 100",
+                      "title_english":  "Mob Psycho 100",
+                      "title_native":  "モブサイコ100",
+                      "synonyms":  [
+                                       "Mob Psycho Hyaku",
+                                       "Mob Psycho One Hundred"
+                                   ],
+                      "year":  2016,
+                      "season":  "SUMMER",
+                      "format":  "TV",
+                      "themes":  {
+                                     "theme_type":  "ED",
+                                     "theme_sequence":  1,
+                                     "entry_version":  1,
+                                     "basename":  "MobPsycho100-ED1-NCBD1080.webm",
+                                     "link":  "https://v.animethemes.moe/MobPsycho100-ED1-NCBD1080.webm",
+                                     "resolution":  1080,
+                                     "size_bytes":  52498270,
+                                     "overlap":  "NONE",
+                                     "source":  "BD",
+                                     "variants_seen":  2,
+                                     "difficulty":  4
+                                 }
+                  },
+                  {
+                      "rank":  26,
+                      "slug":  "one_punch_man",
+                      "resolved_by":  "derived",
+                      "title_romaji":  "One Punch Man",
+                      "title_english":  "One-Punch Man",
+                      "title_native":  "ワンパンマン",
+                      "synonyms":  [
+                                       "One Punch-Man",
+                                       "One-Punch Man",
+                                       "OPM",
+                                       "ワンパンマン"
+                                   ],
+                      "year":  2015,
+                      "season":  "FALL",
+                      "format":  "TV",
+                      "themes":  [
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  null,
+                                         "entry_version":  1,
+                                         "basename":  "OnePunchMan-OP1.webm",
+                                         "link":  "https://v.animethemes.moe/OnePunchMan-OP1.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  59278282,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  3
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "OnePunchMan-ED1.webm",
+                                         "link":  "https://v.animethemes.moe/OnePunchMan-ED1.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  40514524,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  4
+                                     }
+                                 ]
+                  },
+                  {
+                      "rank":  27,
+                      "slug":  "noragami",
+                      "resolved_by":  "derived",
+                      "title_romaji":  "Noragami",
+                      "title_english":  "Noragami",
+                      "title_native":  "ノラガミ",
+                      "synonyms":  [
+                                       null
+                                   ],
+                      "year":  2014,
+                      "season":  "WINTER",
+                      "format":  "TV",
+                      "themes":  [
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  null,
+                                         "entry_version":  1,
+                                         "basename":  "Noragami-OP1.webm",
+                                         "link":  "https://v.animethemes.moe/Noragami-OP1.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  36423067,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  3
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  null,
+                                         "entry_version":  1,
+                                         "basename":  "Noragami-ED1.webm",
+                                         "link":  "https://v.animethemes.moe/Noragami-ED1.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  25147448,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  4
+                                     }
+                                 ]
+                  },
+                  {
+                      "rank":  28,
+                      "slug":  "ao_no_exorcist",
+                      "resolved_by":  "search",
+                      "title_romaji":  "Ao no Exorcist",
+                      "title_english":  "Blue Exorcist",
+                      "title_native":  "青の祓魔師",
+                      "synonyms":  [
+                                       "Blue Exorcist",
+                                       "Ao no Futsumashi",
+                                       "青の祓魔師"
+                                   ],
+                      "year":  2011,
+                      "season":  "SPRING",
+                      "format":  "TV",
+                      "themes":  [
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "AoNoExorcist-OP1.webm",
+                                         "link":  "https://v.animethemes.moe/AoNoExorcist-OP1.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  36858344,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  3
+                                     },
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  2,
+                                         "entry_version":  1,
+                                         "basename":  "AoNoExorcist-OP2.webm",
+                                         "link":  "https://v.animethemes.moe/AoNoExorcist-OP2.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  34943569,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  3
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "AoNoExorcist-ED1.webm",
+                                         "link":  "https://v.animethemes.moe/AoNoExorcist-ED1.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  33965854,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  4
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  2,
+                                         "entry_version":  1,
+                                         "basename":  "AoNoExorcist-ED2.webm",
+                                         "link":  "https://v.animethemes.moe/AoNoExorcist-ED2.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  25144912,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  4
+                                     }
+                                 ]
+                  },
+                  {
+                      "rank":  29,
+                      "slug":  "black_clover_tv",
+                      "resolved_by":  "search",
+                      "title_romaji":  "Black Clover (TV)",
+                      "title_english":  "Black Clover",
+                      "title_native":  "ブラッククローバー",
+                      "synonyms":  [
+                                       "Black Clover",
+                                       "ブラッククローバー"
+                                   ],
+                      "year":  2017,
+                      "season":  "FALL",
+                      "format":  "TV",
+                      "themes":  [
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "BlackClover-OP1-NCBD1080.webm",
+                                         "link":  "https://v.animethemes.moe/BlackClover-OP1-NCBD1080.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  64708145,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  2,
+                                         "difficulty":  3
+                                     },
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  2,
+                                         "entry_version":  1,
+                                         "basename":  "BlackClover-OP2-NCBD1080.webm",
+                                         "link":  "https://v.animethemes.moe/BlackClover-OP2-NCBD1080.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  41706904,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  2,
+                                         "difficulty":  3
+                                     },
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  3,
+                                         "entry_version":  1,
+                                         "basename":  "BlackClover-OP3-NCBD1080.webm",
+                                         "link":  "https://v.animethemes.moe/BlackClover-OP3-NCBD1080.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  42201878,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  2,
+                                         "difficulty":  4
+                                     },
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  4,
+                                         "entry_version":  1,
+                                         "basename":  "BlackClover-OP4-NCBD1080.webm",
+                                         "link":  "https://v.animethemes.moe/BlackClover-OP4-NCBD1080.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  42408464,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  2,
+                                         "difficulty":  4
+                                     }
+                                 ]
+                  },
+                  {
+                      "rank":  30,
+                      "slug":  "dr_stone",
+                      "resolved_by":  "derived",
+                      "title_romaji":  "Dr. Stone",
+                      "title_english":  "Dr. STONE",
+                      "title_native":  "Dr.STONE",
+                      "synonyms":  [
+                                       "Dr. STONE",
+                                       "Dr.STONE"
+                                   ],
+                      "year":  2019,
+                      "season":  "SUMMER",
+                      "format":  "TV",
+                      "themes":  [
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "DrStone-OP1-NCBD1080.webm",
+                                         "link":  "https://v.animethemes.moe/DrStone-OP1-NCBD1080.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  61910325,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  2,
+                                         "difficulty":  3
+                                     },
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  2,
+                                         "entry_version":  1,
+                                         "basename":  "DrStone-OP2-NCBD1080.webm",
+                                         "link":  "https://v.animethemes.moe/DrStone-OP2-NCBD1080.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  62365482,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  2,
+                                         "difficulty":  3
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "DrStone-ED1-NCBD1080.webm",
+                                         "link":  "https://v.animethemes.moe/DrStone-ED1-NCBD1080.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  66886143,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  2,
+                                         "difficulty":  4
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  2,
+                                         "entry_version":  1,
+                                         "basename":  "DrStone-ED2-NCBD1080.webm",
+                                         "link":  "https://v.animethemes.moe/DrStone-ED2-NCBD1080.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  42201236,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  2,
+                                         "difficulty":  4
+                                     }
+                                 ]
+                  },
+                  {
+                      "rank":  31,
+                      "slug":  "enen_no_shouboutai",
+                      "resolved_by":  "search",
+                      "title_romaji":  "Enen no Shouboutai",
+                      "title_english":  "Fire Force",
+                      "title_native":  "炎炎ノ消防隊",
+                      "synonyms":  [
+                                       "Fire Force",
+                                       "炎炎ノ消防隊"
+                                   ],
+                      "year":  2019,
+                      "season":  "SUMMER",
+                      "format":  "TV",
+                      "themes":  [
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "EnenNoShouboutai-OP1-NCBD1080.webm",
+                                         "link":  "https://v.animethemes.moe/EnenNoShouboutai-OP1-NCBD1080.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  61342739,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  2,
+                                         "difficulty":  4
+                                     },
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  2,
+                                         "entry_version":  1,
+                                         "basename":  "EnenNoShouboutai-OP2-NCBD1080.webm",
+                                         "link":  "https://v.animethemes.moe/EnenNoShouboutai-OP2-NCBD1080.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  57244043,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  2,
+                                         "difficulty":  4
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "EnenNoShouboutai-ED1-NCBD1080.webm",
+                                         "link":  "https://v.animethemes.moe/EnenNoShouboutai-ED1-NCBD1080.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  59421112,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  2,
+                                         "difficulty":  5
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  2,
+                                         "entry_version":  1,
+                                         "basename":  "EnenNoShouboutai-ED2-NCBD1080.webm",
+                                         "link":  "https://v.animethemes.moe/EnenNoShouboutai-ED2-NCBD1080.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  33644301,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  2,
+                                         "difficulty":  5
+                                     }
+                                 ]
+                  },
+                  {
+                      "rank":  32,
+                      "slug":  "chainsaw_man",
+                      "resolved_by":  "derived",
+                      "title_romaji":  "Chainsaw Man",
+                      "title_english":  "Chainsaw Man",
+                      "title_native":  "チェンソーマン",
+                      "synonyms":  [
+                                       "CSM"
+                                   ],
+                      "year":  2022,
+                      "season":  "FALL",
+                      "format":  "TV",
+                      "themes":  [
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  null,
+                                         "entry_version":  1,
+                                         "basename":  "ChainsawMan-OP1-NCBD1080.webm",
+                                         "link":  "https://v.animethemes.moe/ChainsawMan-OP1-NCBD1080.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  58677798,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  2,
+                                         "difficulty":  4
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "ChainsawMan-ED1-NCBD1080.webm",
+                                         "link":  "https://v.animethemes.moe/ChainsawMan-ED1-NCBD1080.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  52250549,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  2,
+                                         "difficulty":  5
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  2,
+                                         "entry_version":  1,
+                                         "basename":  "ChainsawMan-ED2-NCBD1080.webm",
+                                         "link":  "https://v.animethemes.moe/ChainsawMan-ED2-NCBD1080.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  58630725,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  2,
+                                         "difficulty":  5
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  3,
+                                         "entry_version":  1,
+                                         "basename":  "ChainsawMan-ED3-NCBD1080.webm",
+                                         "link":  "https://v.animethemes.moe/ChainsawMan-ED3-NCBD1080.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  52573489,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  2,
+                                         "difficulty":  5
+                                     }
+                                 ]
+                  },
+                  {
+                      "rank":  33,
+                      "slug":  "spy_x_family",
+                      "resolved_by":  "derived",
+                      "title_romaji":  "Spy x Family",
+                      "title_english":  "SPY x FAMILY",
+                      "title_native":  "SPY×FAMILY",
+                      "synonyms":  [
+                                       "SPY x FAMILY",
+                                       "SPY×FAMILY"
+                                   ],
+                      "year":  2022,
+                      "season":  "SPRING",
+                      "format":  "TV",
+                      "themes":  {
+                                     "theme_type":  "ED",
+                                     "theme_sequence":  null,
+                                     "entry_version":  1,
+                                     "basename":  "SpyXFamily-ED1-NCBD1080.webm",
+                                     "link":  "https://v.animethemes.moe/SpyXFamily-ED1-NCBD1080.webm",
+                                     "resolution":  1080,
+                                     "size_bytes":  61567703,
+                                     "overlap":  "NONE",
+                                     "source":  "BD",
+                                     "variants_seen":  2,
+                                     "difficulty":  5
+                                 }
+                  },
+                  {
+                      "rank":  34,
+                      "slug":  "sousou_no_frieren",
+                      "resolved_by":  "derived",
+                      "title_romaji":  "Sousou no Frieren",
+                      "title_english":  "Frieren: Beyond Journey’s End",
+                      "title_native":  "葬送のフリーレン",
+                      "synonyms":  [
+                                       "Frieren: Beyond Journey\u0027s End",
+                                       "Frieren at the Funeral",
+                                       "Frieren: Beyond Journey’s End",
+                                       "葬送のフリーレン"
+                                   ],
+                      "year":  2023,
+                      "season":  "FALL",
+                      "format":  "TV",
+                      "themes":  [
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "SousouNoFrieren-OP1-NCBD1080.webm",
+                                         "link":  "https://v.animethemes.moe/SousouNoFrieren-OP1-NCBD1080.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  57620830,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  2,
+                                         "difficulty":  4
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  null,
+                                         "entry_version":  1,
+                                         "basename":  "SousouNoFrieren-ED1-TV-NCBD1080.webm",
+                                         "link":  "https://v.animethemes.moe/SousouNoFrieren-ED1-TV-NCBD1080.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  48371407,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  2,
+                                         "difficulty":  5
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "SousouNoFrieren-ED1-NCBD1080.webm",
+                                         "link":  "https://v.animethemes.moe/SousouNoFrieren-ED1-NCBD1080.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  59906615,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  2,
+                                         "difficulty":  5
+                                     }
+                                 ]
+                  },
+                  {
+                      "rank":  35,
+                      "slug":  "oshi_no_ko",
+                      "resolved_by":  "derived",
+                      "title_romaji":  "[Oshi no Ko]",
+                      "title_english":  "Oshi No Ko",
+                      "title_native":  "【推しの子】",
+                      "synonyms":  [
+                                       "【OSHI NO KO】",
+                                       "My Star"
+                                   ],
+                      "year":  2023,
+                      "season":  "SPRING",
+                      "format":  "TV",
+                      "themes":  [
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  null,
+                                         "entry_version":  1,
+                                         "basename":  "OshiNoKo-OP1-NCBD1080.webm",
+                                         "link":  "https://v.animethemes.moe/OshiNoKo-OP1-NCBD1080.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  51256443,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  2,
+                                         "difficulty":  4
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  null,
+                                         "entry_version":  2,
+                                         "basename":  "OshiNoKo-ED1v2-NCBD1080.webm",
+                                         "link":  "https://v.animethemes.moe/OshiNoKo-ED1v2-NCBD1080.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  68274637,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  2,
+                                         "difficulty":  5
+                                     }
+                                 ]
+                  },
+                  {
+                      "rank":  36,
+                      "slug":  "bocchi_the_rock",
+                      "resolved_by":  "derived",
+                      "title_romaji":  "Bocchi the Rock!",
+                      "title_english":  "BOCCHI THE ROCK!",
+                      "title_native":  "ぼっち・ざ・ろっく！",
+                      "synonyms":  [
+                                       "BOCCHI THE ROCK!",
+                                       "ぼっち・ざ・ろっく！"
+                                   ],
+                      "year":  2022,
+                      "season":  "FALL",
+                      "format":  "TV",
+                      "themes":  [
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  null,
+                                         "entry_version":  1,
+                                         "basename":  "BocchiTheRock-OP1-NCBD1080.webm",
+                                         "link":  "https://v.animethemes.moe/BocchiTheRock-OP1-NCBD1080.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  55992110,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  2,
+                                         "difficulty":  4
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "BocchiTheRock-ED1-NCBD1080.webm",
+                                         "link":  "https://v.animethemes.moe/BocchiTheRock-ED1-NCBD1080.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  34406594,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  2,
+                                         "difficulty":  5
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  2,
+                                         "entry_version":  1,
+                                         "basename":  "BocchiTheRock-ED2-NCBD1080.webm",
+                                         "link":  "https://v.animethemes.moe/BocchiTheRock-ED2-NCBD1080.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  18386162,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  2,
+                                         "difficulty":  5
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  3,
+                                         "entry_version":  1,
+                                         "basename":  "BocchiTheRock-ED3-NCBD1080.webm",
+                                         "link":  "https://v.animethemes.moe/BocchiTheRock-ED3-NCBD1080.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  24003269,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  2,
+                                         "difficulty":  5
+                                     }
+                                 ]
+                  },
+                  {
+                      "rank":  38,
+                      "slug":  "nanatsu_no_taizai",
+                      "resolved_by":  "derived",
+                      "title_romaji":  "Nanatsu no Taizai",
+                      "title_english":  "The Seven Deadly Sins",
+                      "title_native":  "七つの大罪",
+                      "synonyms":  [
+                                       "The Seven Deadly Sins",
+                                       "七つの大罪"
+                                   ],
+                      "year":  2014,
+                      "season":  "FALL",
+                      "format":  "TV",
+                      "themes":  [
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "NanatsuNoTaizai-OP1.webm",
+                                         "link":  "https://v.animethemes.moe/NanatsuNoTaizai-OP1.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  26710693,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  4
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "NanatsuNoTaizai-ED1.webm",
+                                         "link":  "https://v.animethemes.moe/NanatsuNoTaizai-ED1.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  32655649,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  5
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  2,
+                                         "entry_version":  1,
+                                         "basename":  "NanatsuNoTaizai-ED2.webm",
+                                         "link":  "https://v.animethemes.moe/NanatsuNoTaizai-ED2.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  32970703,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  5
+                                     }
+                                 ]
+                  },
+                  {
+                      "rank":  39,
+                      "slug":  "ansatsu_kyoushitsu_tv",
+                      "resolved_by":  "search",
+                      "title_romaji":  "Ansatsu Kyoushitsu (TV)",
+                      "title_english":  "Assassination Classroom",
+                      "title_native":  "暗殺教室",
+                      "synonyms":  [
+                                       "Assassination Classroom",
+                                       "暗殺教室"
+                                   ],
+                      "year":  2015,
+                      "season":  "WINTER",
+                      "format":  "TV",
+                      "themes":  [
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "AnsatsuKyoushitsu-OP1.webm",
+                                         "link":  "https://v.animethemes.moe/AnsatsuKyoushitsu-OP1.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  65636797,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  4
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  null,
+                                         "entry_version":  1,
+                                         "basename":  "AnsatsuKyoushitsu-ED1.webm",
+                                         "link":  "https://v.animethemes.moe/AnsatsuKyoushitsu-ED1.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  61661253,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  5
+                                     }
+                                 ]
+                  },
+                  {
+                      "rank":  41,
+                      "slug":  "ao_haru_ride",
+                      "resolved_by":  "derived",
+                      "title_romaji":  "Ao Haru Ride",
+                      "title_english":  "Blue Spring Ride",
+                      "title_native":  "アオハライド",
+                      "synonyms":  [
+                                       "Blue Spring Ride",
+                                       "Aoharaido",
+                                       "アオハライド"
+                                   ],
+                      "year":  2014,
+                      "season":  "SUMMER",
+                      "format":  "TV",
+                      "themes":  [
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  null,
+                                         "entry_version":  1,
+                                         "basename":  "AoHaruRide-OP1.webm",
+                                         "link":  "https://v.animethemes.moe/AoHaruRide-OP1.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  48083502,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  5
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  null,
+                                         "entry_version":  1,
+                                         "basename":  "AoHaruRide-ED1.webm",
+                                         "link":  "https://v.animethemes.moe/AoHaruRide-ED1.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  48798973,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  5
+                                     }
+                                 ]
+                  },
+                  {
+                      "rank":  42,
+                      "slug":  "toradora",
+                      "resolved_by":  "derived",
+                      "title_romaji":  "Toradora!",
+                      "title_english":  "Toradora!",
+                      "title_native":  "とらドラ!",
+                      "synonyms":  [
+                                       "Tiger X Dragon"
+                                   ],
+                      "year":  2008,
+                      "season":  "FALL",
+                      "format":  "TV",
+                      "themes":  [
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "Toradora-OP1.webm",
+                                         "link":  "https://v.animethemes.moe/Toradora-OP1.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  49119796,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  5
+                                     },
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  2,
+                                         "entry_version":  1,
+                                         "basename":  "Toradora-OP2.webm",
+                                         "link":  "https://v.animethemes.moe/Toradora-OP2.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  54281698,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  5
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "Toradora-ED1.webm",
+                                         "link":  "https://v.animethemes.moe/Toradora-ED1.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  24302083,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  5
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  2,
+                                         "entry_version":  1,
+                                         "basename":  "Toradora-ED2.webm",
+                                         "link":  "https://v.animethemes.moe/Toradora-ED2.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  33163674,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  5
+                                     }
+                                 ]
+                  },
+                  {
+                      "rank":  43,
+                      "slug":  "clannad_after_story",
+                      "resolved_by":  "derived",
+                      "title_romaji":  "Clannad: After Story",
+                      "title_english":  "Clannad: After Story",
+                      "title_native":  "CLANNAD ~AFTER STORY~",
+                      "synonyms":  [
+                                       null
+                                   ],
+                      "year":  2008,
+                      "season":  "FALL",
+                      "format":  "TV",
+                      "themes":  [
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  null,
+                                         "entry_version":  1,
+                                         "basename":  "ClannadAfterStory-OP1.webm",
+                                         "link":  "https://v.animethemes.moe/ClannadAfterStory-OP1.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  49954435,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  5
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "ClannadAfterStory-ED1.webm",
+                                         "link":  "https://v.animethemes.moe/ClannadAfterStory-ED1.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  49501633,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  5
+                                     }
+                                 ]
+                  },
+                  {
+                      "rank":  44,
+                      "slug":  "angel_beats",
+                      "resolved_by":  "derived",
+                      "title_romaji":  "Angel Beats!",
+                      "title_english":  "Angel Beats!",
+                      "title_native":  "エンジェルビーツ!",
+                      "synonyms":  [
+                                       null
+                                   ],
+                      "year":  2010,
+                      "season":  "SPRING",
+                      "format":  "TV",
+                      "themes":  [
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "AngelBeats-OP1.webm",
+                                         "link":  "https://v.animethemes.moe/AngelBeats-OP1.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  50487453,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  5
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "AngelBeats-ED1.webm",
+                                         "link":  "https://v.animethemes.moe/AngelBeats-ED1.webm",
+                                         "resolution":  720,
+                                         "size_bytes":  10033003,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  5
+                                     }
+                                 ]
+                  },
+                  {
+                      "rank":  45,
+                      "slug":  "kimi_no_na_wa",
+                      "resolved_by":  "search",
+                      "title_romaji":  "Kimi no Na wa.",
+                      "title_english":  "Your Name.",
+                      "title_native":  "君の名は。",
+                      "synonyms":  [
+                                       "Your Name.",
+                                       "君の名は。"
+                                   ],
+                      "year":  2016,
+                      "season":  "SUMMER",
+                      "format":  "MOVIE",
+                      "themes":  {
+                                     "theme_type":  "OP",
+                                     "theme_sequence":  null,
+                                     "entry_version":  1,
+                                     "basename":  "KimiNoNaWa-OP1.webm",
+                                     "link":  "https://v.animethemes.moe/KimiNoNaWa-OP1.webm",
+                                     "resolution":  1080,
+                                     "size_bytes":  69306627,
+                                     "overlap":  "TRANS",
+                                     "source":  "BD",
+                                     "variants_seen":  1,
+                                     "difficulty":  5
+                                 }
+                  },
+                  {
+                      "rank":  48,
+                      "slug":  "gintama",
+                      "resolved_by":  "derived",
+                      "title_romaji":  "Gintama",
+                      "title_english":  "Gintama",
+                      "title_native":  "銀魂",
+                      "synonyms":  [
+                                       "Gin Tama",
+                                       "Silver Soul"
+                                   ],
+                      "year":  2006,
+                      "season":  "SPRING",
+                      "format":  "TV",
+                      "themes":  [
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "Gintama-OP1-YorinukiGintamaSan.webm",
+                                         "link":  "https://v.animethemes.moe/Gintama-OP1-YorinukiGintamaSan.webm",
+                                         "resolution":  540,
+                                         "size_bytes":  20023807,
+                                         "overlap":  "NONE",
+                                         "source":  "DVD",
+                                         "variants_seen":  1,
+                                         "difficulty":  5
+                                     },
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "Gintama-OP1.webm",
+                                         "link":  "https://v.animethemes.moe/Gintama-OP1.webm",
+                                         "resolution":  720,
+                                         "size_bytes":  29656797,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  5
+                                     },
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  2,
+                                         "entry_version":  1,
+                                         "basename":  "Gintama-OP2.webm",
+                                         "link":  "https://v.animethemes.moe/Gintama-OP2.webm",
+                                         "resolution":  720,
+                                         "size_bytes":  27421082,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  5
+                                     },
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  2,
+                                         "entry_version":  1,
+                                         "basename":  "Gintama-OP2-YorinukiGintamaSan.webm",
+                                         "link":  "https://v.animethemes.moe/Gintama-OP2-YorinukiGintamaSan.webm",
+                                         "resolution":  540,
+                                         "size_bytes":  21573899,
+                                         "overlap":  "NONE",
+                                         "source":  "DVD",
+                                         "variants_seen":  1,
+                                         "difficulty":  5
+                                     }
+                                 ]
+                  },
+                  {
+                      "rank":  49,
+                      "slug":  "jojo_no_kimyou_na_bouken",
+                      "resolved_by":  "derived",
+                      "title_romaji":  "JoJo no Kimyou na Bouken",
+                      "title_english":  "JoJo\u0027s Bizarre Adventure (TV)",
+                      "title_native":  "ジョジョの奇妙な冒険 (TV)",
+                      "synonyms":  [
+                                       "JoJo\u0027s Bizarre Adventure (2012)",
+                                       "JoJo\u0027s Bizarre Adventure (TV)",
+                                       "ジョジョの奇妙な冒険 (TV)"
+                                   ],
+                      "year":  2012,
+                      "season":  "FALL",
+                      "format":  "TV",
+                      "themes":  [
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  1,
+                                         "entry_version":  1,
+                                         "basename":  "JojoNoKimyouNaBouken-OP1.webm",
+                                         "link":  "https://v.animethemes.moe/JojoNoKimyouNaBouken-OP1.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  60964698,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  5
+                                     },
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  2,
+                                         "entry_version":  1,
+                                         "basename":  "JojoNoKimyouNaBouken-OP2.webm",
+                                         "link":  "https://v.animethemes.moe/JojoNoKimyouNaBouken-OP2.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  62965303,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  5
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  null,
+                                         "entry_version":  1,
+                                         "basename":  "JojoNoKimyouNaBouken-ED1.webm",
+                                         "link":  "https://v.animethemes.moe/JojoNoKimyouNaBouken-ED1.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  63799553,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  5
+                                     }
+                                 ]
+                  },
+                  {
+                      "rank":  50,
+                      "slug":  "fatezero",
+                      "resolved_by":  "search",
+                      "title_romaji":  "Fate/Zero",
+                      "title_english":  "Fate/Zero",
+                      "title_native":  "Fate/Zero",
+                      "synonyms":  [
+                                       null
+                                   ],
+                      "year":  2011,
+                      "season":  "FALL",
+                      "format":  "TV",
+                      "themes":  [
+                                     {
+                                         "theme_type":  "OP",
+                                         "theme_sequence":  null,
+                                         "entry_version":  1,
+                                         "basename":  "FateZero-OP1.webm",
+                                         "link":  "https://v.animethemes.moe/FateZero-OP1.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  59837176,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  5
+                                     },
+                                     {
+                                         "theme_type":  "ED",
+                                         "theme_sequence":  null,
+                                         "entry_version":  1,
+                                         "basename":  "FateZero-ED1.webm",
+                                         "link":  "https://v.animethemes.moe/FateZero-ED1.webm",
+                                         "resolution":  1080,
+                                         "size_bytes":  50082332,
+                                         "overlap":  "NONE",
+                                         "source":  "BD",
+                                         "variants_seen":  1,
+                                         "difficulty":  5
+                                     }
+                                 ]
+                  }
+              ],
+    "excluded":  [
+                     {
+                         "romaji":  "Cyberpunk: Edgerunners",
+                         "slug":  "cyberpunk_edgerunners",
+                         "reason":  "no nc:true/subbed:false variant on any non-spoiler OP/ED entry"
+                     },
+                     {
+                         "romaji":  "Kuroko no Basket",
+                         "slug":  "kuroko_no_basket",
+                         "reason":  "no nc:true/subbed:false variant on any non-spoiler OP/ED entry"
+                     },
+                     {
+                         "romaji":  "Spirited Away",
+                         "slug":  "sen_to_chihiro_no_kamikakushi",
+                         "reason":  "no nc:true/subbed:false variant on any non-spoiler OP/ED entry"
+                     },
+                     {
+                         "romaji":  "A Silent Voice",
+                         "slug":  "koe_no_katachi",
+                         "reason":  "no nc:true/subbed:false variant on any non-spoiler OP/ED entry"
+                     }
+                 ]
+}

@@ -35,3 +35,20 @@ and any NEW file dropped into this directory applies normally.
   assigned yet`; use scalar targets.
 - The round clock is real (20 s): tests that grade a round must start it and grade in
   the SAME call, or they correctly receive `ROUND_NOT_ACTIVE`.
+
+## 0008 / 0009 - curation write path (added 2026-08-22)
+
+- **0008 `ingest_question.sql`** - the pipeline's only write path. Takes a bare
+  `clip_uuid` and derives `id` and `clip_key` (`clips/{id}.webm`) from it; computes
+  `title_norm` with `normalise_title` so it can never drift from `grade_guess`.
+  Idempotent on the uuid. `service_role` only. See doc/DATA-MODEL.md 8.4.
+- **0009 `storage_clips.sql`** - creates the `clips` bucket (public read, 5 MB cap,
+  `video/webm` only). doc/DATA-MODEL.md 8.3 had specified it but nothing created it.
+
+Both applied and execution-tested against the live project; test rows deleted
+afterwards, so `question_bank` is still at 0 rows. Registry tracks 1-9.
+
+**Note on 0009:** it writes to `storage.buckets`, which the Management API can do but
+`supabase db reset` against a local stack cannot always reproduce identically - the
+bucket row is data, not schema. Treat the migration as the source of truth for the
+bucket's settings.

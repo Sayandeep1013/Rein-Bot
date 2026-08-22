@@ -685,6 +685,39 @@ egress allowance (`doc/ARCHITECTURE.md` §10).
 
 ---
 
+**IMPLEMENTED 2026-08-22 - migration 0009.** The bucket is created by
+`supabase/migrations/20260822000009_storage_clips.sql`. Until then 8.3 specified a bucket
+that did not exist, so the pipeline had nowhere to upload; the gap was found while
+writing the ingest path. Live settings: `public = true`, `file_size_limit = 5242880`
+(5 MB - a clip is ~1 MB at 480p/20 s, so this catches a transcode that silently passed a
+62 MB source through), `allowed_mime_types = {video/webm}`. No INSERT/UPDATE/DELETE
+policy exists on `storage.objects` for this bucket, so anon and authenticated cannot
+write to it - a public bucket is public to *read* only. The pipeline uploads with the
+service_role key, which bypasses RLS.
+
+### 8.4 Ingest path
+
+**DECIDED 2026-08-22 - migration 0008.** The curation pipeline writes through one RPC,
+`ingest_question(jsonb)`, never through a direct PostgREST insert. Two reasons:
+
+1. `question_titles.title_norm` must be produced by `normalise_title` - the same
+   function `grade_guess` applies to the player's guess (3). A pipeline that normalised
+   titles itself would let the two implementations drift, and answers would silently
+   stop matching with nothing wrong on either side.
+2. The caller passes a bare `clip_uuid`; the function derives **both** `id` and
+   `clip_key` from it. Accepting `clip_key` directly would create two independent uuids
+   that must agree forever, and the first disagreement is a live round resolving to a
+   missing object. Deriving the key server-side also means the AnimeThemes basename
+   cannot be supplied at all, rather than being rejected by a guard.
+
+Because the pipeline chooses the uuid, it uploads the object **before** inserting the
+row. The reverse order can leave a row pointing at bytes that never arrived.
+
+The function is idempotent on the uuid, so a batch that fails partway can be retried;
+it raises `NO_TITLES` rather than inserting an unwinnable question; and it is granted to
+`service_role` only, with `anon` and `authenticated` explicitly revoked (7.1).
+
+---
 ## 9. Open items
 
 | Item | Blocks | Tracked |
