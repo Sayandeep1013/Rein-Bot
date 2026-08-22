@@ -1,9 +1,9 @@
-# SEED-LIST.md — launch content, B-11 item 2
+# doc/SEED-LIST.md — launch content, B-11 item 2
 
 **DECIDED 2026-08-22 (user):** no hand cherry-picking for launch — take the top 50 by
 recognition. This list is compiled from MyAnimeList popularity ordering, biased toward
 pre-2023 classics with ~10 modern hits mixed in. **It is a prioritisation document, not
-ingest input**: the curation pipeline (`ARCHITECTURE.md` §8) still validates every entry
+ingest input**: the curation pipeline (`doc/ARCHITECTURE.md` §8) still validates every entry
 against AnimeThemes at ingest — an anime with no credit-free OP/ED clip simply produces
 no question rows and is skipped. Titles below give the `question_titles` variants
 (romaji / english / native); the pipeline derives slugs from AnimeThemes itself.
@@ -72,5 +72,5 @@ Notes for the pipeline author:
   stores them verbatim through `normalise_title()` at ingest, so fullwidth punctuation
   (e.g. 君の名は。's ideographic full stop) is handled by normalisation, proven in the
   migration execution tests.
-- Difficulty inputs (`DATA-MODEL.md` §5) derive from year/format/theme_type at ingest;
+- Difficulty inputs (`doc/DATA-MODEL.md` §5) derive from year/format/theme_type at ingest;
   this list deliberately spans 1989–2023 so every difficulty band has candidates.

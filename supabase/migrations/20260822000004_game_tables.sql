@@ -1,5 +1,5 @@
 -- 20260822000004_game_tables.sql
--- ReIN Bot -- game state tables. Implements DATA-MODEL.md 4.1 through 4.5.
+-- ReIN Bot -- game state tables. Implements doc/DATA-MODEL.md 4.1 through 4.5.
 --
 -- Ordering note: rooms must precede players (players references rooms), and
 -- host_player_id deliberately has NO foreign key to players -- the reference is
@@ -36,7 +36,7 @@ create table public.rooms (
   constraint difficulty_range_sane check (difficulty_min <= difficulty_max)
 );
 
--- Partial index serving the pg_cron retention sweep (DATA-MODEL.md 8.2): it scans
+-- Partial index serving the pg_cron retention sweep (doc/DATA-MODEL.md 8.2): it scans
 -- for reapable rooms, so 'over' rows are excluded from the index entirely.
 create index rooms_reapable on public.rooms (created_at) where state <> 'over';
 

@@ -1,5 +1,5 @@
 -- 20260822000006_rls_grants.sql
--- ReIN Bot -- RLS policies and grants. Implements DATA-MODEL.md 7.1-7.3.
+-- ReIN Bot -- RLS policies and grants. Implements doc/DATA-MODEL.md 7.1-7.3.
 --
 -- Two layers, deliberately both present:
 --   grants   no table has INSERT/UPDATE/DELETE for any client role; content tables
@@ -37,7 +37,7 @@ revoke execute on function public.is_room_member(uuid) from public;
 grant execute on function public.is_room_member(uuid) to anon, authenticated;
 
 comment on function public.is_room_member(uuid) is
-  'Membership predicate from DATA-MODEL.md 7.2, as a SECURITY DEFINER helper so '
+  'Membership predicate from doc/DATA-MODEL.md 7.2, as a SECURITY DEFINER helper so '
   'policies can use it without recursing through players'' own RLS.';
 
 -- ---------------------------------------------------------------------------
@@ -81,7 +81,7 @@ create policy rounds_select_for_members on public.rounds
 -- caller's room"). Whole-room readability is deliberate -- scoreboard and reveal need
 -- it. Nothing in a guesses row discloses an unrevealed answer except a correct guess's
 -- raw text, so the client must not render other players' guess text until
--- ROUND_REVEAL: UI obligation, not schema-enforceable (DATA-MODEL.md 7.2).
+-- ROUND_REVEAL: UI obligation, not schema-enforceable (doc/DATA-MODEL.md 7.2).
 create policy guesses_select_for_members on public.guesses
   for select to authenticated
   using (
@@ -101,5 +101,5 @@ revoke insert, update, delete, truncate
   from anon, authenticated;
 
 -- TO authenticated only: every player holds an anonymous-auth session before touching
--- anything (GAME-DESIGN.md 6.1). Pre-auth anon-role requests see zero rows, which is
+-- anything (doc/GAME-DESIGN.md 6.1). Pre-auth anon-role requests see zero rows, which is
 -- correct -- they have no display name to bring to a room anyway.

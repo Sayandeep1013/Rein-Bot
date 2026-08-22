@@ -4,9 +4,9 @@ Status: **first draft, 2026-08-22.** **These are specifications, not migrations.
 migration has been written or applied. The Supabase MCP is still bound to an unrelated
 project (B-19), so none of this has been validated against a live database.
 
-Companion documents: `ARCHITECTURE.md` (component boundaries), `GAME-DESIGN.md` (game
-rules and matching semantics), `RESEARCH.md` (verified platform numbers),
-`BLOCKERS.md` (open questions).
+Companion documents: `doc/ARCHITECTURE.md` (component boundaries), `doc/GAME-DESIGN.md` (game
+rules and matching semantics), `doc/RESEARCH.md` (verified platform numbers),
+`doc/BLOCKERS.md` (open questions).
 
 ---
 
@@ -35,7 +35,7 @@ Versions are the platform defaults observed on Supabase; none are installed on a
 Bot project yet. Availability is platform-wide so it transfers, but **confirm once
 B-19 is cleared.**
 
-### 2.1 A gap in `GAME-DESIGN.md` §4.3 — flagged, not silently patched
+### 2.1 A gap in `doc/GAME-DESIGN.md` §4.3 — flagged, not silently patched
 
 §4.3 specifies **Damerau–Levenshtein ≤ 2** for the near-match tier.
 **`fuzzystrmatch` does not provide Damerau–Levenshtein.** It provides `soundex`,
@@ -62,7 +62,7 @@ the guess input should still be length-capped at the application layer.
 
 ## 3. Content tables
 
-These are written by the curation pipeline (`ARCHITECTURE.md` §8) and **never read
+These are written by the curation pipeline (`doc/ARCHITECTURE.md` §8) and **never read
 directly by clients** (§7.1).
 
 ### 3.1 `question_bank`
@@ -87,7 +87,7 @@ create table question_bank (
   theme_sequence      int,
   difficulty          smallint    not null check (difficulty between 1 and 5),
 
-  -- variant safety flags (ARCHITECTURE.md §8.1)
+  -- variant safety flags (doc/ARCHITECTURE.md §8.1)
   nc                  boolean     not null,
   subbed              boolean     not null,
   overlap             text,
@@ -108,16 +108,16 @@ create table question_bank (
 
 **`clip_key` must be an opaque identifier, never the AnimeThemes basename.**
 `KimiSen-OP1-NCBD1080.webm` spells the answer in the network panel
-(`GAME-DESIGN.md` §2.1). Use the row's own uuid: `clips/{uuid}.webm`.
+(`doc/GAME-DESIGN.md` §2.1). Use the row's own uuid: `clips/{uuid}.webm`.
 
-**The three `check` constraints are the point.** `ARCHITECTURE.md` §8.1 states the
+**The three `check` constraints are the point.** `doc/ARCHITECTURE.md` §8.1 states the
 variant-selection rules as pipeline policy; encoding them as constraints means a unsafe
 clip *cannot be inserted at all*, even by a buggy ingest run. A credited video reveals
 the title logo, and subtitles can carry translated titles — these are correctness
 requirements, not preferences, so they belong in the schema rather than in a code path
 that might be skipped.
 
-`overlap` is recorded but not constrained; `RESEARCH.md` §4.8 prefers `NONE` without
+`overlap` is recorded but not constrained; `doc/RESEARCH.md` §4.8 prefers `NONE` without
 requiring it.
 
 `retired_at` allows removing a clip from rotation without deleting history that
@@ -146,7 +146,7 @@ normalisation** or the comparison is meaningless.
 No trigram index here. Grading fetches the 4–8 candidate rows for one question and
 compares in memory; a global index would serve no query we make.
 
-**Empty-string guard.** `GAME-DESIGN.md` §4.2 documents a bug where a CJK title
+**Empty-string guard.** `doc/GAME-DESIGN.md` §4.2 documents a bug where a CJK title
 normalises to `''` and then matches any single character. Enforced here:
 
 ```sql
@@ -191,14 +191,14 @@ create index rooms_reapable on rooms (created_at) where state <> 'over';
 **`round_count between 3 and 20`** is the user-approved range. Note that no fixed
 game-length constant appears anywhere in this schema — game length is a per-room
 setting, and the egress budget is consequently a formula, not a number
-(`ARCHITECTURE.md` §10).
+(`doc/ARCHITECTURE.md` §10).
 
 **`code` is 4 characters of Crockford base32 · DECIDED 2026-08-22.** The alphabet is
 `0123456789ABCDEFGHJKMNPQRSTVWXYZ` — Crockford's set, which omits `I`, `L`, `O` and `U`.
 Omitting the first three kills the `0`/`O` and `1`/`I`/`L` confusions that matter for a
 code read aloud to friends; `U` is omitted so a random draw cannot spell something
 unfortunate. Four characters give 32⁴ = 1,048,576 codes against a realistic ceiling of
-~25 concurrent rooms (200 Realtime connections ÷ 8 players, `ARCHITECTURE.md` §9), so
+~25 concurrent rooms (200 Realtime connections ÷ 8 players, `doc/ARCHITECTURE.md` §9), so
 `create_room`'s retry-on-collision loop will effectively never fire twice. Stored
 uppercase; `join_room` upper-cases its input, so the code is case-insensitive to type.
 
@@ -215,7 +215,7 @@ would silently reintroduce double-advance. See §6.4.
 
 ### 4.2 `players`
 
-No accounts (`GAME-DESIGN.md` §6.1). Identity is a Supabase **anonymous** auth session
+No accounts (`doc/GAME-DESIGN.md` §6.1). Identity is a Supabase **anonymous** auth session
 plus a display name scoped to one room.
 
 ```sql
@@ -298,7 +298,7 @@ against a stale window, or rejected while the round is still live.
 There is **no reveal column here.** Reveal data is broadcast over Realtime at
 ROUND_REVEAL, not stored on a client-readable row — because Realtime evaluates RLS at
 join time, not per message, so a stored-and-gated payload could not be time-gated
-anyway (`ARCHITECTURE.md` §9).
+anyway (`doc/ARCHITECTURE.md` §9).
 
 ### 4.4 `guesses`
 
@@ -337,7 +337,7 @@ transaction. No advisory lock, no retry loop, no application-level check.
 
 This is also the reason grading belongs in Postgres rather than an Edge Function: the
 guarantee lives here, so putting the check anywhere else would still depend on this
-index while adding a network hop (`ARCHITECTURE.md` §5.2).
+index while adding a network hop (`doc/ARCHITECTURE.md` §5.2).
 
 ---
 
@@ -345,7 +345,7 @@ index while adding a network hop (`ARCHITECTURE.md` §5.2).
 
 `question_bank.difficulty` is a `smallint` 1–5 computed **at ingest**, because
 **AnimeThemes exposes no difficulty field** — its `Anime` type has no score, popularity,
-rank, or members (`ARCHITECTURE.md` §8.3).
+rank, or members (`doc/ARCHITECTURE.md` §8.3).
 
 Inputs available: `anime_year`, `theme_type` (OP vs ED), `theme_sequence`,
 `anime_format`.
@@ -360,7 +360,7 @@ to is only that difficulty is *a stored integer we control*, filterable by
 update question_bank set difficulty = compute_difficulty(...);
 ```
 
-**Honest limitation, restated from `ARCHITECTURE.md` §8.3:** none of these proxies
+**Honest limitation, restated from `doc/ARCHITECTURE.md` §8.3:** none of these proxies
 measures *recognisability*, which is what difficulty means to a player. A 2005 OP from a
 famous series may be far easier than a 2023 OP from an obscure ONA. Real quality control
 is a hand-picked seed list (B-11 item 2), not this column.
@@ -375,7 +375,7 @@ function needs an actual execution test, not just a successful `CREATE`.
 
 ### 6.1 `normalise_title(text) → text`
 
-Implements `GAME-DESIGN.md` §4.2. `IMMUTABLE`, so it can be used in generated columns
+Implements `doc/GAME-DESIGN.md` §4.2. `IMMUTABLE`, so it can be used in generated columns
 or indexes later.
 
 Steps, in order: lowercase → `unaccent()` → collapse whitespace → strip punctuation
@@ -410,7 +410,7 @@ The only path by which a guess enters the database. Single transaction:
 5. Reject if this player already has a correct guess for this round.
 6. Compare against `question_titles` for the round's question, in tier order —
    exact, near (`levenshtein_less_equal`, §2.1), season-lenient, prefix
-   (`GAME-DESIGN.md` §4.3).
+   (`doc/GAME-DESIGN.md` §4.3).
 7. Insert, attempting the first-correct claim:
 
 ```sql
@@ -437,12 +437,12 @@ wrong here — it would discard the losing guess entirely.
 
 > **DECIDED 2026-08-22 · B-22 closed — winner-takes-all.** The `points … 0` in the
 > exception branch above is **correct and intended**: a guess that is correct but *second*
-> scores nothing. `GAME-DESIGN.md` §6.2 has been rewritten to match, so the two documents
+> scores nothing. `doc/GAME-DESIGN.md` §6.2 has been rewritten to match, so the two documents
 > now describe one game rather than two.
 >
 > `v_points` in the first branch is therefore `100 + speed_bonus`, the bonus decaying
 > linearly from 100 to 0 across `[started_at, ends_at]` — 200 for a first-second win, 100
-> for a last-second one. It derives from `now() - started_at` (`GAME-DESIGN.md` §6.3),
+> for a last-second one. It derives from `now() - started_at` (`doc/GAME-DESIGN.md` §6.3),
 > never from a client-supplied timestamp.
 >
 > **All correct tiers earn full credit.** Exact, near, season-lenient and prefix score
@@ -465,7 +465,7 @@ transaction-start time in Postgres, which is the correct semantic: every player 
 stamped at the moment their transaction began, not at some later point that depends on
 how long grading took.
 
-**Points formula is owned by `GAME-DESIGN.md` §6.2**, which this function applies.
+**Points formula is owned by `doc/GAME-DESIGN.md` §6.2**, which this function applies.
 **Reconciled 2026-08-22 (B-22):** winner-takes-all, so `v_points` is `100 + speed_bonus`
 for the first correct guess and `0` for every other row, with no per-tier factor. The
 bonus decays linearly 100 → 0 across `[started_at, ends_at]`, derived from
@@ -583,7 +583,7 @@ argument requires the guard to test a column the same statement mutates. Here it
 `state = 'lobby'` is the guard and `state = 'playing'` is the write — so a second
 concurrent caller re-evaluates against the committed row, sees `'playing'`, and matches
 zero rows. This is exactly the property that makes `WHERE state = 'playing'` an *unsafe*
-guard inside `advance_round`, where `state` is not written (`GAME-DESIGN.md` §6.3).
+guard inside `advance_round`, where `state` is not written (`doc/GAME-DESIGN.md` §6.3).
 
 Callable by the host only; every other player waits for the broadcast. Double-clicking
 "Start" is harmless by the gate above.
@@ -663,7 +663,7 @@ reveal payload the table does not store.
 
 Every broadcast must be reconstructible from database state, because Realtime does not
 persist messages and a client that misses one has no replay
-(`ARCHITECTURE.md` §9).
+(`doc/ARCHITECTURE.md` §9).
 
 ### 8.2 Retention
 
@@ -681,7 +681,7 @@ Public read with unguessable uuid keys, rather than signed URLs. Signed URLs wou
 round trip per round and defeat CDN caching; since the original concern was that the
 *filename spells the answer* — not that the bytes need protecting — a uuid key resolves
 it completely. Public caching also lets repeat plays land in the separate 5 GB cached
-egress allowance (`ARCHITECTURE.md` §10).
+egress allowance (`doc/ARCHITECTURE.md` §10).
 
 ---
 
@@ -691,7 +691,7 @@ egress allowance (`ARCHITECTURE.md` §10).
 | --- | --- | --- |
 | Nothing validated against a live database | All of it, weakly | B-19 |
 | ~~§4.3 says Damerau–Levenshtein; `fuzzystrmatch` has only Levenshtein~~ **AMENDED 2026-08-22** — §4.3 now specifies `levenshtein_less_equal`, proof in §4.3.1 | Nothing | §2.1 |
-| ~~**CONTRADICTION:** §6.2 scores *every* correct guess 100–200; `grade_guess` step 7 scores a correct-but-second guess **0**~~ **RESOLVED 2026-08-22** — winner-takes-all chosen, so the `0` is correct and `GAME-DESIGN.md` §6.2 was rewritten to match | Nothing | **B-22** |
+| ~~**CONTRADICTION:** §6.2 scores *every* correct guess 100–200; `grade_guess` step 7 scores a correct-but-second guess **0**~~ **RESOLVED 2026-08-22** — winner-takes-all chosen, so the `0` is correct and `doc/GAME-DESIGN.md` §6.2 was rewritten to match | Nothing | **B-22** |
 | ~~**BROKEN:** `rounds.started_at` / `ends_at` are never written by any function; grading compares against `NULL` and rejects every guess~~ **RESOLVED 2026-08-22** — stamped by `start_game` (§6.5) for round 1 and `advance_round` (§6.4) thereafter, both behind the race gate | Nothing | **B-23** |
 | ~~**BROKEN:** nothing transitions `lobby → playing`, so no room can ever start a game~~ **RESOLVED 2026-08-22** — `start_game` added (§6.5); found while fixing B-23 | Nothing | **B-24** |
 | ~~`rooms.deadline` and `rounds.ends_at` duplicate one fact; invariant stated but not yet enforced~~ **RESOLVED 2026-08-22** — both writers set `ends_at` from the same `deadline` value their own statement wrote, so the two cannot drift | Nothing | **B-23**, §4.3 |

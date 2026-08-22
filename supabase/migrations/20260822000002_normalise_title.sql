@@ -1,5 +1,5 @@
 -- 20260822000002_normalise_title.sql
--- ReIN Bot -- title normalisation. Implements GAME-DESIGN.md 4.2.
+-- ReIN Bot -- title normalisation. Implements doc/GAME-DESIGN.md 4.2.
 --
 -- This migration MUST run before any table that references normalise_title, which is
 -- why it precedes the content tables rather than sitting with the other functions.
@@ -17,7 +17,7 @@
 -- deterministic, so wrapping it and declaring IMMUTABLE is legitimate. This is the
 -- idiom the PostgreSQL documentation itself recommends for indexing unaccented text.
 --
--- IMMUTABLE matters here even though DATA-MODEL.md 3.2 stores title_norm as a plain
+-- IMMUTABLE matters here even though doc/DATA-MODEL.md 3.2 stores title_norm as a plain
 -- column written at ingest rather than a generated column: it keeps the door open to
 -- expression indexes later, and it is simply true.
 
@@ -37,7 +37,7 @@ comment on function public.immutable_unaccent(text) is
   'because unaccent() itself is only STABLE. See migration 20260822000002.';
 
 -- ---------------------------------------------------------------------------
--- normalise_title -- the six steps of GAME-DESIGN.md 4.2, in order.
+-- normalise_title -- the six steps of doc/GAME-DESIGN.md 4.2, in order.
 -- ---------------------------------------------------------------------------
 -- The ORDER IS LOAD-BEARING. Two documented bugs live in this function and both are
 -- ordering or character-class mistakes, not logic mistakes.
@@ -71,14 +71,14 @@ begin
   v := replace(v, 'oo', 'o');
 
   -- Step 4: strip a leading article. This MUST run while spaces still exist.
-  -- Running it after step 5 is GAME-DESIGN.md 4.2 Bug 1: on 'Attack on Titan' the
+  -- Running it after step 5 is doc/GAME-DESIGN.md 4.2 Bug 1: on 'Attack on Titan' the
   -- space-free string 'attackontitan' begins with 'a', so an article strip at that
   -- point yields 'ttackontitan' and the title can never be matched again.
   v := regexp_replace(v, '^(the|a|an)[[:space:]]+', '');
 
   -- Step 5: drop everything that is not a letter or a digit, spaces included.
   -- The class is deliberately [^[:alnum:]]:
-  --   * NOT [^a-z0-9] -- that is GAME-DESIGN.md 4.2 Bug 2. An ASCII-only class deletes
+  --   * NOT [^a-z0-9] -- that is doc/GAME-DESIGN.md 4.2 Bug 2. An ASCII-only class deletes
   --     every character of a native Japanese title, producing '', and an empty
   --     candidate matches any single-character submission under the near-match tier,
   --     so typing 'a' would score every round.
@@ -99,11 +99,11 @@ end;
 $$;
 
 comment on function public.normalise_title(text) is
-  'Implements GAME-DESIGN.md 4.2 steps 1-5. Step order is load-bearing: the article '
+  'Implements doc/GAME-DESIGN.md 4.2 steps 1-5. Step order is load-bearing: the article '
   'strip must precede punctuation removal. Never change [[:alnum:]] to an ASCII class.';
 
 -- ---------------------------------------------------------------------------
--- strip_season_markers -- GAME-DESIGN.md 4.2 step 6, kept separate on purpose.
+-- strip_season_markers -- doc/GAME-DESIGN.md 4.2 step 6, kept separate on purpose.
 -- ---------------------------------------------------------------------------
 -- Step 6 is NOT part of normalise_title. The season-lenient tier is defined in 4.3 as
 -- strip(guess) = strip(title) AND the two are not already equal, so the grader needs
@@ -155,5 +155,5 @@ end;
 $$;
 
 comment on function public.strip_season_markers(text) is
-  'GAME-DESIGN.md 4.2 step 6. Deliberately NOT folded into normalise_title: the '
+  'doc/GAME-DESIGN.md 4.2 step 6. Deliberately NOT folded into normalise_title: the '
   'season-lenient tier needs both the stripped and unstripped forms.';

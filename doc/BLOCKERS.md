@@ -30,16 +30,16 @@ one item that needs the user's own taste rather than a decision I can make.
 
 ### B-11 — Game design partially decided; secondary decisions still open
 - **Status 2026-08-21:** The four load-bearing decisions are **made** and recorded
-  in `GAME-DESIGN.md` §1: muted-then-revealed **video**, **free-text fuzzy**
-  answers, **realtime multiplayer rooms**, **curated pool**. `GAME-DESIGN.md` is
+  in `doc/GAME-DESIGN.md` §1: muted-then-revealed **video**, **free-text fuzzy**
+  answers, **realtime multiplayer rooms**, **curated pool**. `doc/GAME-DESIGN.md` is
   written.
-- **Still open** (`GAME-DESIGN.md` §8), in blocking order:
+- **Still open** (`doc/GAME-DESIGN.md` §8), in blocking order:
   1. ~~**Media delivery — Option A (hot-link) vs Option B (preprocess).**~~
      **DECIDED 2026-08-22: Option B, preprocessed into Supabase Storage, clips
      re-encoded to ~1 MB.** Option A leaks the answer through the filename
      (`KimiSen-OP1-NCBD1080.webm`), so B was close to forced. The storage target
      changed from R2 to Supabase Storage when the stack was mandated to
-     Vercel + Supabase; see B-13. No longer blocks `ARCHITECTURE.md`.
+     Vercel + Supabase; see B-13. No longer blocks `doc/ARCHITECTURE.md`.
   2. **Curation source** — hand-built seed list of 100–500 titles the group knows,
      vs a public popularity list. AniList is unavailable for this (its terms
      prohibit mass collection). *Blocks the curation pipeline.*
@@ -52,7 +52,7 @@ one item that needs the user's own taste rather than a decision I can make.
      assumption throughout. Consequence worth keeping visible: total wall-clock is
      `rounds × 28 s` → 84 s / 280 s / **560 s** at 3 / 10 / 20 rounds, which exceeds
      the Edge Function 150 s ceiling above ~5 rounds and therefore **rules out any
-     single-invocation game loop**. See `ARCHITECTURE.md` §7.
+     single-invocation game loop**. See `doc/ARCHITECTURE.md` §7.
   7. Persistence — leaderboard or match history? The only item that could
      reintroduce a datastore question.
   8. Mobile or desktop first — layout only.
@@ -60,7 +60,7 @@ one item that needs the user's own taste rather than a decision I can make.
      difficulty meter "if the api provides it". Live introspection of the AnimeThemes
      `Anime` type confirms it provides **no difficulty and no popularity field** of any
      kind, so difficulty has to be derived locally at curation time and stored. Schema
-     support exists (`DATA-MODEL.md` §5); the **weighting formula is deliberately
+     support exists (`doc/DATA-MODEL.md` §5); the **weighting formula is deliberately
      unspecified** pending playtesting. Does not block the schema, which commits only
      to a stored, filterable, recomputable integer.
 - **Impact:** Items 1 and 6 are now **decided**, and item 9 is scoped. Item 2 still
@@ -77,7 +77,7 @@ one item that needs the user's own taste rather than a decision I can make.
   `decodeAudioData` are all blocked. Any blurred-frame-reveal or waveform-visualiser
   mode needs curation-time preprocessing into our own Supabase Storage bucket.
 - **How to clear:** Not clearable — it is their server's behaviour, not a gap in
-  our knowledge. Treat as a fixed design constraint. Recorded in `RESEARCH.md`
+  our knowledge. Treat as a fixed design constraint. Recorded in `doc/RESEARCH.md`
   §4.6. Decide the affected game modes accordingly.
 
 ### B-10 — No robots/fair-use policy found for the AnimeThemes API or CDN
@@ -98,7 +98,7 @@ one item that needs the user's own taste rather than a decision I can make.
 - **What:** (a) exact rate-limit response header names; (b) how an `x-trace-key`
   is obtained.
 - **Status change 2026-08-21:** trace.moe has been removed from the runtime design
-  entirely (`RESEARCH.md` §6). These two gaps now affect only the optional
+  entirely (`doc/RESEARCH.md` §6). These two gaps now affect only the optional
   curation-time labelling path, which the current design does not require.
 - **Impact:** Effectively none. Retain the entry only so the gap is not
   rediscovered later as if it were new.
@@ -126,7 +126,7 @@ one item that needs the user's own taste rather than a decision I can make.
 - **How to clear:** Read *Manage Egress usage* and *Billing FAQ* to their end
   (browser, or fetch in sections), then the pricing page's Free-plan column; if all
   three are genuinely silent, ask Supabase support and quote the answer here.
-- **Impact:** **Moderate.** Does not block writing `ARCHITECTURE.md`, but it is the
+- **Impact:** **Moderate.** Does not block writing `doc/ARCHITECTURE.md`, but it is the
   single largest unknown in the chosen stack and must be settled before any public
   launch.
 
@@ -159,7 +159,7 @@ one item that needs the user's own taste rather than a decision I can make.
 - **What:** Free projects pause after 7 days of inactivity. The docs indicate a few
   database requests per day prevents it, a warning email arrives ~1 week ahead, and
   one-click restore within 90 days preserves data.
-- **Why it matters:** `RESEARCH.md` §3.5 originally called this *"disqualifying"*.
+- **Why it matters:** `doc/RESEARCH.md` §3.5 originally called this *"disqualifying"*.
   It is now downgraded to manageable via a daily keepalive ping (GitHub Actions cron
   on a public repo, free). But the docs hedge — *"typically … is enough"* — so the
   mitigation is not contractually guaranteed.
@@ -169,7 +169,7 @@ one item that needs the user's own taste rather than a decision I can make.
   data), just disruptive.
 
 ### B-20 — AnimeThemes `nc` / `subbed` / `overlap` semantics unverified by eye
-- **What:** The variant filter chain in `GAME-DESIGN.md` §5 selects clips by
+- **What:** The variant filter chain in `doc/GAME-DESIGN.md` §5 selects clips by
   `nc: true`, `subbed: false`, `overlap: NONE`. The **field names and filter
   behaviour are verified live**; what is **not** verified is whether `nc: false`
   reliably implies visible on-screen credits, and whether `overlap: NONE` reliably
@@ -194,7 +194,7 @@ one item that needs the user's own taste rather than a decision I can make.
   but it is discovered at play time, in front of players, which is the worst place.
 
 ### B-21 — Free-tier egress is org-shared, and consumption cannot be read — **RESOLVED 2026-08-22**
-- ~~**What:**~~ **What was:** `ARCHITECTURE.md` §10 originally budgeted the full **5 GB** egress
+- ~~**What:**~~ **What was:** `doc/ARCHITECTURE.md` §10 originally budgeted the full **5 GB** egress
   allowance to ReIN Bot. It is billed at the **organization** level, and org
   `ujnsnnblxvyhirfjklik` ("Personal Projects", plan `free`) contains a **second
   active project, `Mubitracker`** (`deslckxkuvbfugdxibdn`). Both are
@@ -260,7 +260,7 @@ one item that needs the user's own taste rather than a decision I can make.
   the *absence* of a function, and absences do not appear when reviewing what is written.
   It surfaced only because fixing B-23 required asking "who writes `started_at` for round
   **1**?" — a question B-23 itself never forced.
-- **How it was cleared:** added `DATA-MODEL.md` §6.5 `start_game(p_room_id uuid)` — guard
+- **How it was cleared:** added `doc/DATA-MODEL.md` §6.5 `start_game(p_room_id uuid)` — guard
   `state = 'lobby'`, writes `state = 'playing'`, `current_round = 1`,
   `deadline = now() + round_duration`, `returning deadline into v_deadline`,
   `if not found then return; end if;`, then stamps round ordinal 1 and broadcasts
@@ -277,7 +277,7 @@ one item that needs the user's own taste rather than a decision I can make.
   comparison in a `WHERE` clause.
 
 ### B-23 — `rounds.started_at` / `ends_at` were never written, so grading rejected everything · RESOLVED 2026-08-22 (fixed in-spec)
-- **What:** `DATA-MODEL.md` §4.3 declared `rounds.started_at` and `rounds.ends_at` as
+- **What:** `doc/DATA-MODEL.md` §4.3 declared `rounds.started_at` and `rounds.ends_at` as
   **nullable**, and **no function in §6 ever wrote them.** `advance_round` (§6.4) updated
   only `rooms` — `current_round` and `deadline`. `create_room` inserted the round rows with
   their questions chosen up front, timestamps unset. Both columns therefore stayed `NULL`
@@ -294,7 +294,7 @@ one item that needs the user's own taste rather than a decision I can make.
   (`state = 'over'`, `deadline = null`), and then
   `update public.rounds set started_at = now(), ends_at = v_deadline where room_id = … and ordinal = v_round`.
   Round 1 is stamped by `start_game` (§6.5, see B-24). The two warning blockquotes in
-  `DATA-MODEL.md` §4.3 and `ARCHITECTURE.md` §7 were replaced with resolved notes that keep
+  `doc/DATA-MODEL.md` §4.3 and `doc/ARCHITECTURE.md` §7 were replaced with resolved notes that keep
   the failure mode on record.
 - **Two load-bearing properties of the fix:**
   1. **The stamp is gated.** Eight players may call `advance_round` at once and exactly one
@@ -319,8 +319,8 @@ one item that needs the user's own taste rather than a decision I can make.
   normalisation rather than at round advancement.
 
 ### B-22 — The scoring model contradicted itself: winner-takes-all vs speed bonus · RESOLVED 2026-08-22 (user decision)
-- **Original concern:** `DATA-MODEL.md` §6.2 step 7's exception branch wrote **`points = 0`**
-  for a guess that was correct but not first — winner-takes-all — while `GAME-DESIGN.md`
+- **Original concern:** `doc/DATA-MODEL.md` §6.2 step 7's exception branch wrote **`points = 0`**
+  for a guess that was correct but not first — winner-takes-all — while `doc/GAME-DESIGN.md`
   §6.2 specified **100 for correct plus a speed bonus decaying 100 → 0**, so every correct
   guess scored 100–200. Neither was marked superseded; both read as authoritative. Two
   different games, and an implementer would have picked one branch and silently violated
@@ -332,7 +332,7 @@ one item that needs the user's own taste rather than a decision I can make.
 - **Coupled decision, also settled:** **full credit for every correct tier.** Exact, near,
   season-lenient and prefix all score identically, so the points expression carries **no
   per-tier factor**. This closes the "season-lenient: full or partial credit" open item in
-  `DATA-MODEL.md` §9 at the same time, which was the whole point of deciding them together.
+  `doc/DATA-MODEL.md` §9 at the same time, which was the whole point of deciding them together.
 - **Note on the recommendation, recorded deliberately:** I argued for
   everyone-correct-scores, on the grounds that §6.2's own reasoning rejected a streak
   multiplier for making a game "unwinnable for everyone else by round 6", and
@@ -349,8 +349,8 @@ one item that needs the user's own taste rather than a decision I can make.
 - **Escape hatch if it plays badly:** consolation points for later correct guesses is a
   one-line change to the exception branch's `points` value. No schema change, no migration,
   no change to the unique index.
-- **Applied at:** `GAME-DESIGN.md` §6.2 (rewritten), `DATA-MODEL.md` §6.2 (contradiction
-  blockquote replaced by the decision), `DATA-MODEL.md` §9 (two rows struck).
+- **Applied at:** `doc/GAME-DESIGN.md` §6.2 (rewritten), `doc/DATA-MODEL.md` §6.2 (contradiction
+  blockquote replaced by the decision), `doc/DATA-MODEL.md` §9 (two rows struck).
 
 ### B-18 — pg_graphql as a second read path to the answer column · RESOLVED 2026-08-22 (moot)
 - **Original concern:** §4.4.1 gated answer disclosure through **PostgREST** via
@@ -365,7 +365,7 @@ one item that needs the user's own taste rather than a decision I can make.
      of the blocker does not hold on this project.
   2. **By scope change.** The user directed on 2026-08-22 that the game carries **no
      secrecy layer** — *"if the players want to cheat they will"*. The column-grant
-     scheme it threatened is itself **superseded** (`GAME-DESIGN.md` §4.4.1). A second
+     scheme it threatened is itself **superseded** (`doc/GAME-DESIGN.md` §4.4.1). A second
      read path to a column that is no longer treated as secret is not a vulnerability.
 - **Standing note:** should `pg_graphql` ever be enabled, re-read this entry first.
   The empirical half of the resolution is a fact about *current configuration*, not a
@@ -387,10 +387,10 @@ one item that needs the user's own taste rather than a decision I can make.
 
   | Sub-claim | Outcome |
   |---|---|
-  | Answer withheld via "no `SELECT` grant" | ❌ **WRONG — was a live leak.** Column grants are additive to table grants; Supabase grants `anon`/`authenticated` table-level `SELECT` on `public` by default, so the instruction was a no-op. Corrected to revoke-then-allow-list in `GAME-DESIGN.md` §4.4.1 |
+  | Answer withheld via "no `SELECT` grant" | ❌ **WRONG — was a live leak.** Column grants are additive to table grants; Supabase grants `anon`/`authenticated` table-level `SELECT` on `public` by default, so the instruction was a no-op. Corrected to revoke-then-allow-list in `doc/GAME-DESIGN.md` §4.4.1 |
   | `SECURITY DEFINER` safety | ⚠️ **Verified with a required addition.** Needs `SET search_path = ''`; omitting it is a privilege-escalation vector. Documented §4.4.2. Trips Supabase lint `0028` by design — accepted, mitigated in-function |
   | Realtime private channels | ⚠️ **Verified with a missing provisioning step.** Requires disabling "Allow public access" *and* client `private: true`; either omission leaves the channel open. Also: RLS is **join-time, not per-message**, so it cannot time-gate the answer. Documented §4.4.3 |
-  | Conditional `UPDATE` round advance | ⚠️ **Verified with a required condition.** `READ COMMITTED` does re-evaluate the `WHERE` clause against the updated row, so the second writer matches 0 rows — **but only because the guard column is one the same `UPDATE` mutates.** Documented `GAME-DESIGN.md` §6.3 |
+  | Conditional `UPDATE` round advance | ⚠️ **Verified with a required condition.** `READ COMMITTED` does re-evaluate the `WHERE` clause against the updated row, so the second writer matches 0 rows — **but only because the guard column is one the same `UPDATE` mutates.** Documented `doc/GAME-DESIGN.md` §6.3 |
 - **Why the flag paid off:** Not one of the four sub-claims survived review unchanged.
   One was **actively wrong** and would have published every answer through PostgREST;
   the other three were directionally right but each omitted a step that was load-bearing
@@ -444,7 +444,7 @@ superseded.
 
 ### B-5 — AniList terms on hot-linking cover art · RESOLVED 2026-08-21
 The earlier HTTP 403 did not recur; `docs.anilist.co/guide/terms-of-use` served
-normally with a browser user-agent. Terms are recorded in `RESEARCH.md` §5.
+normally with a browser user-agent. Terms are recorded in `doc/RESEARCH.md` §5.
 
 The finding **reversed** the earlier plan rather than confirming it: AniList
 prohibits "using the AniList API as a backup or data storage service" and
@@ -462,7 +462,7 @@ any plausible free storage allowance accommodates it.
 **Superseded 2026-08-22:** Durable Objects are no longer in the design (stack
 mandated to Vercel + Supabase), and media **is** now stored by us — preprocessed
 clips live in Supabase Storage per the Option B decision. The storage sizing that
-matters is tracked in `GAME-DESIGN.md` §3 and B-13, not here.
+matters is tracked in `doc/GAME-DESIGN.md` §3 and B-13, not here.
 
 ### B-1 — `.claude/settings.json` could not be written · RESOLVED 2026-08-21
 The harness safety classifier was intermittently unavailable, and writes into a
@@ -477,18 +477,18 @@ and privilege- or machine-scope commands (`sudo`, `reg`, `setx`, `powershell`,
 Fetched from the rendered docs' underlying markdown (`docs/docs.md`,
 `docs/limits.md`, `docs/terms.md`). All endpoints, parameters, response fields,
 quota tiers, error codes, the `x-trace-key` header, the 25 MB upload cap, the
-300-second preview expiry and the terms of use are recorded in `RESEARCH.md`
+300-second preview expiry and the terms of use are recorded in `doc/RESEARCH.md`
 §1. Two residual gaps are tracked as **B-4**.
 
 ### B-3 — Host provider free-tier limits unverified · RESOLVED 2026-08-21
 Read from each provider's own documentation: Cloudflare Workers, Durable Objects,
 Pages and R2; Supabase; Neon; GitHub Actions. All numbers and their consequences
-are recorded in `RESEARCH.md` §3. Residual gaps were tracked as **B-6**, **B-7**
+are recorded in `doc/RESEARCH.md` §3. Residual gaps were tracked as **B-6**, **B-7**
 and **B-8** — all three are now closed or moot.
 
 **Note 2026-08-22:** the Cloudflare half of this research is now historical only.
 The stack was mandated to Vercel + Supabase; those providers' limits were verified
-separately and are recorded in `RESEARCH.md` §3.
+separately and are recorded in `doc/RESEARCH.md` §3.
 
 ---
 

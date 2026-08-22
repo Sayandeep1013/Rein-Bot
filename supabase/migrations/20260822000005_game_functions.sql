@@ -1,22 +1,22 @@
 -- 20260822000005_game_functions.sql
--- ReIN Bot -- the only write paths in the database. Implements DATA-MODEL.md 6.2-6.5.
+-- ReIN Bot -- the only write paths in the database. Implements doc/DATA-MODEL.md 6.2-6.5.
 --
 -- Every function here is SECURITY DEFINER with `set search_path = ''` and fully
 -- qualified names throughout (CVE-2018-1058). Extensions resolve as extensions.*,
 -- project functions as public.* -- a mistake there does not fail CREATE, it fails at
 -- first execution, which is why these are execution-tested after apply, not just run.
 --
--- Caller policy (DATA-MODEL.md 6.4/7.3): create_room/join_room/start_game require an
+-- Caller policy (doc/DATA-MODEL.md 6.4/7.3): create_room/join_room/start_game require an
 -- anonymous-auth session (auth.uid() not null). grade_guess requires membership.
 -- advance_round additionally serves pg_cron, which runs OUTSIDE any request context:
 -- there auth.uid() is NULL, so a NULL uid is accepted for advance_round ONLY -- and is
 -- harmless, because its WHERE gate makes any early call match zero rows. Supabase lint
 -- 0028 (anon can execute SECURITY DEFINER) will fire on all of these; that is by
--- design and recorded in DATA-MODEL.md 7.3.
+-- design and recorded in doc/DATA-MODEL.md 7.3.
 --
 -- FLAGGED judgement calls (cheap to override, no schema change):
 --   1. p_settings carries display_name; create_room inserts the creator's players row
---      and sets host_player_id. DATA-MODEL.md 6.3 does not say who the host is, but
+--      and sets host_player_id. doc/DATA-MODEL.md 6.3 does not say who the host is, but
 --      6.5 says start_game is host-only, so SOMEONE must be host from creation on.
 --      First-joiner-becomes-host was rejected: racy and specified nowhere.
 --   2. Broadcasts use realtime.send(payload, event, topic, is_private := false) --
@@ -30,7 +30,7 @@
 -- ---------------------------------------------------------------------------
 -- Kept as a wrapper so realtime.send signature drift or a switch to private channels
 -- is fixed in ONE place rather than at each call site. Payloads carry identifiers
--- only; every message is reconstructible from table state (ARCHITECTURE.md 9), so a
+-- only; every message is reconstructible from table state (doc/ARCHITECTURE.md 9), so a
 -- client that misses one re-reads rooms and catches up.
 
 create or replace function public.emit_room_event(
@@ -51,20 +51,20 @@ $$;
 -- ---------------------------------------------------------------------------
 -- grade_guess(p_round_id uuid, p_guess text) -> jsonb
 -- ---------------------------------------------------------------------------
--- DATA-MODEL.md 6.2, steps in spec order. Returns verdict/match_tier/is_first_correct/
+-- doc/DATA-MODEL.md 6.2, steps in spec order. Returns verdict/match_tier/is_first_correct/
 -- points and NEVER the answer: a client holding the answer mid-round has no use for it
 -- except to leak it into the UI.
 --
--- Tier order (GAME-DESIGN.md 4.3): exact -> near -> season_lenient -> prefix.
+-- Tier order (doc/GAME-DESIGN.md 4.3): exact -> near -> season_lenient -> prefix.
 -- Near threshold: levenshtein_less_equal <= 2 when the LONGER of the two strings
 -- exceeds 8 chars, else <= 1. levenshtein_less_equal short-circuits past the threshold;
 -- plain Levenshtein only (no Damerau exists in fuzzystrmatch) -- a transposition costs
--- 2, accepted deliberately as a false-negative bias (GAME-DESIGN.md 4.3.1).
+-- 2, accepted deliberately as a false-negative bias (doc/GAME-DESIGN.md 4.3.1).
 -- Season-lenient: strip_season_markers(guess_norm) = strip_season_markers(title_norm)
 -- AND they are not already equal (migration 20260822000002 header).
 -- Prefix: submission >= 8 chars and is a prefix of a candidate.
 --
--- Scoring (GAME-DESIGN.md 6.2, B-22 winner-takes-all): first correct guess earns
+-- Scoring (doc/GAME-DESIGN.md 6.2, B-22 winner-takes-all): first correct guess earns
 -- 100 + speed bonus decaying linearly 100 -> 0 across [started_at, ends_at] (200
 -- first-second, 100 last-second). Every correct tier scores identically. Everyone else
 -- scores 0, correct or not. one_winner_per_round IS the scoring rule; the loser's guess
@@ -99,7 +99,7 @@ declare
   v_total      numeric;
   v_bonus      numeric;
 begin
-  -- Defensive length cap. The application layer caps too (DATA-MODEL.md 2.1); this is
+  -- Defensive length cap. The application layer caps too (doc/DATA-MODEL.md 2.1); this is
   -- the backstop because levenshtein raises on inputs over 255 chars.
   if p_guess is null or length(p_guess) > 255 then
     raise exception 'GUESS_TOO_LONG';
@@ -232,7 +232,7 @@ comment on function public.grade_guess(uuid, text) is
 -- ---------------------------------------------------------------------------
 -- create_room(p_settings jsonb) -> jsonb {room_id, code}
 -- ---------------------------------------------------------------------------
--- DATA-MODEL.md 6.3. Validates settings, generates a Crockford base32 code with
+-- doc/DATA-MODEL.md 6.3. Validates settings, generates a Crockford base32 code with
 -- retry-on-collision, pre-selects ALL rounds' questions up front (filtered by
 -- difficulty range, excluding retired) so a game cannot begin and then run out of
 -- content, creates the host player row, and sets host_player_id. All within this one
@@ -408,7 +408,7 @@ comment on function public.join_room(text, text) is
   'BAD_NAME, ROOM_NOT_FOUND, NOT_IN_LOBBY.';
 
 -- ---------------------------------------------------------------------------
--- start_game(p_room_id uuid) -> void. DATA-MODEL.md 6.5 (B-24).
+-- start_game(p_room_id uuid) -> void. doc/DATA-MODEL.md 6.5 (B-24).
 -- ---------------------------------------------------------------------------
 -- The lobby -> playing transition. advance_round cannot do this job: its guard needs
 -- state='playing' AND now() >= deadline, but a lobby room has deadline NULL, so
@@ -486,7 +486,7 @@ comment on function public.start_game(uuid) is
   '(B-23). Errors: AUTH_REQUIRED, ROOM_NOT_FOUND, NOT_HOST.';
 
 -- ---------------------------------------------------------------------------
--- advance_round(p_room_id uuid) -> void. DATA-MODEL.md 6.4.
+-- advance_round(p_room_id uuid) -> void. doc/DATA-MODEL.md 6.4.
 -- ---------------------------------------------------------------------------
 -- Advances an already-running game N -> N+1. Cannot start a game. Callable by any
 -- member and by pg_cron (NULL uid outside request context -- see caller policy above;
@@ -556,7 +556,7 @@ begin
 
   -- Stamp the new current round from the SAME v_deadline this statement wrote -- NOT
   -- now() + round_duration a second time, or grading and advancing disagree by however
-  -- long the function took (DATA-MODEL.md 4.3 invariant).
+  -- long the function took (doc/DATA-MODEL.md 4.3 invariant).
   update public.rounds
      set started_at = now(),
          ends_at    = v_deadline
@@ -601,7 +601,7 @@ comment on function public.advance_round(uuid) is
 -- ---------------------------------------------------------------------------
 -- Execution grants. PUBLIC has EXECUTE by default; revoke it so the grant list states
 -- intent, then grant to anon + authenticated. Lint 0028 fires on these four-plus-one
--- SD functions being anon-callable -- expected, see DATA-MODEL.md 7.3.
+-- SD functions being anon-callable -- expected, see doc/DATA-MODEL.md 7.3.
 -- ---------------------------------------------------------------------------
 
 revoke execute on function public.emit_room_event(text, text, jsonb) from public;

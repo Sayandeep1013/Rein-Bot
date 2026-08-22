@@ -3,8 +3,8 @@
 Status: **first draft, 2026-08-21.** Decisions in §1 are confirmed by the user.
 Everything else is proposed and open to revision. No code exists yet.
 
-Numbers cited as verified come from `RESEARCH.md`; blockers referenced as `B-n`
-come from `BLOCKERS.md`.
+Numbers cited as verified come from `doc/RESEARCH.md`; blockers referenced as `B-n`
+come from `doc/BLOCKERS.md`.
 
 ---
 
@@ -18,18 +18,18 @@ come from `BLOCKERS.md`.
 | 4 | Content pool | **Curated pool from a popularity cut** |
 
 These four together settle the architecture. Content comes from AnimeThemes.moe
-(`RESEARCH.md` §4); trace.moe and AniList are both out (`RESEARCH.md` §6).
+(`doc/RESEARCH.md` §4); trace.moe and AniList are both out (`doc/RESEARCH.md` §6).
 
 ### 1.1 One consequence worth stating plainly
 
 Video was chosen over audio knowing the raw files are roughly 15× heavier
-(`RESEARCH.md` §4.6). That is a fair call for a private game, but it makes **media
+(`doc/RESEARCH.md` §4.6). That is a fair call for a private game, but it makes **media
 delivery** the one architectural decision of consequence, not a detail. §3 sets out the
 options and records the decision: preprocessed ~1 MB clips in Supabase Storage.
 
 That lands at **roughly a third** of the bandwidth the prior design's default —
 **hot-linked** audio-only — would have used (80 MB vs ~240 MB per game,
-`RESEARCH.md` §4.7). So the choice costs nothing on bandwidth once the curation step
+`doc/RESEARCH.md` §4.7). So the choice costs nothing on bandwidth once the curation step
 exists, and the curation step exists anyway because of decision 4.
 
 *Two clarifications, because an earlier draft was loose here. First, it said the
@@ -87,7 +87,7 @@ leaks, not defeating a determined attacker.** Being explicit about the line:
 | Reading the title from the media URL | Opaque keys (§3) |
 | Reading the answer from network JSON | Answer never sent to clients during play. `question_bank` and `question_titles` carry **no `anon` / `authenticated` grant at all**, and `rounds` stores only a denormalised `clip_key` — so no client-reachable table has an answer column that would need hiding (§4.4.2) |
 | Reading the candidate set to brute-force it | Candidate set built and compared server-side only (§4.1) |
-| Title burned into the picture | Mandatory `nc: true` variant, plus a visual spot-check (`RESEARCH.md` §4.8, §5.2 step 4) |
+| Title burned into the picture | Mandatory `nc: true` variant, plus a visual spot-check (`doc/RESEARCH.md` §4.8, §5.2 step 4) |
 | Faking a fast answer for the speed bonus | Server stamps `submitted_at = now()`; client timestamps are not accepted (§6.3) |
 | Guessing before the round starts | Grading rejects submissions outside the round's `[started_at, ends_at]` |
 | Reading the answer early from the reveal payload | Reveal data is broadcast at ROUND_REVEAL, not preloaded with the clip |
@@ -114,7 +114,7 @@ leaks, not defeating a determined attacker.** Being explicit about the line:
   technical: the 20 s window is short enough that searching costs more than the speed
   bonus is worth, the speed bonus rewards instant recognition over research, and it is a
   private game among friends where cheating has no prize. *Ironically the most effective
-  cheat here is the very API §1 of `RESEARCH.md` investigated and rejected as a content
+  cheat here is the very API §1 of `doc/RESEARCH.md` investigated and rejected as a content
   source.*
 - **Shoulder-surfing / out-of-band collusion.** Two players in the same room, or in a
   side chat, can share answers. Out of scope.
@@ -139,7 +139,7 @@ the advantage a patient cheater gains.
 **Decision: Option B — preprocess curated clips into Supabase Storage, re-encoded to
 ~1 MB per clip.**
 
-Both options assume the `nc: true` variant-selection rules in `RESEARCH.md` §4.8,
+Both options assume the `nc: true` variant-selection rules in `doc/RESEARCH.md` §4.8,
 which are mandatory: a credited video can burn the show's title into the picture
 and give the answer away.
 
@@ -153,7 +153,7 @@ Serve `https://v.animethemes.moe/{basename}.webm` straight to the browser.
   > leaked answer is no longer disqualifying and this bullet no longer carries the
   > rejection. **Option A stays rejected anyway**, on the CORS gap below and — decisively
   > — on bandwidth: ~1.2 GB per game against a 5 GB *org-shared* monthly allowance
-  > (`ARCHITECTURE.md` §10.2) is about **four games per month**. Do not reopen this
+  > (`doc/ARCHITECTURE.md` §10.2) is about **four games per month**. Do not reopen this
   > option on the grounds that secrecy stopped mattering; the arithmetic kills it
   > independently.
 - No CORS (B-9), so no blur/zoom reveal effects, ever.
@@ -178,11 +178,11 @@ store it under an **opaque key**.
   reveal effects.
 - Load on AnimeThemes: **500 fetches, once, ever.** Strictly kinder than Option A,
   which re-fetches per player per round. This matters — their ToS reserves the right
-  to disable content that is "burdensome to our systems" (`RESEARCH.md` §4.9).
+  to disable content that is "burdensome to our systems" (`doc/RESEARCH.md` §4.9).
 - Cost: a curation pipeline (§5) and a transcode step.
 - **~15× less play-time bandwidth than Option A** (80 MB vs ~1.2 GB per game), and
   **roughly a third** of the **hot-linked audio-only** mode that the prior design chose
-  as its default (~240 MB/game — `RESEARCH.md` §4.7, from ~3 MB per full-length OGG ×
+  as its default (~240 MB/game — `doc/RESEARCH.md` §4.7, from ~3 MB per full-length OGG ×
   80 fetches). *An earlier draft of this section claimed "slightly less than
   audio-only"; that understated it.*
 - Note that this is **not** the same as *preprocessed* audio clips, which would be
@@ -192,10 +192,10 @@ store it under an **opaque key**.
 
 ### Where it is stored — Supabase Storage, not R2
 
-The stack mandate (Vercel + Supabase, `RESEARCH.md` §3) rules out R2 as the default.
+The stack mandate (Vercel + Supabase, `doc/RESEARCH.md` §3) rules out R2 as the default.
 Supabase Storage is tighter but clears actual expected usage. Per-game media is
 `rounds` (3-20, default 10) × 8 players × clip size, and Supabase's egress is a **single pool shared by
-Database, Auth, Storage, Edge Functions and Realtime** (`RESEARCH.md` §3.5), so the
+Database, Auth, Storage, Edge Functions and Realtime** (`doc/RESEARCH.md` §3.5), so the
 budget below is the whole backend's, not just media's.
 
 > **Correction 2026-08-22 — the pool is shared across *projects*, not only services.**
@@ -205,7 +205,7 @@ budget below is the whole backend's, not just media's.
 > (`Mubitracker`). So the numerator in every row below is not 5 GB but
 > `5 GB − whatever the co-tenant consumed`, and an overage triggered by that co-tenant
 > restricts ReIN Bot too. Current consumption could not be read (the usage API returns
-> 404) — see `ARCHITECTURE.md` §10.2 and **B-21**. Treat the figures below as an upper
+> 404) — see `doc/ARCHITECTURE.md` §10.2 and **B-21**. Treat the figures below as an upper
 > bound, not a budget.
 
 | | R2 (not used) | Supabase @ 1.5 MB | **Supabase @ ~1 MB (chosen)** | Supabase, 20 s audio clips |
@@ -237,7 +237,7 @@ mandated stack is sufficient today.
 **The one real risk this accepts:** Supabase egress is a **hard monthly cliff**, and
 what happens at the cliff is unverified (**B-13**). Exceed it on day 20 and there is
 no graceful degradation. R2 has no cliff, and remains the documented escape hatch if
-traffic ever becomes bursty or public (`RESEARCH.md` §3.4).
+traffic ever becomes bursty or public (`doc/RESEARCH.md` §3.4).
 
 **Why Option B overall.** It is the only option compatible with §2.1, it is cheaper on
 every metered axis, it is politer to the upstream service, and the curation step it
@@ -250,7 +250,7 @@ free, and consistent with the project's "testing happens in the cloud" rule.
 runners**, so the workflow must install it explicitly (`apt-get`, or a setup action).
 Budget is not a concern — the whole curation run is a few hundred minutes at most
 against 2,000 free minutes/month, and public repositories are unmetered entirely
-(`RESEARCH.md` §3.7).
+(`doc/RESEARCH.md` §3.7).
 
 ---
 
@@ -305,7 +305,7 @@ every round. Two fixes, apply both:
   POSIX class `[^[:alnum:]]` rather than `a-z0-9`, so CJK survives and a Japanese-input
   player can legitimately answer in Japanese. (This bullet said `\p{L}`/`\p{N}` until
   2026-08-22; PostgreSQL's regex engine rejects Perl property escapes outright — see
-  `DATA-MODEL.md` §6.1 for the error and the verification that `[[:alnum:]]` is genuinely
+  `doc/DATA-MODEL.md` §6.1 for the error and the verification that `[[:alnum:]]` is genuinely
   Unicode-aware on this project.)
 - Enforce the §4.1 empty-string guard regardless, as defence in depth.
 
@@ -357,17 +357,17 @@ Use `levenshtein_less_equal()`, not `levenshtein()`: it short-circuits once the 
 exceeded instead of computing the full matrix.
 
 `levenshtein` raises an error on inputs longer than 255 characters, so the guess field must
-be length-capped before it reaches the grader (`DATA-MODEL.md` §2.1).
+be length-capped before it reaches the grader (`doc/DATA-MODEL.md` §2.1).
 
 **DECIDED 2026-08-22 (B-22).** Season-lenient earns **full credit**, identical to an exact
 match, with a "(you said S2 — it was S1)" note at reveal. Every correct tier scores the
 same, so `match_tier` is reveal flavour only and never enters the points expression
-(`DATA-MODEL.md` §6.2).
+(`doc/DATA-MODEL.md` §6.2).
 
 ### 4.4 Where matching runs
 
 Server-side, in Postgres — a `SECURITY DEFINER` function (`grade_guess`, specified in
-`DATA-MODEL.md` §6.2) that receives the guess and returns only a verdict. The client never
+`doc/DATA-MODEL.md` §6.2) that receives the guess and returns only a verdict. The client never
 receives the candidate set (§2.1).
 
 **Decision ratified 2026-08-22.** The guess path is a Postgres function reached over
@@ -377,9 +377,9 @@ would have to check-then-write across two round trips, letting two isolates both
 "no winner yet" and both insert. Closing that requires the partial unique index
 `one_winner_per_round` in Postgres regardless — so the extra hop buys nothing and costs
 latency on the one path where latency decides who wins. Full rationale and the rejected
-alternative: `ARCHITECTURE.md` §5.2.
+alternative: `doc/ARCHITECTURE.md` §5.2.
 
-See `RESEARCH.md` §3.5 and **B-17** (resolved — this section is the corrected output of
+See `doc/RESEARCH.md` §3.5 and **B-17** (resolved — this section is the corrected output of
 that review).
 
 **B-18 is closed as moot.** It asked whether `pg_graphql` enforces the same column grants
@@ -419,11 +419,11 @@ hitting exactly this drift *"silently for three releases"* and had to add a buil
 set-equality test to catch it. That test would have become **our** maintenance burden, on
 every future migration, forever.
 
-**What replaced it.** Two structural choices in `DATA-MODEL.md` that need no grant
+**What replaced it.** Two structural choices in `doc/DATA-MODEL.md` that need no grant
 gymnastics at all:
 
 1. **`rounds` has no answer column to hide.** It carries a denormalised `clip_key`
-   (§4.3 of `DATA-MODEL.md`), so the whole row is safe to expose and no join to content
+   (§4.3 of `doc/DATA-MODEL.md`), so the whole row is safe to expose and no join to content
    tables is required.
 2. **`question_bank` and `question_titles` get no client grant whatsoever** — not a
    revoke-and-re-grant, just the absence of a privilege, which is the default state.
@@ -519,7 +519,7 @@ This settles the "add a difficulty meter too if the api provides it" question di
 
 The `resources` field gives
 `MAL` and `ANILIST` IDs, but querying AniList for popularity at scale is exactly
-the "mass collection" its terms prohibit (`RESEARCH.md` §5), so that route is out.
+the "mass collection" its terms prohibit (`doc/RESEARCH.md` §5), so that route is out.
 
 Proposed instead: **a hand-built seed list.** The user names the anime the group
 would recognise — realistically 100–500 titles — and the pipeline resolves each to
@@ -548,7 +548,7 @@ that evening. Needs a source whose terms permit it — unresearched.
    > at step 6, so source size affects only the one-off ingest download, not per-game
    > egress.
 4. Spot-check a frame visually — the `nc` flag is trusted but not proven
-   (`RESEARCH.md` §4.8, UNVERIFIED).
+   (`doc/RESEARCH.md` §4.8, UNVERIFIED).
 5. Cut a ~20 s clip, avoiding the first ~5 s (title cards often appear there).
 6. Transcode to ~480p, **target ~1 MB** (see §3 — 1 MB is what keeps the library at
    50% of Supabase's 1 GB and per-game egress at 80 MB).
@@ -557,7 +557,7 @@ that evening. Needs a source whose terms permit it — unresearched.
 
 ### 5.3 Question bank row
 
-A single Postgres table (`RESEARCH.md` §3.5). Read-only to clients except through the
+A single Postgres table (`doc/RESEARCH.md` §3.5). Read-only to clients except through the
 guess-checking function; the answer-bearing columns are not exposed (§4.4).
 
 ```
@@ -572,14 +572,14 @@ no longer R2.
 At ~400 bytes/row, 500 rows is ~200 KB — trivially inside any plausible free
 storage allowance, which is what retired B-6.
 
-The list above is a sketch. **`DATA-MODEL.md` §3.1 is authoritative** for the real
-column set, types and constraints; if the two disagree, `DATA-MODEL.md` wins.
+The list above is a sketch. **`doc/DATA-MODEL.md` §3.1 is authoritative** for the real
+column set, types and constraints; if the two disagree, `doc/DATA-MODEL.md` wins.
 
 ### 5.4 Difficulty — computed, not fetched
 
 §5.1 established that AnimeThemes supplies no popularity or difficulty field. Difficulty
 is therefore derived at curation time from fields it *does* supply, written to a stored
-integer, and recomputed by re-running the pipeline. Schema in `DATA-MODEL.md` §5.
+integer, and recomputed by re-running the pipeline. Schema in `doc/DATA-MODEL.md` §5.
 
 **Signals actually available**, roughly strongest to weakest as proxies for "would this
 group recognise it":
@@ -628,7 +628,7 @@ work. It does mean no cross-session profile or lifetime stats — see §8.
 
 **DECIDED 2026-08-22 — winner-takes-all per round.** Only the **first correct** guess in
 a round scores; every other guess scores `0`, correct or not. This settles B-22, where
-this section and `DATA-MODEL.md` §6.2 had been specifying two different games.
+this section and `doc/DATA-MODEL.md` §6.2 had been specifying two different games.
 
 The winner scores **100 plus a speed bonus** decaying linearly from 100 to 0 across the
 guess window: winning on the first second is worth 200, winning on the last second 100.
@@ -653,14 +653,14 @@ else playing for nothing. That is the same objection which rules out a streak mu
 **still rejected**, since it compounds the problem rather than softening it. Accepted
 deliberately because it matches the stated loop, "the one who gets the correct fastest
 wins". If it plays badly with friends, the cheapest remedy is consolation points for later
-correct guesses: a one-line change to the exception branch in `DATA-MODEL.md` §6.2, with
+correct guesses: a one-line change to the exception branch in `doc/DATA-MODEL.md` §6.2, with
 no schema change and no migration.
 
 ### 6.3 Timing and fairness
 
 **Postgres is the clock**, not the client and not a game-server process. The round's
 `started_at` and `ends_at` are written server-side — as is `rooms.deadline`, which must
-equal `ends_at` for the current round (`DATA-MODEL.md` §4.3; written by `start_game` §6.5
+equal `ends_at` for the current round (`doc/DATA-MODEL.md` §4.3; written by `start_game` §6.5
 for round 1 and by `advance_round` §6.4 thereafter, each taking both values from one
 statement so they cannot drift — B-23, B-24) — and a guess is graded by a
 `SECURITY DEFINER` function that stamps `submitted_at = now()` itself — the client
@@ -671,7 +671,7 @@ server-authoritative design.
 
 Round *progression* cannot be a long-running server loop: a full game is
 10 × (20 s + 8 s) = **280 s**, and Supabase Edge Functions cap at **150 s**
-(`RESEARCH.md` §3.5). Instead any client may attempt an idempotent conditional
+(`doc/RESEARCH.md` §3.5). Instead any client may attempt an idempotent conditional
 `UPDATE` (`WHERE state = 'playing' AND now() >= deadline`), with a `pg_cron` sweep as a
 liveness net for the case where every client has left. Consequence to accept: round
 boundaries are *"at least 20 s"*, not exactly 20 s.
@@ -724,7 +724,7 @@ Two entries were removed here after the 2026-08-22 stack decision, because they 
 false:
 
 - ~~"No external database — Durable Object SQLite is sufficient."~~ The design now
-  depends on **Postgres as the authoritative datastore** (`RESEARCH.md` §3.5). This is
+  depends on **Postgres as the authoritative datastore** (`doc/RESEARCH.md` §3.5). This is
   not a regression — it is the same state, in a different engine — but it is no longer
   true that we need no database.
 - ~~"…with at least an order of magnitude of headroom."~~ **No longer true.** On the
@@ -745,7 +745,7 @@ Ordered by how much they block.
 2. ~~**§3 transcode location** — GitHub Actions assumed; `ffmpeg` availability
    unverified.~~ **RESOLVED (B-12): GitHub Actions is viable, but `ffmpeg` is NOT
    preinstalled on `ubuntu-latest`** — the workflow must install it explicitly. See
-   `RESEARCH.md` §3.7.
+   `doc/RESEARCH.md` §3.7.
 3. **§5.1 curation source** — hand-built seed list, or a public popularity list.
    *Blocks the curation pipeline.*
 4. ~~**§4.3** — full or partial credit for season-lenient matches.~~ **DECIDED 2026-08-22

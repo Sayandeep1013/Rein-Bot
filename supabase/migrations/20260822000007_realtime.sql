@@ -1,14 +1,14 @@
 -- 20260822000007_realtime.sql
--- ReIN Bot -- Realtime publication. Implements DATA-MODEL.md 8.1.
+-- ReIN Bot -- Realtime publication. Implements doc/DATA-MODEL.md 8.1.
 --
 -- Only rooms, players and guesses are published to supabase_realtime. rounds is NOT:
 -- round transitions are announced by advance_round's explicit broadcast (migration
 -- 20260822000005), which carries the reveal payload the table does not store -- there
--- is deliberately no reveal column to publish (DATA-MODEL.md 4.3).
+-- is deliberately no reveal column to publish (doc/DATA-MODEL.md 4.3).
 --
 -- Every broadcast must be reconstructible from database state, because Realtime does
 -- not persist messages and a client that misses one has no replay beyond re-reading
--- its rooms row (ARCHITECTURE.md 9). All three published tables carry RLS
+-- its rooms row (doc/ARCHITECTURE.md 9). All three published tables carry RLS
 -- (20260822000006); Realtime respects it.
 --
 -- Idempotent by inspection of pg_publication_tables rather than bare ALTER PUBLICATION,

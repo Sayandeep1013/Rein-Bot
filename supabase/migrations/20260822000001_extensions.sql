@@ -6,8 +6,8 @@
 -- plpgsql 1.0, supabase_vault 0.3.1 and uuid-ossp 1.1 were present. Both are
 -- genuinely required, not conveniences:
 --
---   unaccent       diacritic folding for normalise_title  (GAME-DESIGN.md 4.2 step 2)
---   fuzzystrmatch  levenshtein_less_equal() near-match     (GAME-DESIGN.md 4.3.1)
+--   unaccent       diacritic folding for normalise_title  (doc/GAME-DESIGN.md 4.2 step 2)
+--   fuzzystrmatch  levenshtein_less_equal() near-match     (doc/GAME-DESIGN.md 4.3.1)
 --
 -- fuzzystrmatch ships plain Levenshtein only. It has NO Damerau-Levenshtein, so a
 -- transposition costs 2 rather than 1. This was proven from the extension source

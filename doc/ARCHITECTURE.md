@@ -3,9 +3,9 @@
 Status: **first draft, 2026-08-22.** No code exists yet. This document describes the
 intended system, not a built one.
 
-Numbers cited as verified come from `RESEARCH.md`. Blockers referenced as `B-n` come
-from `BLOCKERS.md`. Game rules come from `GAME-DESIGN.md`; the data schema is in
-`DATA-MODEL.md`.
+Numbers cited as verified come from `doc/RESEARCH.md`. Blockers referenced as `B-n` come
+from `doc/BLOCKERS.md`. Game rules come from `doc/GAME-DESIGN.md`; the data schema is in
+`doc/DATA-MODEL.md`.
 
 > **§5.2 was ratified by the user on 2026-08-22.** Guess submission goes to a Postgres
 > function; everything else server-shaped stays in Edge Functions. The rejected alternative
@@ -33,7 +33,7 @@ Three properties drive every decision below:
    has explicitly dropped that goal — but because "who was correct first" is
    meaningless if each client decides for itself.
 2. **A game outlives any single compute invocation.** At the 10-round default a game runs 280 s, and 560 s at 20 rounds; only a game of five rounds or fewer fits in one invocation, since
-   the Edge Function ceiling is 150 s (`RESEARCH.md` §3.5). Nothing may be a
+   the Edge Function ceiling is 150 s (`doc/RESEARCH.md` §3.5). Nothing may be a
    long-running loop.
 3. **Media is ~98% of resource consumption.** Every media decision is a quota
    decision.
@@ -44,19 +44,19 @@ Three properties drive every decision below:
 
 | Layer | Choice | Why |
 | --- | --- | --- |
-| Frontend | Vercel Hobby (static + client JS) | Free, no domain needed. Edge Functions *cannot* serve HTML without a custom domain (`RESEARCH.md` §3.5) |
+| Frontend | Vercel Hobby (static + client JS) | Free, no domain needed. Edge Functions *cannot* serve HTML without a custom domain (`doc/RESEARCH.md` §3.5) |
 | Realtime transport | Supabase Realtime | Only free option that survived review; 200 peak connections |
 | Authority / state | Supabase Postgres | Transactional; see §4 |
 | Server logic (data) | Postgres functions via PostgREST | One hop, atomic; §5.2 |
 | Server logic (outside world) | Supabase Edge Functions | `fetch()`, secrets, real libraries; §5.3 |
 | Media storage | Supabase Storage | Opaque keys, our own bucket |
-| Transcode | GitHub Actions + ffmpeg | Edge Functions cannot run native binaries (B-12, `RESEARCH.md` §3.5) |
-| Content source | AnimeThemes.moe | No key, no auth, stable URLs (`RESEARCH.md` §4) |
+| Transcode | GitHub Actions + ffmpeg | Edge Functions cannot run native binaries (B-12, `doc/RESEARCH.md` §3.5) |
+| Content source | AnimeThemes.moe | No key, no auth, stable URLs (`doc/RESEARCH.md` §4) |
 
 **Rejected:** Vercel Functions as room server (300 s cap vs 280 s game, billed live,
-no cross-instance state — `RESEARCH.md` §3.8); Cloudflare Durable Objects (stack
+no cross-instance state — `doc/RESEARCH.md` §3.8); Cloudflare Durable Objects (stack
 mandated to Vercel + Supabase); trace.moe as content source (it is a labeller, not a
-source — `RESEARCH.md` §1.1); AniList (terms prohibit mass collection, §5).
+source — `doc/RESEARCH.md` §1.1); AniList (terms prohibit mass collection, §5).
 
 ---
 
@@ -191,7 +191,7 @@ These are the cases where an Edge Function is clearly right and Postgres clearly
 Postgres *can* make outbound HTTP calls via `pg_net`, but it is asynchronous and
 awkward; this is not a close call.
 
-**Hard limits that shape these functions** (`RESEARCH.md` §3.5): 150 s wall clock,
+**Hard limits that shape these functions** (`doc/RESEARCH.md` §3.5): 150 s wall clock,
 **2 s CPU**, 256 MB memory, no Web Worker API, **no multithreaded native libraries**.
 That last one is why transcode is not here — ffmpeg cannot run in an Edge Function.
 
@@ -222,7 +222,7 @@ does not grade, does not supply timestamps, and is not given the answer before r
 Realtime channel → shareable code/link rendered.
 
 **Submit guess.** Client → `grade_guess()` RPC → single transaction: normalise input,
-compare against the accepted-answer set (`GAME-DESIGN.md` §4.1–4.3), stamp `now()`,
+compare against the accepted-answer set (`doc/GAME-DESIGN.md` §4.1–4.3), stamp `now()`,
 attempt the first-correct claim, write the `guesses` row → verdict returned to the
 caller → Realtime broadcasts the scoreboard delta to the room.
 
@@ -276,14 +276,14 @@ preserve that property.
 > This statement cannot do it, because a lobby room has `deadline IS NULL` and
 > `now() >= NULL` evaluates to `NULL`, so it matched zero rows *forever* — no client poll
 > and no `pg_cron` sweep could ever have started a game. Round 1 is now stamped by
-> `start_game` (`DATA-MODEL.md` §6.5), whose guard is safe for a different reason than this
+> `start_game` (`doc/DATA-MODEL.md` §6.5), whose guard is safe for a different reason than this
 > one: it tests `state = 'lobby'` and writes `state = 'playing'`, so it does mutate the
 > column it guards on — which is exactly why `state` is a valid guard there and an invalid
 > guard here.
 
 **Liveness net.** If every client disconnects mid-game the room would freeze, so a
 `pg_cron` sweep runs the same idempotent statement periodically. `pg_cron` is available
-on Free and supports sub-minute schedules (`RESEARCH.md` §3.5). This also incidentally
+on Free and supports sub-minute schedules (`doc/RESEARCH.md` §3.5). This also incidentally
 mitigates B-16, the 7-day inactivity pause, by keeping the project minimally active.
 
 ---
@@ -291,7 +291,7 @@ mitigates B-16, the 7-day inactivity pause, by keeping the project minimally act
 ## 8. Content pipeline
 
 Runs offline, never on the hot path. Because AnimeThemes media URLs are stable with no
-expiry token (`RESEARCH.md` §4.5), the question bank is built once and replayed
+expiry token (`doc/RESEARCH.md` §4.5), the question bank is built once and replayed
 indefinitely.
 
 ```
@@ -304,7 +304,7 @@ AnimeThemes GraphQL ──► filter/select ──► download source ──► 
 ### 8.1 Variant selection — safety before size
 
 A theme usually has several video variants. Selection precedence is fixed
-(`RESEARCH.md` §4.8):
+(`doc/RESEARCH.md` §4.8):
 
 1. **`nc: true` mandatory** — a credited video burns the show's title logo into the
    picture and hands over the answer. A theme with no `nc: true` variant is **excluded**,
@@ -318,7 +318,7 @@ typically the 1080p Blu-ray rips, i.e. the largest files — median 26.1 MB acro
 100-video sample. "Pick the smallest" is actively unsafe. The transcode step is what
 makes this affordable: we pay the large download once at curation and serve ~1 MB.
 
-`RESEARCH.md` §4.8 flags as **unverified** whether `nc: false` reliably implies
+`doc/RESEARCH.md` §4.8 flags as **unverified** whether `nc: false` reliably implies
 on-screen text; a visual spot-check during curation is required rather than trusting
 the flag.
 
@@ -357,12 +357,12 @@ Difficulty is therefore **our own column, computed at ingest** from available pr
 | `format` | OVA/ONA/SPECIAL → harder than TV | `Anime.format` |
 
 Weighting is unresolved and deliberately left open — it needs playtesting, not
-theorising. Recorded in `GAME-DESIGN.md` §8.
+theorising. Recorded in `doc/GAME-DESIGN.md` §8.
 
 **Honest limitation:** none of these proxies measures *recognisability*, which is what
 difficulty actually means here. A 2005 OP from a famous long-running series may be far
 easier than a 2023 OP from an obscure ONA. Without an external popularity signal — and
-AniList's terms rule out mass collection (`RESEARCH.md` §5) — this stays a heuristic.
+AniList's terms rule out mass collection (`doc/RESEARCH.md` §5) — this stays a heuristic.
 Curation from a hand-picked seed list the group actually knows is the real quality
 control (B-11 item 2).
 
@@ -373,7 +373,7 @@ control (B-11 item 2).
 Realtime carries **notifications, never authority**: round-start, scoreboard deltas,
 reveal payloads, presence.
 
-Three verified properties shape usage (`RESEARCH.md` §3.5):
+Three verified properties shape usage (`doc/RESEARCH.md` §3.5):
 
 - **Messages are not persisted** → no storage cost, but also no replay. A client that
   misses a broadcast must recover by reading the `rooms` row. Every broadcast must
@@ -406,13 +406,13 @@ Confirmed against the Supabase Management API using the project PAT:
 | `public` tables | **none** — genuinely fresh |
 | Database size | ~10 MB (system baseline) |
 
-Extension availability verified live and matches `DATA-MODEL.md` §2 exactly: `unaccent` 1.1,
+Extension availability verified live and matches `doc/DATA-MODEL.md` §2 exactly: `unaccent` 1.1,
 `fuzzystrmatch` 1.2, `pg_trgm` 1.6, `pg_cron` 1.6.4 all **available, none installed**;
 `pgcrypto` 1.3 **already installed**. `pg_graphql` is **not installed** (which closes B-18).
 
 ### 10.2 Quota scoping — CORRECTED
 
-Free-plan figures (`RESEARCH.md` §3.5): egress **5 GB uncached + 5 GB cached**, storage
+Free-plan figures (`doc/RESEARCH.md` §3.5): egress **5 GB uncached + 5 GB cached**, storage
 **1 GB**, database **500 MB**, Edge Function invocations **500,000/mo**, Realtime **2 M
 messages** and **200 peak connections**.
 
@@ -477,7 +477,7 @@ would improve this — magnitude unverified, tracked in B-13.
 org-shared too. A ~500-title curated pool fits with room to spare.
 
 Non-binding by a wide margin: database (rooms/rounds/guesses are tiny, and the 24 h
-retention sweep in `DATA-MODEL.md` §8.2 keeps it flat), Edge Function invocations (ingest
+retention sweep in `doc/DATA-MODEL.md` §8.2 keeps it flat), Edge Function invocations (ingest
 is one-off; room creation is ~1/game), Realtime messages (~1,600/game → ~1,250 games).
 
 **Overage behaviour** is only partly known: free-plan overage is not billed but
@@ -487,7 +487,7 @@ trigger. **Note the org-level consequence: a restriction triggered by Mubitracke
 would take ReIN Bot down with it.**
 
 **Two permanent constraints:** Vercel Hobby is **non-commercial only** (B-14), and
-AnimeThemes' terms forbid commercial use (`RESEARCH.md` §4.9). ReIN Bot must never
+AnimeThemes' terms forbid commercial use (`doc/RESEARCH.md` §4.9). ReIN Bot must never
 monetise. This aligns with the user's stated intent ("it will be a free all project")
 but is now a contractual obligation, not a preference.
 
@@ -501,7 +501,7 @@ but is now a contractual obligation, not a preference.
   `pgmq` is available if that changes.
 - **No cache** — clips are static files behind Storage's CDN. Game state is small and
   read straight from Postgres.
-- **No accounts** — identity is a display name per room (`GAME-DESIGN.md` §6.1).
+- **No accounts** — identity is a display name per room (`doc/GAME-DESIGN.md` §6.1).
 
 ---
 
@@ -528,6 +528,6 @@ but is now a contractual obligation, not a preference.
 | ~~MCP bound to wrong project; nothing verified against real ReIN Bot~~ **VERIFIED 2026-08-22 over the Management API** (§10.1); MCP binding itself still needs a restart | Nothing | B-19 |
 | `nc`/`subbed`/`overlap` semantics and surviving catalogue size | Locking the ingest query | B-20 |
 | Curation seed list | Curation pipeline | B-11 item 2 |
-| Difficulty weighting | Nothing — playtest | `GAME-DESIGN.md` §8 |
+| Difficulty weighting | Nothing — playtest | `doc/GAME-DESIGN.md` §8 |
 | Egress overage trigger | Nothing — capacity planning | B-13 |
 | Vercel Hobby function overage lock | Nothing at current scale | B-15 |

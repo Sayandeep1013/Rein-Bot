@@ -4,7 +4,7 @@
 [Supabase Management API](https://supabase.com/docs/reference/api/intro) query
 endpoint (`POST /v1/projects/{ref}/database/query`) using a personal access token,
 NOT through `supabase db push`. The CLI was unavailable when the project was
-bootstrapped (B-19 in `BLOCKERS.md`), so the API path became primary.
+bootstrapped (B-19 in `doc/BLOCKERS.md`), so the API path became primary.
 
 Consequence, handled deliberately: `supabase_migrations.schema_migrations` did not
 exist on a never-CLI-managed project. It has been created **in supabase/cli's exact

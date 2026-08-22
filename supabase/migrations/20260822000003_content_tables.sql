@@ -1,7 +1,7 @@
 -- 20260822000003_content_tables.sql
--- ReIN Bot -- content tables. Implements DATA-MODEL.md 3.1 and 3.2.
+-- ReIN Bot -- content tables. Implements doc/DATA-MODEL.md 3.1 and 3.2.
 --
--- These are written by the curation pipeline (ARCHITECTURE.md 8) and never read
+-- These are written by the curation pipeline (doc/ARCHITECTURE.md 8) and never read
 -- directly by clients. Migration 20260822000006 revokes every grant on them; until
 -- that migration runs, nothing else in this project touches these tables, so there is
 -- no window in which a client could reach an answer through them.
@@ -25,7 +25,7 @@ create table public.question_bank (
   animethemes_theme_id  int,
   anime_slug            text      not null,
 
-  -- difficulty inputs (DATA-MODEL.md 5; formula deliberately unspecified)
+  -- difficulty inputs (doc/DATA-MODEL.md 5; formula deliberately unspecified)
   anime_year          int         not null,
   anime_season        text,
   anime_format        text        not null,
@@ -33,10 +33,10 @@ create table public.question_bank (
   theme_sequence      int,
   difficulty          smallint    not null check (difficulty between 1 and 5),
 
-  -- variant safety flags (ARCHITECTURE.md 8.1)
+  -- variant safety flags (doc/ARCHITECTURE.md 8.1)
   nc                  boolean     not null,
   subbed              boolean     not null,
-  overlap             text,       -- recorded, not constrained: RESEARCH.md 4.8 prefers NONE
+  overlap             text,       -- recorded, not constrained: doc/RESEARCH.md 4.8 prefers NONE
   spoiler             boolean     not null default false,
   nsfw                boolean     not null default false,
 
@@ -52,9 +52,9 @@ create table public.question_bank (
 );
 
 comment on table public.question_bank is
-  'Curation-pipeline output; no client grant exists (DATA-MODEL.md 7.1). clip_key is '
+  'Curation-pipeline output; no client grant exists (doc/DATA-MODEL.md 7.1). clip_key is '
   'an opaque identifier -- clips/{uuid}.webm -- never the AnimeThemes basename, which '
-  'spells the answer (GAME-DESIGN.md 2.1). The three check constraints encode the '
+  'spells the answer (doc/GAME-DESIGN.md 2.1). The three check constraints encode the '
   'variant-selection rules so a unsafe clip cannot be inserted even by a buggy ingest '
   'run: a credited video reveals the title logo and subtitles can carry translated '
   'titles. retired_at removes a clip from rotation without deleting history.';
@@ -73,7 +73,7 @@ create table public.question_titles (
 
 create index question_titles_by_question on public.question_titles (question_id);
 
--- Empty-string guard. GAME-DESIGN.md 4.2 documents a bug where a CJK title normalises
+-- Empty-string guard. doc/GAME-DESIGN.md 4.2 documents a bug where a CJK title normalises
 -- to '' and then matches any single character. normalise_title itself was fixed to use
 -- [^[:alnum:]] (migration 20260822000002), but this constraint makes the failure
 -- impossible at the storage layer too: a '' candidate cannot be inserted at all.

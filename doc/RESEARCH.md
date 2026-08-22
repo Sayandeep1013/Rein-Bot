@@ -180,7 +180,7 @@ browser-side leaks the answer to the client, so it is unusable for a quiz.
 > unavailable at any secrecy posture; keep any such lookup server-side.
 >
 > Moot in the shipped design regardless: content is curated **offline** into
-> `question_bank` ahead of play (`GAME-DESIGN.md` §5), so no reverse-image lookup happens
+> `question_bank` ahead of play (`doc/GAME-DESIGN.md` §5), so no reverse-image lookup happens
 > during a round at all, and the 100/day anonymous pool never sits on the hot path.
 
 **UNVERIFIED:** the exact rate-limit response header names. The docs say only
@@ -285,7 +285,7 @@ AniList as a build-time/curation-time dependency, not a per-round runtime call.
 >
 > The one thing the decision costs is media headroom: R2 offered 10 GB storage with
 > unmetered egress, versus Supabase's 1 GB storage and a shared 5 GB egress pool.
-> That trade and its arithmetic are in `GAME-DESIGN.md` §3.
+> That trade and its arithmetic are in `doc/GAME-DESIGN.md` §3.
 
 ### 3.1 Cloudflare Workers — Free plan
 
@@ -340,7 +340,7 @@ mandated to Vercel + Supabase.
 What the substitution actually costs is **ergonomics, not capability**. The
 guarantees a DO would have given for free must now be reconstructed in Postgres:
 server-side timestamping via `SECURITY DEFINER` functions (with `SET search_path = ''`
-— see `GAME-DESIGN.md` §4.4.2), ~~answer secrecy via **column-level grants**~~ (dropped, see below), and round
+— see `doc/GAME-DESIGN.md` §4.4.2), ~~answer secrecy via **column-level grants**~~ (dropped, see below), and round
 progression via idempotent conditional `UPDATE` plus a `pg_cron` sweep — because no
 Supabase Edge Function invocation can span a full-length game — 280 s at the 10-round default, 560 s at 20 (§3.5). The state machine ends
 up spread across Postgres functions, RLS policies, triggers, client timers and cron,
@@ -353,7 +353,7 @@ judged not worth reintroducing a third vendor.
 > filters rows, not columns**, so any row a player may read, they read in full. Answer
 > secrecy comes from `REVOKE SELECT ON <table>` followed by a column allow-list
 > `GRANT`, not from RLS. RLS remains in the design, but for row scoping (which room a
-> player may see) — never for hiding the answer. See `GAME-DESIGN.md` §4.4.1 and
+> player may see) — never for hiding the answer. See `doc/GAME-DESIGN.md` §4.4.1 and
 > **B-17** (resolved). Note that this gates **PostgREST**; whether pg_graphql honours
 > the same column grants is open as **B-18**.
 
@@ -365,10 +365,10 @@ judged not worth reintroducing a third vendor.
 >    **structural rather than privilege-based**: `question_bank` and `question_titles`
 >    receive **no `anon` / `authenticated` grant at all**, and `rounds` stores a
 >    denormalised `clip_key` — so there is no client-reachable answer column to hide,
->    and therefore no allow-list to keep in sync. See `GAME-DESIGN.md` §4.4.2.
+>    and therefore no allow-list to keep in sync. See `doc/GAME-DESIGN.md` §4.4.2.
 > 2. **B-18 is closed as moot**, on two independent grounds: `pg_graphql` was verified
 >    **not installed** on `mxkqivivqultfuattuin` (2026-08-22), so no second read path
->    exists; and with column grants gone the question cannot arise. See `BLOCKERS.md`
+>    exists; and with column grants gone the question cannot arise. See `doc/BLOCKERS.md`
 >    → Resolved.
 >
 > **What remains true and load-bearing:** *RLS filters rows, not columns.* Postgres
@@ -440,7 +440,7 @@ upload against 1,000,000, and ~1,200 Class B ops/month against 10,000,000.
 without a custom domain requires fronting the bucket with a Worker on `*.workers.dev`
 (100,000 req/day) — R2's built-in `r2.dev` endpoint is rate-limited and documented as
 not for production. Supabase Storage clears the *actual* expected usage with ~4×
-headroom (`GAME-DESIGN.md` §3), so the extra vendor buys margin we do not yet need.
+headroom (`doc/GAME-DESIGN.md` §3), so the extra vendor buys margin we do not yet need.
 
 **Revisit if** traffic becomes bursty or public — Supabase egress is a hard monthly
 cliff (**B-13**), R2 has no cliff. This is the documented escape hatch.
@@ -480,7 +480,7 @@ Both ⚠️ figures are non-load-bearing here: the question bank is ~500 rows of
 Database, Auth, Storage, Edge Functions, Realtime and Log Drains."* There is no
 separate media allowance. Measured consequence: media is ~98% of our draw
 (~80 MB/game at the chosen clip size versus ~2 MB of Realtime traffic), so the media
-arithmetic in `GAME-DESIGN.md` §3 effectively *is* the egress budget.
+arithmetic in `doc/GAME-DESIGN.md` §3 effectively *is* the egress budget.
 
 **Database overage is not graceful.** Verbatim: *"your database can go into read-only
 mode which can prevent you inserting and deleting data."* The equivalent behaviour
@@ -544,7 +544,7 @@ committed updated row, so the second concurrent writer matches 0 rows and cannot
 double-advance — *but only because the guard tests `deadline`, a column the same
 statement mutates.* A guard on an unmutated column would re-evaluate true and both
 writers would advance. Source: `postgres/postgres` `doc/src/sgml/mvcc.sgml` §13.2.1.
-Full reasoning and the caveats in `GAME-DESIGN.md` §6.3.
+Full reasoning and the caveats in `doc/GAME-DESIGN.md` §6.3.
 
 #### Cron
 
@@ -804,7 +804,7 @@ reveal, waveform visualiser, custom scrubbing — needs either curation-time
 preprocessing into **our own bucket**, or a proxy. A proxy would pull 33–56 MB per round
 through our own compute and is a bad trade; **prefer preprocessing.**
 
-`GAME-DESIGN.md` §3 chose preprocessing, into **Supabase Storage** (this section
+`doc/GAME-DESIGN.md` §3 chose preprocessing, into **Supabase Storage** (this section
 originally said R2 — see §3.4/§3.5 for why the bucket changed). Two updates to the
 wording above, now that we self-host:
 
@@ -819,7 +819,7 @@ wording above, now that we self-host:
   > is **no longer sufficient on its own**, so this ordering flips: **CORS (B-9) is now
   > the first reason**, and bandwidth the second — hot-linking costs ~1.2 GB per game
   > against ~80 MB preprocessed (§4.7), roughly **15x**, measured against an *org-shared*
-  > 5 GB allowance (`ARCHITECTURE.md` §10.2). The conclusion is unchanged and now
+  > 5 GB allowance (`doc/ARCHITECTURE.md` §10.2). The conclusion is unchanged and now
   > over-determined; only the justification order moves.
 
 Also observed: `Cache-Control: no-cache, private` and `Set-Cookie` on the video
@@ -845,7 +845,7 @@ and only small JSON crosses our backend.
 
 > ⚠️ **SUPERSEDED 2026-08-22 — both conclusions in this section were reversed.**
 >
-> **1. "Our own egress is zero" no longer holds.** `GAME-DESIGN.md` §3 chose to
+> **1. "Our own egress is zero" no longer holds.** `doc/GAME-DESIGN.md` §3 chose to
 > preprocess clips into **our own Supabase Storage bucket**, because hot-linking leaks
 > the answer in the filename and offers no CORS. We now serve the media, so egress is
 > ours: **80 MB per game**, against a **5 GB/month unified pool** shared with Database,
@@ -1037,7 +1037,7 @@ requires no API call at all.
   default mode" (§4.7).
 - **Our own Supabase Storage bucket with opaque keys** — *reverses* "direct hot-linking
   … zero egress cost to us". Hot-linking leaks the answer in the filename and gives no
-  CORS control (§4.6, `GAME-DESIGN.md` §3).
+  CORS control (§4.6, `doc/GAME-DESIGN.md` §3).
 - **Postgres as the authoritative store + Supabase Realtime for fan-out** — *reverses*
   "Workers + SQLite Durable Objects with WebSocket Hibernation". Same state model, no
   DO-equivalent primitive; see §3.2 and **B-17** (resolved 2026-08-22 — verified, with
