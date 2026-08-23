@@ -1126,10 +1126,23 @@ def upload(key, path, content_type):
 
 
 def ingest(payload):
+    # Wrapped in {"p_payload": ...}, NOT posted bare.
+    #
+    # PostgREST maps the top-level keys of an RPC body to NAMED function arguments,
+    # so posting the payload bare made it look for a 22-argument ingest_question and
+    # fail with PGRST202 -- "Searched for the function public.ingest_question with
+    # parameters anime_format, anime_season, ... or with a single unnamed json/jsonb
+    # parameter". The function takes one argument, p_payload jsonb, so the body has
+    # to name it. (An unnamed single jsonb parameter would also have worked, but the
+    # SQL is applied and verified; the client is the side that was wrong.)
+    #
+    # This is the first thing that broke when the HTTP path finally ran: every prior
+    # test of ingest_question went through SQL, where the argument is positional and
+    # this class of mistake cannot exist.
     status, resp = http(
         "POST",
         "%s/rest/v1/rpc/ingest_question" % SUPABASE_URL,
-        json.dumps(payload).encode("utf-8"),
+        json.dumps({"p_payload": payload}).encode("utf-8"),
         {
             "Authorization": "Bearer " + SERVICE_KEY,
             "apikey": SERVICE_KEY,

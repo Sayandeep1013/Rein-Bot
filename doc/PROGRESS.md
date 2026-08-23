@@ -1146,3 +1146,148 @@ shown during play at 0/7/14 s) against days of review effort.
   class; 5.2.2 records the CI confirmation, why the blocker still stays open, and the corrected
   1.93x coherence margin.
 - `doc/PROGRESS.md` - this entry.
+
+## 2026-08-23 (supervision + build) — Both answer leaks closed, and the game is deployed
+
+A supervisory audit of everything built so far ran first: all 11 migrations and the whole
+curation pipeline, read against the docs that describe them. It found a single recurring
+failure mode rather than a scatter of unrelated bugs, and that framing is the most
+reusable thing in this entry.
+
+**The pattern: a comment asserting safety stops the next reader from checking.** Four of
+the six SQL defects below are gaps between what a comment claims and what the statements
+beside it do. Migration 0010 removed `clip_key` and recorded that `question_id` "stays on
+the row and remains harmless". The `guesses` policy called a live answer leak "a UI
+obligation, not schema-enforceable". `ocr_words` makes a tesseract crash fatal with
+exactly the right reasoning, and the ffmpeg three lines away failed silently. This is why
+execution testing missed all of them: **the tests confirmed what the comments claimed.**
+The rule adopted going forward, and applied throughout migration 0012, is that a comment
+asserting something is safe must name the query that proves it.
+
+### What was wrong, and what it now does
+
+**Two independent paths let a client read the answer.** Either one defeats the product.
+
+- `rounds.question_id` was readable for every round of the game, unplayed ones included,
+  and `create_room` pre-inserts them all. `question_id` is a *globally stable* identifier
+  for a fixed answer, so a player who recorded `(question_id -> ROUND_REVEAL titles)`
+  across a few games owned a permanent answer key to a ~134-row bank, then read every
+  answer out of the lobby before round 1. Closed with a **column-level GRANT** — RLS is
+  row-level and cannot withhold a column. Verified: `authenticated` now holds SELECT on
+  `ends_at, id, ordinal, room_id, started_at` and nothing else.
+- `guesses.raw` was readable by every room member the instant it was inserted, and
+  `guesses` is in the realtime publication, so the winning guess text was *pushed* to
+  every client with ~15 s still on the clock. Now: own guesses always, everyone else's
+  only past that round's `ends_at`, via a new SECURITY DEFINER `is_own_player`.
+
+**Four correctness bugs, all user-visible.** `grade_guess` stored `(false, 0)` for the
+first-correct race loser and then returned the *unreset* locals, so two players 15 ms
+apart both saw "+187" while the scoreboard paid one — the doc's own pseudocode has the fix
+and 0005 dropped the line. The final round never revealed, because `ROUND_REVEAL` sat
+after the game-over branch. The 8-second reveal phase did not exist at all:
+`reveal_duration` was read by nothing and `state='reveal'` set by nothing. And fuzzy
+matching used edit distance 1 with **no length floor**, which against the real manifest
+made **15 of 46 anime winnable by typing one or two characters** — `HQ!` normalises to
+`hq`, so `h` scored; `SAO`, `FMA`, `DBZ`, `OPM`, `CSM`, `HxH` are all three.
+
+The reveal phase is now real *without new state*: `advance_round` pushes the next round's
+`started_at` forward by `reveal_duration`, and `grade_guess` already rejects anything
+outside `[started_at, ends_at]`, so the gap is enforced rather than advisory.
+
+**Caps and hygiene the design claimed and nothing enforced.** An 8-player cap with the
+room row locked `FOR UPDATE` (which also closes a `start_game`/`join` race); one question
+per anime, because `anime_slug` existed unused and `unique(room_id, question_id)` only
+stops the same *theme* — about half of all 10-round games repeated a show, and the second
+time it was free points; genuinely dense round ordinals, which previously relied on
+`LIMIT` without `ORDER BY` returning rows in window order (a plan artefact, not a
+guarantee — sparse ordinals would leave `start_game`'s `WHERE ordinal = 1` matching
+nothing and the room permanently unstartable); realtime topics keyed by room uuid instead
+of the 4-character code; and removal of the `anon` execute grants, which were never needed
+because Supabase anonymous sign-in issues `role=authenticated`.
+
+### Migration 0013 and the transport decision
+
+`get_room_state` is the client's single polled read endpoint: room state, scoreboard,
+current round with asset keys, and the reveal for the most recently *finished* round.
+
+**Polling was chosen over Realtime deliberately.** `emit_room_event` publishes with
+`realtime.send(..., false)` — a public channel — and the reveal payload contains the
+answer. But the decisive argument is not security: *a push tells a client what happened,
+it does not tell a client what is true.* After a refresh, a backgrounded tab, or a dropped
+socket, the client needs a "what is the state right now" call regardless. Once that call
+exists, polling it **is** the whole client. Measured cost is ~1.2 MB per game against
+10-22 MB of media for the same game — about 10% overhead, still ~215 games inside 5 GB.
+The broadcasts are left in place as a future latency optimisation.
+
+### The web client, and the pipeline's silent fail-open paths
+
+`app/` is the first frontend this project has ever had: home, lobby, play, reveal and game
+over, progressive stills, a countdown corrected against `server_now` (a browser clock can
+be minutes out), deep-link invites, and a mobile-first layout. No framework, no build step,
+**and no `supabase-js`** — polling plus REST is all `fetch()`, so the page carries zero
+third-party runtime dependencies. It detects both remaining setup steps and renders the
+fix rather than failing blankly.
+
+The pipeline audit found three fail-open paths in the one filter standing between a title
+card and the player:
+
+- **rapidocr's geometry was discarded on exactly the frames it exists to catch.** Its
+  boxes carry no page dimensions and were backfilled *only* from the `orig` tesseract
+  pass; when that pass read nothing — 24 of 621 frames in run 5 — every rapid box kept
+  `img_h = 0`, scored `_frac() == 0.0`, and dropped out of **both** union features. Those
+  are precisely the frames where tesseract is blind and rapidocr is the only defence. Now
+  falls back to the `up2x` page box halved, and **unresolvable geometry scores at the
+  reject line instead of zero**: unmeasured is not clean.
+- **A failed ffmpeg upscale silently deleted an OCR pass** — no log, no counter, no effect
+  on exit status. Now fatal, matching the policy `ocr_words` already applies to a tesseract
+  crash three lines above it. The partial PNG no longer leaks either.
+- **The baseline bonus read `toks[0]`, the first token of the frame**, which need not be in
+  the cluster being scored. Latent on run-5 data, and faithfully ported from the offline
+  calibrator, defect included.
+
+Also: stdin is decoded as explicit UTF-8. Every job line carries CJK and the workflow sets
+no `LANG`/`PYTHONUTF8`, so this worked only by grace of the runner image.
+
+### CI
+
+`curate.yml` gains a **minimum-yield gate**. It previously went green when the pipeline
+produced nothing at all — every theme skipping is "0 failures" — and that is not
+hypothetical: §5.2.2 records a measured run where the then-current rule skipped 8 of 10
+themes, and it would have reported success. `test.yml` runs the contract suite, which had
+been tracked, green and **never executed in CI once**. `pages.yml` deploys `app/` and
+refuses to publish a privileged key by decoding any JWT it finds and checking the `role`
+claim — the first version grepped for the string `service_role` and failed the deploy on
+`config.js`'s own comment explaining that the service_role key must not go there. A grep
+for a key name cannot tell a key from a sentence about keys.
+
+Contract tests gained coverage of the union rule's own arithmetic. Neither existing fixture
+ever drove `_coherence` to a nonzero value or made `_dedupe` merge anything, so the two
+functions the whole calibration rests on had **none**. Pinning the expected coherence value
+immediately earned its keep: the first assertion was wrong (the median of three heights is
+80, not 82) and the code was right.
+
+### What changed in the live project
+
+- Migrations **0012** and **0013** applied to `mxkqivivqultfuattuin` and verified by
+  querying `information_schema` and `pg_policy` rather than trusting the apply.
+- **GitHub Pages enabled** (`build_type=workflow`) and **the site is live** at
+  `https://sayandeep1013.github.io/Rein-Bot/`, serving `index.html`, `style.css`, `app.js`
+  and `config.js` at 200 with `charset=utf-8`. Note that `actions/configure-pages` with
+  `enablement: true` does **not** bootstrap a site that has never existed — the first
+  deploy failed there, and `gh api -X POST repos/<owner>/<repo>/pages -f
+  build_type=workflow` is what created it.
+- A first **non-dry curation run**, exercising the Supabase Storage upload and HTTP
+  `ingest_question` paths that had never executed even once.
+
+One verification lesson worth keeping: the first check of the `question_id` fix reported
+`YES -- LEAK STILL OPEN`. The migration was correct; the *check* was wrong, matching a
+leftover `REFERENCES` grant because it did not filter on `privilege_type`. An audit query
+that is not itself audited is just a rumour with a `select` in front of it.
+
+### What became possible next
+
+The two remaining blockers are both manual dashboard steps (anonymous sign-in, and the
+publishable key), and the client renders precise instructions for each rather than failing
+blankly. Once those are done the game is playable end to end, and the only remaining work
+is bulk content: the curation run is idempotent on `asset_slug`, so the remaining themes
+are a mechanical re-run.

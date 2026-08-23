@@ -8,11 +8,18 @@
 # There is no build step. app/ is uploaded exactly as committed, which is the whole
 # reason the client has no framework and no bundler.
 #
-# WHY enablement: true
-# actions/configure-pages turns Pages on for the repo and sets its source to "GitHub
-# Actions" if it is not already. That makes this workflow self-sufficient: the first
-# run configures Pages instead of failing with "Pages is not enabled", so nobody has
-# to visit repo Settings first.
+# ABOUT enablement: true -- IT DOES NOT BOOTSTRAP A NEW SITE
+# The documented promise is that actions/configure-pages turns Pages on if it is not
+# already on. Measured here: it does not, when the site has never existed. The first
+# run of this workflow failed at Configure Pages against a repo with no Pages site,
+# because the default GITHUB_TOKEN cannot create one. Creating it is a one-off call
+# with a credential that has repo scope:
+#
+#   gh api -X POST repos/<owner>/<repo>/pages -f build_type=workflow
+#
+# That was run once for this repo and the next deploy succeeded. The flag is kept
+# because it correctly maintains the source setting on an existing site; it is simply
+# not the bootstrap it looks like.
 
 name: Deploy site
 
