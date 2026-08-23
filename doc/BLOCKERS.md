@@ -1014,10 +1014,61 @@ legible text). **Seven have no JPEG on disk** and are the real cost of shipping 
 `AngelBeats-ED1` 67.9, `AngelBeats-OP1` 37.6, `AnsatsuKyoushitsu-OP1` 66.5, `AoNoExorcist-ED2`
 54.9, `AoNoExorcist-OP1` 57.0, `AoNoExorcist-OP2` 47.5, `BlackClover-OP1` 57.9.
 
-**Closes when** the rule is implemented in `tools/pipeline/curate_theme.py`, a CI run with
+**Closes when** ~~the rule is implemented in `tools/pipeline/curate_theme.py`, a CI run with
 uploads confirms `simulate()`'s predicted ship set frame-for-frame, and **all seven** unverified
-picks survive an eyeball — with yield still at 3 stills per theme. Until then B-28 stays open:
-runs 3 and 4 ship two confirmed leaks.
+picks survive an eyeball — with yield still at 3 stills per theme.~~ *(Superseded — the
+implementation half is done; see below.)*
+
+#### Implemented 2026-08-23 — the calibrated rule is now the shipped rule, and that is proven rather than assumed
+
+The union rule and the selector are in `tools/pipeline/curate_theme.py`. Four things landed: the
+four operational knobs (`OCR_COH_T` 0.21, `OCR_BIG_T` 3, `OCR_BIG_MIN_H` 0.28, `OCR_QUIET_T` 0.85,
+all env-overridable); the scoring functions; the rejection itself in `text_filter`, which now also
+emits a `reason` column (`word` / `union` / `both` / `-`) and counts `ocr_union_only` per theme; and
+the tiered selector in `spread`.
+
+**The port was done by renaming the data, not by rewriting the code.** A small adapter reshapes the
+pipeline's token dicts into the exact key schema the calibration harness uses, so the scoring
+functions are copied across character-for-character. That choice existed purely to make the
+following check possible:
+
+| Parity check on the run-4 artifact | Result |
+| --- | --- |
+| Frames scored by both implementations | **621** |
+| Exact mismatches | **0** |
+| Worst absolute delta | **0.000e+00** |
+| Frames with nonzero risk / rejected by the rule | 328 / 78 |
+| Negative control (`BIG_MIN_H` 0.28 → 0.05) | **589 mismatches** — the check is not inert |
+
+This matters beyond tidiness. `.tmp/cmp-sim.py`'s gate is *"reality must equal `simulate()`'s
+prediction"*. If the two implementations differed by a float, that gate would be comparing against
+a prediction no longer describing the shipped rule, and every number in this entry would describe
+a rule that is not running. Bit-identity is what makes the rest of the evidence transferable.
+
+**The contract suite earned its keep on the first change.** Returning the new `union_only` counter
+altered `text_filter`'s arity, and the suite failed immediately with `ValueError: too many values to
+unpack` at the call site rather than silently in CI two weeks later. New checks cover: the union
+rule staying inert on a word-rule rejection; a risk score present on *every* candidate; the dump's
+`reason` and `risk` columns; a **geometry-only** rejection end-to-end — deliberately isolated with
+confidence below `ocr_min_conf` so coherence is structurally zero and only the confidence-free box
+count can fire, which is `AnsatsuKyoushitsu-OP1` 79.5 in miniature; and five selector cases
+including the fallback, the exact-threshold boundary, and the hard failure on an unscored candidate.
+
+**Two mechanisms were priced and dropped**, both recorded in `doc/GAME-DESIGN.md` §5.2.2–§5.2.3:
+pure risk-ranked selection (18 spans reshuffled, 17 new never-inspected frames, one span down to
+55% of its bytes, **0** known-bad avoided) in favour of the tiered `0.85` rule (0 spans changed,
+0 new frames, worst ratio 1.000, and three live survivors at 0.901/0.907/0.997 for it to guard);
+and spatial dilation, which has nothing left to catch, no testable adjacency signal, and no safe
+weight that is not also inert.
+
+The ship set is **unchanged** under the tiered selector, so the review debt is still exactly the
+same 7 frames listed above. No workflow change is needed to see them: dry runs already write all 36
+stills, and `out/` is uploaded wholesale — confirmed against run 4 (`status='DRY'`, 36 stills).
+
+**Closes when** a CI run with `ocr_dump=true` reproduces `simulate()`'s predicted ship set
+frame-for-frame (`.tmp/cmp-sim.py` reporting `PROMOTED 0` and `themes shipping fewer than 3: 0`)
+and **all seven** newly promoted picks survive an eyeball. Until then B-28 stays open: runs 3 and 4
+ship two confirmed leaks.
 
 **Fallback if OCR still proves unreliable:** stills-only rooms lose their safety margin, so
 the fallback is not "ship it anyway". Options, in order of preference: bias selection to

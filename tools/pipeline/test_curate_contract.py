@@ -397,8 +397,14 @@ scratch = ROOT / ".tmp"
 scratch.mkdir(exist_ok=True)
 tmp = Path(tempfile.mkdtemp(dir=str(scratch)))
 cands = [{"index": 0, "ts": 45.1, "bytes": 80090, "path": tmp / "f.jpg"}]
-clean, texty = mod.text_filter(cands, tmp, tmp, "STEM")
+clean, texty, union_only = mod.text_filter(cands, tmp, tmp, "STEM")
 expect("verdict routed by longest word", (len(clean), len(texty)), (0, 1))
+# This frame's boxes are 0.056 and 0.076 of frame height and there are only two
+# of them, so both union features are inert: it is rejected by the word rule
+# alone. That makes it the right fixture for asserting the union rule does not
+# fire spuriously.
+expect("union rule inert on a word-rule reject", union_only, 0)
+expect("ocr_risk set on every candidate", cands[0]["ocr_risk"], 0.0)
 
 tok_file = tmp / "tokens-STEM.tsv"
 expect("token dump written", tok_file.exists(), True)
@@ -423,7 +429,117 @@ if tok_file.exists():
            (row2["pass"], row2["text"], row2["raw"], row2["len"],
             row2["h_px"], row2["hrot_px"]),
            ("rapid", "\\u51fa\\u5e2d", "\\u51fa\\u5e2d 2", "2", "55", "22"))
+ocr_file = tmp / "ocr-STEM.tsv"
+expect("frame dump written", ocr_file.exists(), True)
+if ocr_file.exists():
+    olines = ocr_file.read_text(encoding="utf-8").splitlines()
+    ohead = olines[0].split("\t")
+    expect("frame dump header is 24 columns", len(ohead), 24)
+    expect("  ^ reason and risk are present",
+           ("reason" in ohead, "risk" in ohead), (True, True))
+    orow = dict(zip(ohead, olines[1].split("\t")))
+    # `reason` is what makes a rejection recoverable after the fact: `verdict`
+    # alone cannot tell a word-rule catch from a geometry catch, and that
+    # distinction is the whole basis for deciding whether to keep the union rule.
+    expect("  ^ word-rule reject is reason=word",
+           (orow["verdict"], orow["reason"], orow["risk"]),
+           ("TEXTY", "word", "0.0000"))
 shutil.rmtree(str(tmp), ignore_errors=True)
+
+
+# --------------------------------------------------------------------------
+# The union rule catching what the word rule cannot see.
+# --------------------------------------------------------------------------
+# This is the B-28 case in miniature. Confidence is 30, below OCR_MIN_CONF, so
+# _clusters() discards every token and coherence is exactly 0 -- the engine has
+# "misread" the logo. The word rule sees a longest word of 1 and says clean. The
+# only thing left that can reject it is the confidence-free box count, which is
+# precisely the feature that was added for AnsatsuKyoushitsu-OP1 79.5, whose real
+# title carried a max confidence of 58.6.
+def big_box_frame(path, workdir):
+    toks = [{"conf": 30.0, "text": "x", "raw": "x", "h": 300, "hrot": 300,
+             "w": 220, "top": t, "ntok": 1, "img_w": 1280, "img_h": 720}
+            for t in (10, 200, 400)]
+    m = {"passes": [("orig", [(30.0, "x")])], "geoms": [("orig", toks)],
+         "max_conf": 30.0, "words": 3, "sample": "x(30)"}
+    for n in (0, 50, 60, 70, 80, 90):
+        m["chars_%d" % n] = 3
+        m["longest_%d" % n] = 1
+    return m
+
+
+mod.ocr_frame = big_box_frame
+tmp2 = Path(tempfile.mkdtemp(dir=str(scratch)))
+cands2 = [{"index": 7, "ts": 79.5, "bytes": 61000, "path": tmp2 / "g.jpg"}]
+clean2, texty2, union2 = mod.text_filter(cands2, tmp2, tmp2, "BIG")
+expect("geometry-only reject lands in texty",
+       (len(clean2), len(texty2)), (0, 1))
+expect("  ^ counted as union-only", union2, 1)
+expect("  ^ risk is the box count over its threshold",
+       cands2[0]["ocr_risk"], 3.0 / mod.OCR_BIG_T)
+big_file = tmp2 / "ocr-BIG.tsv"
+if big_file.exists():
+    brow = dict(zip(big_file.read_text(encoding="utf-8").splitlines()[0].split("\t"),
+                    big_file.read_text(encoding="utf-8").splitlines()[1].split("\t")))
+    expect("  ^ dump attributes it to the union rule",
+           (brow["verdict"], brow["reason"]), ("TEXTY", "union"))
+shutil.rmtree(str(tmp2), ignore_errors=True)
+
+
+# --------------------------------------------------------------------------
+# spread(): the tiered quiet-band winner.
+# --------------------------------------------------------------------------
+# Three properties matter, and they pull against each other:
+#   1. With no risky frames it must behave exactly like the byte-ranked version
+#      it replaced, or it is not a refinement, it is a different selector.
+#   2. A near-miss frame must lose its band to a quieter alternative.
+#   3. A band where everything is risky must still return a frame, because
+#      still_count is CHECKed 2..3 and dropping a band can produce 1.
+def cand(i, b, r):
+    return {"index": i, "bytes": b, "ocr_risk": r}
+
+
+def picks(cs):
+    return [c["index"] for c in mod.spread(cs)]
+
+
+# Bands are [0,1,2] [3,4,5] [6,7,8]; byte winners are 0, 4, 8.
+quiet_all = [cand(0, 100, 0.50), cand(1, 90, 0.10), cand(2, 80, 0.20),
+             cand(3, 70, 0.00), cand(4, 120, 0.00), cand(5, 60, 0.00),
+             cand(6, 50, 0.00), cand(7, 55, 0.00), cand(8, 200, 0.00)]
+expect("all-quiet bands pick pure byte winners", picks(quiet_all), [0, 4, 8])
+
+# Same list, but band 0's byte winner is a near miss. 0.90 is above the 0.85
+# threshold and below the 1.0 rejection line, so it is exactly the frame this
+# rule exists for: it survived the filter and must still not be shipped.
+near_miss = [dict(c) for c in quiet_all]
+near_miss[0]["ocr_risk"] = 0.90
+expect("near miss loses its band to a quieter frame",
+       picks(near_miss), [1, 4, 8])
+
+# Nothing quiet in band 0: fall back rather than return two stills.
+all_risky = [dict(c) for c in quiet_all]
+for i in (0, 1, 2):
+    all_risky[i]["ocr_risk"] = 0.90 + i * 0.01
+got = picks(all_risky)
+expect("no quiet alternative falls back to bytes", got, [0, 4, 8])
+expect("  ^ and still returns three bands", len(got), 3)
+
+# Exactly at the threshold is risky, not quiet: the constant is documented as
+# `risk < QT` and a frame sitting on it has no margin.
+at_thresh = [dict(c) for c in quiet_all]
+at_thresh[0]["ocr_risk"] = mod.OCR_QUIET_T
+expect("risk exactly at the threshold is not quiet",
+       picks(at_thresh), [1, 4, 8])
+
+# A candidate with no risk score is a broken contract, not a clean frame.
+missing = [dict(c) for c in quiet_all]
+del missing[0]["ocr_risk"]
+try:
+    mod.spread(missing)
+    expect("unscored candidate raises", "no error", "KeyError")
+except KeyError:
+    expect("unscored candidate raises", "KeyError", "KeyError")
 
 print()
 print("FAILURES: %d" % len(fails))

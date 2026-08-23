@@ -169,8 +169,8 @@ carry less on-screen text overall, so they yield more usable frames per sequence
 that actually protects the answer is per-frame OCR rejection at selection time
 (`doc/RESEARCH.md` §4.10). It is the riskiest premise in the pipeline, and it is now
 **measured insufficient rather than merely unverified**: the current rule shipped 2 readable
-stills out of 36. A replacement rule has been calibrated offline and catches all 4 known-bad
-frames with none promoted, but it is **not yet implemented in the pipeline** (§5.2.2,
+stills out of 36. A replacement rule was calibrated offline — it catches all 4 known-bad frames
+with none promoted — and is **now implemented**, though it has not yet run in CI (§5.2.2,
 `doc/BLOCKERS.md` B-28).
 
 ### Option A — hot-link AnimeThemes directly · REJECTED
@@ -710,10 +710,21 @@ if an engine update stopped emitting it. Three catches it either way.
 
 Measured against the corrected labels: **4 of 4 known-bad frames caught, 0 missed, 0 known-bad
 frames promoted into the ship set**, at a cost of 5 clean frames — with every theme still able to
-yield its 3 stills (worst theme retains 33 candidates). **This rule is priced but not yet
-shipped**: it is not implemented in the pipeline, and 7 frames it newly promotes have not been
-eyeballed. B-28 stays open until both are done. `jpn_vert` was dropped along the way because
-across all 647 frames it produced no high-confidence word while costing a pass per frame.
+yield its 3 stills (worst theme retains 33 candidates). **The rule is now implemented in the
+pipeline**, and proven to be the same rule that was calibrated: the ported arithmetic scores all
+621 dumped frames bit-identically to the calibration harness, checked against a deliberately
+broken control so that agreement cannot be vacuous. B-28 stays open only because 7 frames the rule
+newly promotes have not been eyeballed yet. `jpn_vert` was dropped along the way because across
+all 647 frames it produced no high-confidence word while costing a pass per frame.
+
+**Spatial dilation was considered and deleted.** The idea was to also reject frames adjacent to a
+rejected one, on the theory that a title card spans several consecutive samples. Tested, it
+answered three questions with numbers: the union rule already catches 4 of 4 known-bad frames
+*directly*, so there is nothing left for dilation to catch; **zero** surviving frames adjacent to a
+rejection are known-bad, so the hypothesis is not merely unsupported but untestable on this data;
+and a penalty weak enough to be safe is provably inert, while any weight strong enough to act
+begins removing clean survivors instead. A mechanism with no measurable benefit and a real cost is
+not a conservative default — it is an untested one.
 
 One cost worth recording: raising `ocr_min_conf` to 70 cost 3 of 12 themes their poster,
 which fell back to `fallback-clean-unused` (§5.2 step 10).
@@ -732,13 +743,36 @@ With fewer than three survivors it falls back to two spans, and with fewer than 
 nothing.
 
 Within a span the winner is the **largest encoded JPEG**, used as a cheap proxy for visual
-detail — not a re-measured detail score, which the earlier wording implied. Byte size is a proxy
-worth naming honestly, because it is the reason a *planned* change is pending: once the text
-filter produces a continuous risk score per frame (§5.2.2) the selector should prefer the
-**lowest-risk** survivor in each span and use bytes only to break ties, so that removing a leak
-cannot promote the next-most-suspicious frame in its place. That regression is invisible to a
-keep/drop count and is the reason the calibration harness simulates the whole ship set rather
-than counting rejections.
+detail — not a re-measured detail score, which the earlier wording implied.
+
+The obvious refinement — rank each span by the risk score of §5.2.2 and take the quietest frame,
+using bytes only to break ties — was implemented, measured, and **rejected**. Pure risk-ranking
+changed the pick in 11 of 12 themes across 18 spans, replaced 17 already-inspected frames with
+never-inspected ones, and cut one span's winner to **55%** of its byte size, while avoiding
+**zero** known-bad frames — because the text filter has already removed those. It paid real image
+quality and real review debt to buy nothing measurable.
+
+What shipped instead is a **tiered** rule: within a span, consider only survivors scoring below
+`0.85`, and take the largest JPEG among them; if every frame in the span is above that line, fall
+back to the largest JPEG in the span. A sweep of the threshold shows why `0.85` is the right place
+to stand — anywhere below about `0.67` the rule starts reshuffling picks and accumulating review
+debt, and from `0.67` up to the highest surviving score it changes **nothing at all** on this data,
+so it costs no image quality and no new frames to inspect. It is not merely inert, though: three
+survivors sit at `0.901`, `0.907` and **`0.997`**, a hair under the reject line, and those are
+precisely the frames a bytes-only rule would have been free to choose. A span with no quiet member
+still returns its byte winner rather than dropping out, because dropping a span could leave a theme
+with a single still — which the schema forbids and the progressive reveal needs.
+
+There is deliberately **no minimum byte floor** on the winner: under the tiered rule the worst span
+loses nothing at all (ratio `1.000`), so a floor would be a tuned constant guarding a regression
+that cannot occur.
+
+A refinement must be provably a refinement, so the harness asserts *first* that under a uniform
+risk score the new rule reproduces the old picks exactly — 12 of 12 themes — and refuses to report
+any comparison otherwise. The pipeline's own contract tests assert the same property, plus the
+fallback, the boundary case (a score exactly at the threshold counts as risky, because a frame
+sitting on the line has no margin), and the deliberate hard failure when a candidate reaches the
+selector unscored.
 
 Perceptual hashing to deduplicate is deliberately **not** used: thirds already enforce
 temporal distance, and a hash threshold would be one more tuned constant with no measured

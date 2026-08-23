@@ -90,6 +90,38 @@ RAPIDOCR_ENABLE = os.environ.get("RAPIDOCR_ENABLE", "true").lower() == "true"
 # but adding a second threshold would double the tuning surface with no data to
 # justify a different value. The dump's culprit column records which engine
 # fired, which is what would justify splitting them later.
+#
+# ------------------------------------------------------------ the union rule
+# The longest-word rule above is necessary but not sufficient. It can only catch
+# titles the engine READS, and two confirmed leaks shipped straight past it in
+# run 32617226964: a Japanese credit-name card (AngelBeats-OP1 45.1) and a
+# stylised logo the engine misread entirely (AnsatsuKyoushitsu-OP1 78.0). Both
+# scored longest_70 = 2, the same as motion blur, so no threshold on word length
+# could ever have rejected them.
+#
+# What separates them is not what the text says but how the boxes are arranged,
+# so a second rule runs alongside: reject if EITHER typographic coherence
+# (several confident boxes of one height on a shared baseline) or a count of
+# large boxes (title-sized regions, confidence ignored) crosses its threshold.
+# The two are deliberately complementary -- coherence catches titles that were
+# read, the box count catches logos that were misread -- and neither separates
+# the labelled set alone.
+#
+# These four numbers were fitted offline in .tmp/tokens.py against 41
+# hand-labelled frames from the run-4 artifact, not guessed. Do not retune them
+# from intuition: the falsification trail (peak height, single features,
+# cluster-size relaxation, dilation) is in doc/BLOCKERS.md B-28, and three of the
+# five original leak labels turned out to be wrong before any rule was fitted.
+OCR_COH_T = float(os.environ.get("OCR_COH_T", "0.21"))
+OCR_BIG_T = float(os.environ.get("OCR_BIG_T", "3"))
+OCR_BIG_MIN_H = float(os.environ.get("OCR_BIG_MIN_H", "0.28"))
+# Selector guard, NOT a filter. A frame at or above this risk must not be chosen
+# as a still while a quieter frame exists in the same third. Measured cost on the
+# 12 calibration themes is exactly zero -- it changes no pick, because no
+# surviving high-risk frame currently wins its band on file size. It is here for
+# the 122 themes not yet measured, three of which already hold survivors at
+# 0.90-0.997 that would ship the moment one of them is the biggest in its band.
+OCR_QUIET_T = float(os.environ.get("OCR_QUIET_T", "0.85"))
 # Write out/ocr-<stem>.tsv: one row per (frame, OCR pass, word) with its
 # confidence. This exists because the first real run showed the text filter
 # rejecting 44-58 of ~55 frames per theme, and inspecting the images proved the
@@ -579,19 +611,215 @@ def _ascii(s):
             .decode("ascii"))
 
 
+# --------------------------------------------------------------------------
+# Step 8b / 5.2.2: the union leak rule.
+# --------------------------------------------------------------------------
+# Ported verbatim from .tmp/tokens.py, where it was fitted and validated against
+# 41 hand-labelled frames. "Verbatim" is a requirement, not a courtesy: the
+# offline calibrator predicts what this pipeline will ship, and .tmp/cmp-sim.py
+# gates every future run on prediction == reality. If the two implementations
+# drift numerically, that gate silently stops meaning anything. So the maths
+# below is a copy, and the only new code is the adapter that renames this file's
+# token keys to the calibrator's.
+#
+# Fitted result on the labelled set: 4 of 4 known-bad rejected, 0 missed, 5 clean
+# frames lost, worst-theme yield 33 candidates against a floor of 3.
+_TOL = 0.25             # a cluster is heights within +/-25% of the cluster median
+_MIN_SIZE = 3           # this many boxes before "consistent" means anything
+_CONF_K = 2.0           # exponent on conf/100: soft, monotone, no cliff
+_BASELINE_BONUS = 1.5   # multiplier when the cluster shares a tight baseline
+_DUP_SIZE = 0.15        # cross-pass: heights and widths must agree this closely
+_DUP_POS = 0.20         # cross-pass: tops must agree within this much of height
+
+
+def _risk_tokens(metrics):
+    """Flatten ocr_frame's per-pass geometry into the calibrator's schema.
+
+    ocr_frame reports `geoms` as [(pass_name, [token])] and names the geometry
+    keys h/w/top; the calibrator reads flat rows keyed h_px/w_px/top_px with the
+    pass name on the row, because that is the shape of the TSV dump it was
+    written against. The pass name MUST survive this flattening: cross-pass
+    duplicate suppression is the difference between the highest-risk frame in the
+    set being a real leak and it being a hallucinated glyph on a hair curve, and
+    it decides sameness by comparing passes.
+    """
+    out = []
+    for name, toks in metrics.get("geoms", []):
+        for t in toks:
+            out.append({
+                "pass": name,
+                "conf": float(t["conf"]),
+                "h_px": float(t["h"]),
+                "w_px": float(t["w"]),
+                "top_px": float(t["top"]),
+                "img_w": float(t["img_w"]),
+                "img_h": float(t["img_h"]),
+            })
+    return out
+
+
+def _frac(t, key="h_px"):
+    """Box dimension as a fraction of its own image. Invariant to the 2x upscale
+    pass: both the token box and the page box double, so the ratio does not."""
+    if not t["img_h"]:
+        return 0.0
+    return t[key] / float(t["img_h"])
+
+
+def _norm(t):
+    """Box as (height, width, top) fractions of its own image.
+
+    Each pass reports its own img_w/img_h -- up2x rows are twice the pixel size
+    of orig rows for the same feature -- so every box must be normalised by the
+    dimensions recorded on its own row before any two are compared.
+    """
+    ih = float(t["img_h"]) or 1.0
+    iw = float(t["img_w"]) or 1.0
+    return t["h_px"] / ih, t["w_px"] / iw, t["top_px"] / ih
+
+
+def _same_box(a, b):
+    """Do two boxes from DIFFERENT passes describe one image feature?"""
+    if a["pass"] == b["pass"]:
+        return False
+    ha, wa, ta = _norm(a)
+    hb, wb, tb = _norm(b)
+    if ha <= 0 or hb <= 0:
+        return False
+    if abs(ha - hb) > _DUP_SIZE * max(ha, hb):
+        return False
+    if abs(wa - wb) > _DUP_SIZE * max(wa, wb, 1e-9):
+        return False
+    return abs(ta - tb) <= _DUP_POS * max(ha, hb)
+
+
+def _dedupe(toks):
+    """Drop boxes that a second pass found in the same place as a first.
+
+    Up to three passes read the same image, so ONE feature can be reported three
+    times. Counting those as independent corroboration is exactly what made a
+    hallucinated pair of glyphs on a single hair curve the highest-risk frame in
+    the whole set: its two boxes were one box, seen twice. Same-pass boxes are
+    never merged -- two boxes from one pass really are two. The highest-confidence
+    member survives, so what remains is the best reading of each feature.
+    """
+    out = []
+    for t in sorted(toks, key=lambda x: -x["conf"]):
+        if not any(_same_box(t, k) for k in out):
+            out.append(t)
+    return out
+
+
+def _clusters(toks, min_conf, key="h_px", tol=_TOL):
+    """Group confident tokens into candidate typographic clusters by height.
+
+    Seeded from every token, then re-centred on the group median so the result
+    does not depend on which token happened to be first. Deduplicated by
+    membership, so N tokens of one size yield one cluster rather than N.
+    """
+    toks = _dedupe(toks)
+    idx = [(i, t) for i, t in enumerate(toks)
+           if t["conf"] >= min_conf and _frac(t, key) > 0.0]
+    out, seen = [], set()
+    for _, seed in idx:
+        h0 = _frac(seed, key)
+        near = [(i, t) for i, t in idx if abs(_frac(t, key) - h0) <= tol * h0]
+        med = statistics.median([_frac(t, key) for _, t in near])
+        grp = [(i, t) for i, t in idx if abs(_frac(t, key) - med) <= tol * med]
+        sig = tuple(i for i, _ in grp)
+        if sig in seen:
+            continue
+        seen.add(sig)
+        out.append([t for _, t in grp])
+    return out
+
+
+def _coherence(toks, min_conf, key="h_px"):
+    """Risk that this frame carries rendered title/name text.
+
+        risk = median_height * sqrt(cluster_size) * median_conf_weight
+
+    sqrt, not linear, on size: going from 1 box to 4 is most of the evidence,
+    4 to 16 adds little. A tight shared baseline multiplies the result, because
+    that is the signature of a single run of set type rather than a coincidence
+    of similarly-sized noise. Confidence enters as a continuous weight and never
+    as a second hard floor -- both floor experiments failed as cliff artifacts.
+    """
+    best = 0.0
+    for grp in _clusters(toks, min_conf, key):
+        # _MIN_SIZE applies uniformly. Relaxing it to 2 for large type was tried
+        # and abandoned: it readmitted a hair-curve pair and made that CLEAN
+        # frame the highest-scoring frame in the set. Two boxes are not a
+        # corroborated typeface at any size.
+        if len(grp) < _MIN_SIZE:
+            continue
+        med_h = statistics.median([_frac(t, key) for t in grp])
+        w = statistics.median([(t["conf"] / 100.0) ** _CONF_K for t in grp])
+        risk = med_h * math.sqrt(len(grp)) * w
+        if toks[0]["img_h"]:
+            tops = [t["top_px"] / float(t["img_h"]) for t in grp]
+            if statistics.pstdev(tops) < med_h:
+                risk *= _BASELINE_BONUS
+        if risk > best:
+            best = risk
+    return best
+
+
+def _bigcount(toks, key="h_px"):
+    """How many large, deduped boxes the frame has -- with NO confidence floor.
+
+    Coherence is structurally blind to a stylised logo: the engine does not read
+    it, so every box is low-confidence and the conf weight drives risk to zero.
+    AnsatsuKyoushitsu-OP1 79.5 is the proof -- a confirmed leak whose five boxes
+    top out at conf 58.6, which every confidence-weighted feature scores 0.0000.
+
+    What that frame does have is large boxes. A stylised title gets segmented
+    into big glyph-like regions and then misread; noise -- a hair curve, a blur
+    streak, window mullions -- yields one or two at most, or none. So this counts
+    large boxes and ignores confidence entirely: a segmentation signal, not a
+    reading.
+    """
+    return float(sum(1 for t in _dedupe(toks) if _frac(t, key) >= OCR_BIG_MIN_H))
+
+
+def ocr_risk(metrics):
+    """Union of the two features, normalised so 1.0 is the reject line.
+
+    Each feature is divided by its own threshold and the worse of the two wins,
+    which turns a two-threshold rule into one scalar that the filter, the
+    selector, the telemetry and the offline calibrator all consume unchanged.
+    """
+    toks = _risk_tokens(metrics)
+    if not toks:
+        return 0.0
+    a = _coherence(toks, OCR_MIN_CONF) / OCR_COH_T
+    b = _bigcount(toks) / OCR_BIG_T
+    return max(a, b)
+
+
 def text_filter(cands, workdir, outdir, stem):
     """Split candidates into (clean, text-positive).
 
-    The rejection rule is `longest single word at or above OCR_MIN_CONF >=
-    OCR_MIN_WORD`, evaluated as the worst case across every OCR pass. See the
-    OCR_MIN_WORD comment at the top of this file for the 647-frame measurement
-    that chose a longest-word rule over a character sum.
+    A frame is rejected if EITHER rule fires:
 
-    Both halves stay configurable from the workflow because B-28's fallback
+      1. `longest single word at or above OCR_MIN_CONF >= OCR_MIN_WORD`,
+         worst case across every OCR pass. See the OCR_MIN_WORD comment at the
+         top of this file for the 647-frame measurement behind it.
+      2. `ocr_risk(...) >= 1.0` -- the geometric union rule. See the OCR_COH_T
+         comment for why rule 1 alone shipped two confirmed leaks.
+
+    Rule 2 is strictly additional: it can only reject frames, never readmit one
+    that rule 1 caught. Every frame it rejects joins `texty`, which is also the
+    poster pool -- and that is the desired outcome, because a frame the union rule
+    rejects is by construction a frame carrying large or well-set type, which is
+    exactly what a poster wants.
+
+    Every threshold stays configurable from the workflow because B-28's fallback
     ladder is operated through them.
     """
     clean, texty = [], []
     rows = []
+    union_only = 0
     for c in cands:
         m = ocr_frame(c["path"], workdir)
         chars = 0
@@ -607,27 +835,54 @@ def text_filter(cands, workdir, outdir, stem):
                     # a run cannot answer "is the second engine earning its
                     # runtime, or is tesseract catching everything anyway?"
                     culprit = "%s:%s(%d)" % (name, t, int(conf))
+        risk = ocr_risk(m)
+        wordy = longest >= OCR_MIN_WORD
+        risky = risk >= 1.0
         c["ocr_chars"] = chars
         c["ocr_longest"] = longest
         c["ocr_culprit"] = culprit
         c["ocr_max_conf"] = round(m["max_conf"], 1)
         c["ocr_sample"] = m["sample"]
         c["ocr_metrics"] = m
-        (texty if longest >= OCR_MIN_WORD else clean).append(c)
+        # Set unconditionally, on every candidate, including rejected ones. The
+        # selector indexes this key directly rather than defaulting a missing one
+        # to zero: a lookup miss must never render as "no text detected", which
+        # is the failure mode that made the calibrator's own audit report a clean
+        # sweep on stale labels.
+        c["ocr_risk"] = risk
+        if risky and not wordy:
+            union_only += 1
+        (texty if (wordy or risky) else clean).append(c)
         rows.append((c, m, chars, longest, culprit))
 
     if OCR_DUMP:
         dump = outdir / ("ocr-" + stem + ".tsv")
         with io.open(dump, "w", encoding="utf-8", newline="\n") as f:
-            cols = ["index", "ts", "bytes", "verdict", "longest_at_min_conf",
+            # `verdict` keeps its original meaning: the decision that actually
+            # shipped. `reason` and `risk` are additions, not a redefinition --
+            # collapsing two rules into one label would throw away which rule
+            # fired, which is the only thing that makes a rejection re-analysable
+            # offline. Safe to extend because every reader parses by header name.
+            cols = ["index", "ts", "bytes", "verdict", "reason", "risk",
+                    "longest_at_min_conf",
                     "chars_at_min_conf", "culprit", "max_conf", "words"]
             cols += ["chars_%d" % n for n in (0, 50, 60, 70, 80, 90)]
             cols += ["longest_%d" % n for n in (0, 50, 60, 70, 80, 90)]
             cols += ["top_words"]
             f.write("\t".join(cols) + "\n")
             for c, m, chars, longest, culprit in rows:
+                wordy = longest >= OCR_MIN_WORD
+                risky = c["ocr_risk"] >= 1.0
+                reason = "-"
+                if wordy and risky:
+                    reason = "both"
+                elif wordy:
+                    reason = "word"
+                elif risky:
+                    reason = "union"
                 vals = [c["index"], "%.1f" % c["ts"], c["bytes"],
-                        "TEXTY" if longest >= OCR_MIN_WORD else "CLEAN",
+                        "TEXTY" if (wordy or risky) else "CLEAN",
+                        reason, "%.4f" % c["ocr_risk"],
                         longest, chars, culprit or "-",
                         "%.1f" % m["max_conf"], m["words"]]
                 vals += [m["chars_%d" % n] for n in (0, 50, 60, 70, 80, 90)]
@@ -654,7 +909,9 @@ def text_filter(cands, workdir, outdir, stem):
                     "raw"]
             f.write("\t".join(cols) + "\n")
             for c, m, chars, longest, culprit in rows:
-                verdict = "TEXTY" if longest >= OCR_MIN_WORD else "CLEAN"
+                # Same convention as the frame dump: the decision that shipped.
+                verdict = "TEXTY" if (longest >= OCR_MIN_WORD
+                                      or c["ocr_risk"] >= 1.0) else "CLEAN"
                 for name, toks in m.get("geoms", []):
                     for t in toks:
                         vals = ["%.1f" % c["ts"], verdict, name,
@@ -674,7 +931,11 @@ def text_filter(cands, workdir, outdir, stem):
     log("  ocr: clean=%d text-positive=%d (word>=%d at conf>=%g, psm=%s, langs=%s)"
         % (len(clean), len(texty), OCR_MIN_WORD, OCR_MIN_CONF,
            OCR_PSM, OCR_LANGS))
-    return clean, texty
+    # The only number that says whether the union rule is still earning its
+    # place, or whether the word rule has quietly started catching everything.
+    log("  ocr union: %d rejected by geometry alone (coh_t=%g big_t=%g min_h=%g)"
+        % (union_only, OCR_COH_T, OCR_BIG_T, OCR_BIG_MIN_H))
+    return clean, texty, union_only
 
 
 # --------------------------------------------------------------------------
@@ -703,7 +964,25 @@ def spread(clean):
         hi = (n * (g + 1)) // groups
         band = ordered[lo:hi]
         if band:
-            chosen.append(max(band, key=lambda c: c["bytes"]))
+            # File size stays the primary signal -- it is a proxy for visual
+            # detail, and ranking bands by risk instead was measured and rejected
+            # (18 bands reshuffled, 17 extra unverified frames, worst band down to
+            # 55% of its detail, and zero known-bad frames avoided). Sub-threshold
+            # risk has no demonstrated relationship to leakage, so it does not get
+            # to choose.
+            #
+            # It does get a veto. A frame that survived the filter but sits close
+            # to it must not win a band while a quieter alternative exists in the
+            # same third. Cost on the 12 calibration themes is exactly zero picks
+            # changed; three survivors elsewhere sit at 0.90-0.997 and would ship
+            # the moment one of them happened to be the biggest in its band.
+            #
+            # `c["ocr_risk"]` is indexed, never .get() with a default: text_filter
+            # sets it on every candidate it returns, so a KeyError here means the
+            # contract broke and should fail loudly rather than silently treat an
+            # unscored frame as clean.
+            quiet = [c for c in band if c["ocr_risk"] < OCR_QUIET_T]
+            chosen.append(max(quiet or band, key=lambda c: c["bytes"]))
     # Guard against a degenerate band collision rather than trusting the maths.
     seen, uniq = set(), []
     for c in chosen:
@@ -841,7 +1120,7 @@ def process(job, result):
         raise RuntimeError("no candidate frames produced")
 
     kept, dropped, median = detail_filter(cands)
-    clean, texty = text_filter(kept, work, out_dir, stem)
+    clean, texty, union_only = text_filter(kept, work, out_dir, stem)
     chosen = spread(clean)
 
     result["candidates"] = len(cands)
@@ -849,6 +1128,11 @@ def process(job, result):
     result["detail_dropped"] = len(dropped)
     result["ocr_clean"] = len(clean)
     result["ocr_texty"] = len(texty)
+    # Per-theme, so a future run can tell whether the union rule is carrying a
+    # particular sequence or is inert on it. A theme-level zero across all 134
+    # would be the signal to reconsider the rule; a zero on one theme means
+    # nothing.
+    result["ocr_union_only"] = union_only
 
     # Fewer than 2 clean stills means skip the theme. Do NOT degrade to one:
     # still_count is CHECKed 2..3 and a single-image round is not guessable.

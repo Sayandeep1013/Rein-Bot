@@ -952,4 +952,118 @@ the same span. And still never executed even once: Storage upload, `ingest_quest
   risk-ranked change recorded there; §3's leak note updated to say a replacement exists but is
   not implemented.
 
+---
+
+## 2026-08-23 (later still) — The calibrated OCR rule becomes the shipped OCR rule, and parity proves it
+
+### What was done
+
+The two-feature union rule and a new frame selector were implemented in
+`tools/pipeline/curate_theme.py`. A local parity gate then proved the ported arithmetic is
+bit-identical to the calibration harness on all 621 dumped frames. Two candidate mechanisms —
+risk-ranked selection and spatial dilation — were priced and rejected on measurements. The contract
+suite was extended to cover the new paths and is green.
+
+### How it was done
+
+**Four edits, deliberately separated by concern.** The four operational knobs (`OCR_COH_T` 0.21,
+`OCR_BIG_T` 3, `OCR_BIG_MIN_H` 0.28, `OCR_QUIET_T` 0.85) went into the top constants block as
+env-overridable values; the six structural constants of the clustering maths stayed next to the
+functions that use them, because they are not operator dials and exposing them would invite
+un-calibrated tuning. `text_filter` now computes a risk score for every candidate, rejects on
+`max(coherence/0.21, large_boxes/3) >= 1.0`, and reports `ocr_union_only` per theme so the new rule's
+independent contribution is visible in `results.jsonl` rather than inferred.
+
+**The port was done by renaming the data, not by rewriting the code.** A small adapter reshapes the
+pipeline's token dicts into the exact key schema the offline harness uses (`h_px`, `img_h`, `pass`,
+…), which let the scoring functions be copied across character-for-character. That was the whole
+point: identical code is the precondition for a parity check to mean anything.
+
+**Parity was then measured rather than assumed.** `.tmp/parity.py` loads the run-4 artifact, scores
+every frame through both implementations, and compares them exactly: **621 frames, 0 mismatches,
+worst absolute delta `0.000e+00`** (328 frames scoring nonzero, 78 rejected). A gate that passes is
+worthless without a control, so it also mutates the pipeline's box-height constant from 0.28 to 0.05
+and requires disagreement — it produced **589 mismatches**, confirming the comparison actually
+exercises the pipeline's own code path and its module-level constants.
+
+This is not pedantry. `.tmp/cmp-sim.py`'s gate is *"reality must equal the simulation's
+prediction"*. Had the two implementations diverged by a float, that gate would validate against a
+prediction that no longer describes the shipped rule, and the entire calibration would be
+untransferable.
+
+**The dump was extended without breaking its consumers.** `ocr-*.tsv` gained a `reason` column
+(`word` / `union` / `both` / `-`) and the raw risk value. `reason` is what makes a rejection
+recoverable after the fact — without it, a frame that both rules reject is indistinguishable from one
+only the new rule catches, and the next calibration pass would have to re-derive it. The offline
+loader reads this file with a header-keyed dict reader, so adding columns is safe; that was verified
+before the columns were added, not after. Both dumps were also aligned to one `verdict` convention —
+*the decision that shipped* — so cross-referencing them can never produce a contradiction.
+
+**Selection was measured twice.** The obvious refinement (rank each span by risk, take the quietest)
+was implemented and then rejected: it changed picks in 11 of 12 themes across 18 spans, replaced 17
+already-inspected frames with never-inspected ones, and cut one span's winner to 55% of its byte
+size — while avoiding **zero** known-bad frames, since the text filter has already removed those. A
+threshold sweep found the tiered alternative: take the largest JPEG among survivors scoring below
+`0.85`, falling back to the whole span if none qualify. From `0.67` upward it changes nothing on this
+data (0 spans, 0 new frames, worst byte ratio 1.000) yet is not vacuous — three live survivors sit at
+`0.901`, `0.907` and `0.997`. A bytes floor was considered and dropped: with a worst-case ratio of
+1.000 it would guard a regression that cannot occur.
+
+**Dilation was tested and deleted.** Three questions, three numeric answers: the union rule catches
+4 of 4 known-bad frames *directly*, so nothing is left to catch; **zero** surviving frames adjacent
+to a rejection are known-bad, making the adjacency hypothesis untestable rather than merely
+unsupported; and every penalty weight is either inert or starts deleting clean survivors. Keeping an
+unmeasurable mechanism "to be safe" would have been the unsafe choice.
+
+**The contract suite justified itself immediately.** Returning the new counter changed
+`text_filter`'s arity and the suite failed at once with an unpack error at the call site, rather than
+silently in CI later. New coverage: the union rule staying inert on a word-rule rejection; a risk
+score present on every candidate; the new dump columns; a **geometry-only** rejection end-to-end,
+isolated by driving detection confidence below the confidence floor so coherence is structurally zero
+and only the confidence-free box count can fire — which is `AnsatsuKyoushitsu-OP1` 79.5, the
+OCR-blind leak, reproduced in miniature; and five selector cases including the fallback, the
+exact-threshold boundary, and the deliberate hard failure when an unscored candidate reaches the
+selector.
+
+**One planned task dissolved on inspection.** The workflow was believed to need a change to upload
+the newly promoted frames for review. Reading it showed the upload step already takes `out/`
+wholesale, and run 4 confirmed that dry runs write all 36 stills there (`status='DRY'`, 36 files). A
+capability assumed missing was verified before being built.
+
+### What it changed in the live project
+
+- `tools/pipeline/curate_theme.py` — the shipped still filter is now the calibrated rule, and the
+  selector is risk-aware. Both were previously priced only on paper.
+- `tools/pipeline/test_curate_contract.py` — covers the union path, the dump schema, and all five
+  selector behaviours.
+- `results.jsonl` gains `ocr_union_only`; `ocr-*.tsv` gains `reason` and `risk`.
+- `.tmp/parity.py` — a reusable gate that will catch any future drift between the pipeline and the
+  calibration harness.
+- Nothing in the database or Storage changed; this pass was pipeline-only.
+
+### What became possible next
+
+One CI run with `ocr_dump=true` now settles B-28. It produces the seven never-inspected frames as
+ordinary artifacts and lets `.tmp/cmp-sim.py` compare reality against the prediction — a comparison
+that is only meaningful because of the parity result above. If both pass, the 134-theme population
+run is unblocked.
+
+### Still unproven
+
+The rule has never executed in CI. The seven newly promoted frames remain un-eyeballed — no JPEG of
+them exists anywhere yet, because they passed the old filter but the old selector never chose them.
+Storage upload, `ingest_question` over HTTP, the retry ladder, real egress, and the entire frontend
+remain untouched.
+
+### Docs updated in this pass
+
+- `doc/GAME-DESIGN.md` — §5.2.2 now states the rule is implemented and parity-proven rather than
+  "priced but not shipped", and records the dilation deletion with its three numeric answers; §5.2.3
+  replaces the *planned* risk-ranked selector with the measured rejection of it, the tiered rule that
+  shipped, the threshold sweep, the absent bytes floor, and the faithfulness assertion.
+- `doc/BLOCKERS.md` — B-28's old *Closes when* struck through and superseded by a new
+  implementation section carrying the parity table, the negative control, the two rejected
+  mechanisms, and a closing condition reduced to evidence only.
+- `doc/PROGRESS.md` — this entry.
+
 
