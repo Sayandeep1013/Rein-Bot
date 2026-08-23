@@ -140,7 +140,9 @@ detail and the fallback ladder are in `doc/BLOCKERS.md` under B-28.
 ### Content tables
 
 - **`question_bank`** - one row per question. Key columns: `id uuid`,
-  `asset_slug uuid not null unique`, `still_count smallint not null check (2..3)`,
+  `asset_slug uuid not null unique` (stills), `poster_slug uuid not null unique`,
+  `audio_slug uuid not null unique`, a `question_bank_slugs_distinct` CHECK that the three
+  differ, `still_count smallint not null check (2..3)`,
   `audio_seconds int`, `bytes_total int`, plus provenance and `difficulty`.
 - **`question_titles`** - the accepted answers, with `title_norm` produced by
   `normalise_title`.
@@ -156,27 +158,39 @@ detail and the fallback ladder are in `doc/BLOCKERS.md` under B-28.
 
 One public-read bucket, **`media`**, limits `{audio/webm, image/jpeg}` and a 512 KB
 per-object cap. Keys, and this is the only place they are defined - by the SQL function
-`question_asset_keys(asset_slug, still_count)`:
+`question_asset_keys(p_still_slug, p_poster_slug, p_audio_slug, p_still_count)`:
 
 ```
-audio/{asset_slug}.webm
+audio/{audio_slug}.webm
 stills/{asset_slug}-{n}.jpg      n = 1 .. still_count
-posters/{asset_slug}.jpg
+posters/{poster_slug}.jpg
 ```
+
+The two-argument version was dropped by migration 0011, not kept as an overload.
 
 An empty legacy `clips` bucket still exists and is inert (its read policy was dropped).
 Deleting it requires a Storage API call, not SQL - see the hazard list below.
 
 ### The two rules you must not violate
 
-**1. Object keys derive from `asset_slug`, never from `id`.**
+**1. Each asset class has its own key root. None derives from `id`, or from each other.**
 
 `rounds.question_id` is readable by every room member, and `create_room` pre-inserts
 every round of the game up front. So if keys were a function of `id`, reading a row you
 are allowed to read would be equivalent to holding the keys to content you have not
-reached yet - and the bucket is public-read. `asset_slug` is a second, independent uuid
-that lives only on the ungranted `question_bank`. Two uuids per row is deliberate: `id`
-is public, `asset_slug` is not. They are not meant to agree.
+reached yet - and the bucket is public-read.
+
+Migration 0010 fixed that with one `asset_slug`, which left a smaller hole: the poster is
+deliberately the title card, and `posters/{slug}.jpg` was one path segment away from the
+`stills/{slug}-1.jpg` a player legitimately holds. So `question_bank` now carries three
+independent roots - `asset_slug` (stills), `poster_slug`, `audio_slug` - each `not null
+unique`, with a CHECK that they differ. Four uuids per row is deliberate: `id` is public,
+the three roots are not, and no root is derivable from `id` or from another root. They are
+not meant to agree.
+
+Because the bucket is `public = true`, reads by key **bypass RLS entirely** - this was
+measured, not assumed. Key unguessability is the only thing protecting an object, so 122
+bits per root is the control.
 
 **2. Asset keys reach a client only through `get_current_round`.**
 
@@ -334,7 +348,7 @@ docs. Reversing one means reading that reasoning first.
 | --- | --- |
 | Stills, not video | A video window is contiguous. `-ss 5 -t 20` takes whatever is in the span, and OP title cards routinely land in the first ~15 s. You cannot exclude a card at 0:12 without losing the surrounding footage. Stills are chosen independently, so each is vetted alone. |
 | The title card is kept as the poster | It is a liability during play and the ideal image on reveal. The OCR filter already identifies it, so it costs nothing to harvest. |
-| `asset_slug`, not `id`, roots every key | See section 4. |
+| three independent slugs, not `id`, root the keys | See section 4. |
 | Delivery via RPC, not a table read | See section 4 and the rejected list below. |
 | `audio_enabled boolean`, not a mode enum | Matches the flat-column style of `rooms` and the toggle the host actually sees. A speculative third format is one more column later, rather than an enum whose values must be interpreted everywhere today. |
 | Bucket limits tightened, not widened | `video/webm` removed outright, so the one upload the design forbids is now impossible. 5 MB dropped to 512 KB since the largest object is ~160 KB. |
@@ -407,15 +421,17 @@ Shape:
    highest-detail survivor from each. Fewer than 2 survivors total means **skip the
    theme** - do not degrade to one still.
 8. **Poster:** take it from the frames rejected in step 6 for containing text.
-9. **Upload all five objects** to `media` under keys from a fresh `asset_slug`, **then**
-   call `ingest_question`. Objects first, always: a row pointing at bytes that never
-   arrived is worse than an orphaned upload, and with five objects that window is five
-   times wider.
+9. **Upload all five objects** to `media` under keys from three fresh uuids (one per asset
+   class), **then** call `ingest_question`. Objects first, always: a row pointing at bytes
+   that never arrived is worse than an orphaned upload, and with five objects that window
+   is five times wider.
 
-`ingest_question` v2 payload takes `asset_slug`, `still_count`, `audio_seconds`,
-`bytes_total`. It is idempotent on `asset_slug`, so a batch that dies partway can be
-retried. Its named failures are `MISSING_ASSET_SLUG`, `INSUFFICIENT_STILLS` and
-`NO_TITLES (slug %)`.
+`ingest_question` v3 payload takes `asset_slug`, `poster_slug`, `audio_slug`,
+`still_count`, `audio_seconds`, `bytes_total`. It stays idempotent on `asset_slug` alone,
+so a batch that dies partway can be retried. Its named failures are `MISSING_ASSET_SLUG`,
+`MISSING_POSTER_SLUG`, `MISSING_AUDIO_SLUG`, `SLUGS_NOT_DISTINCT`, `INSUFFICIENT_STILLS`
+and `NO_TITLES (slug %)`. All four guards have been exercised against the live database in
+SQL; **none has been exercised over HTTP yet.**
 
 Validate the YAML after every edit. The previous version needed three separate bug fixes.
 

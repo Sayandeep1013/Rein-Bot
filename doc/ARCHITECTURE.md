@@ -49,7 +49,7 @@ Three properties drive every decision below:
 | Authority / state | Supabase Postgres | Transactional; see §4 |
 | Server logic (data) | Postgres functions via PostgREST | One hop, atomic; §5.2 |
 | Server logic (outside world) | Supabase Edge Functions | `fetch()`, secrets, real libraries; §5.3 |
-| Media storage | Supabase Storage | Opaque keys, our own bucket |
+| Media storage | Supabase Storage | Three opaque roots per question, our own `media` bucket |
 | Transcode | GitHub Actions + ffmpeg | Edge Functions cannot run native binaries (B-12, `doc/RESEARCH.md` §3.5) |
 | Content source | AnimeThemes.moe | No key, no auth, stable URLs (`doc/RESEARCH.md` §4) |
 
@@ -70,22 +70,28 @@ CURATION  (offline; runs in CI, never during a game)
 
   tools/pipeline/build-manifest.ps1          pipeline/manifest.json
   (local, one-off)                  ---->    46 anime / 136 themes
+                                             134 jobs after dedupe on
+                                             (anime, type, sequence)
                                              difficulty, safety flags
                                                         |
                                                         | read by CI
                                                         v
   +--------------------+   fetch    +--------------------------------+
   |  AnimeThemes.moe   | <--------- |  GitHub Actions + ffmpeg       |
-  |  GraphQL + CDN     |            |  20 s clip, VP9 + Opus, 480p   |
-  +--------------------+            |  ~2 MB, metadata stripped      |
+  |  GraphQL + CDN     |            |  60 candidate frames -> detail |
+  +--------------------+            |  + OCR filter -> 3 stills,     |
+                                    |  1 poster, 20 s Opus audio     |
+                                    |  ~357 KB/question, metadata    |
+                                    |  stripped (-map_metadata -1)   |
                                     +----+----------------------+----+
                         upload bytes     |                      |  ingest_question()
                                          v                      v  (service_role RPC)
                             +-------------------+   +--------------------------+
                             | Supabase Storage  |   |  Supabase Postgres       |
-                            |  clips bucket     |   |  question_bank           |
-                            |  public, opaque   |   |  (answers + title_norm)  |
-                            +-------------------+   +--------------------------+
+                            |  media bucket     |   |  question_bank           |
+                            |  public, 3 opaque |   |  (answers + title_norm)  |
+                            |  roots per question|  +--------------------------+
+                            +-------------------+
 
 
 GAMEPLAY  (online)
@@ -117,7 +123,10 @@ GAMEPLAY  (online)
                                            v
                                  +---------------------+
                                  |  Supabase Storage   |
-                                 |   clips bucket      |
+                                 |   media bucket      |
+                                 |   stills + audio    |
+                                 |   during the round, |
+                                 |   poster at reveal  |
                                  +---------------------+
 ```
 
@@ -213,7 +222,7 @@ These are the cases where an Edge Function is clearly right and Postgres clearly
 - **AnimeThemes ingest** — query their GraphQL API, page through results
 - **Curation and difficulty computation** — §8
 - **Transcode orchestration** — dispatch the GitHub Actions job, track completion
-- **Storage upload** of finished clips
+- **Storage upload** of finished stills, posters and audio
 - Any future third-party webhook
 
 Postgres *can* make outbound HTTP calls via `pg_net`, but it is asynchronous and
@@ -501,8 +510,12 @@ Assumes a full room and no cache hits, so the table above is the pessimistic bou
 Repeated plays of the same clip may land in the separate 5 GB **cached** allowance, which
 would improve this — magnitude unverified, tracked in B-13.
 
-**Storage caps the question bank** at ~1,000 clips at 1 MB — and this allowance is
-org-shared too. A ~500-title curated pool fits with room to spare.
+**Storage caps the question bank** at ~3,000 questions — 1 GB free divided by the measured
+356,637 B per question (five objects: 3 stills, 1 poster, 20 s Opus audio; run
+`32617226964`, `doc/DATA-MODEL.md` §9). The planned 134-question pool is 45.6 MB, i.e. about
+4% of the allowance, so Storage size is not a binding constraint. Note this allowance is
+org-shared. The earlier "~1,000 clips at 1 MB" figure predates the switch from 2 MB video
+clips to the five-object still/audio design and no longer applies.
 
 Non-binding by a wide margin: database (rooms/rounds/guesses are tiny, and the 24 h
 retention sweep in `doc/DATA-MODEL.md` §8.2 keeps it flat), Edge Function invocations (ingest
@@ -529,8 +542,8 @@ project") but it is a contractual obligation, not a preference.
   `UPDATE` of §7. Nothing needs to hold a room in memory.
 - **No queue** — the only async work is curation, which is offline and resumable.
   `pgmq` is available if that changes.
-- **No cache** — clips are static files behind Storage's CDN. Game state is small and
-  read straight from Postgres.
+- **No cache** — stills, posters and audio are static files behind Storage's CDN. Game
+  state is small and read straight from Postgres.
 - **No accounts** — identity is a display name per room (`doc/GAME-DESIGN.md` §6.1).
 
 ---

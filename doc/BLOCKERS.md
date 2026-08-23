@@ -14,12 +14,22 @@ headings therefore overstates how much is outstanding. The real split:
 
 | | Entries | Meaning |
 | --- | --- | --- |
-| **Actionable — genuinely blocking** | **B-11** (item 2 only), **B-13**, **B-16**, **B-27** | Needs work or a decision before launch. |
+| **Actionable — genuinely blocking** | **B-11** (item 2 only), **B-13**, **B-16**, **B-28** | Needs work or a decision before launch. |
 | **Needs one verification step** | **B-19** | Mitigated already; only needs an opencode restart to confirm. |
 | **Permanent constraints — not clearable** | B-9, B-10 | Provider behaviour. Keep for reference; never "fix". |
-| **Closed, left in place** | B-4, B-14, B-15, B-20, B-21, B-25, B-26 | Resolved or decided; retained here for the reasoning trail. |
+| **Closed, left in place** | B-4, B-14, B-15, B-20, B-21, B-25, B-26, B-27, **B-29** | Resolved or decided; retained here for the reasoning trail. |
 
-So the honest count is **four actionable items**, and as of 2026-08-23 **none of them is waiting on the user**: B-21 was resolved on 2026-08-22 once the dashboard showed 0% egress, and B-25 was decided on 2026-08-23 (three progressive stills, audio optional per room, no video anywhere). B-27 was opened the same day and is mine to fix. 
+So the honest count is **four actionable items**, and as of 2026-08-23 **none of them is waiting on the user**: B-21 was resolved on 2026-08-22 once the dashboard showed 0% egress, and B-25 was decided on 2026-08-23 (three progressive stills, audio optional per room, no video anywhere). B-27 was opened and resolved the same day.
+
+**B-28 is now the single riskiest open item**, and it moved from "unverified premise" through
+*partially measured* to **measured insufficient**. The threshold is fixed on real data and the
+second OCR engine has since been proven in CI — it earned 14 of 14 new rejections in run
+`32617226964` — yet 2 of 36 shipped stills still leak text, and 5 of the 6 known-bad frames are
+still classified `CLEAN`. The cause is now understood to be *structural*, not mis-tuning: two
+blind spots (short CJK names, and Latin title typography segmented glyph-by-glyph) that no
+threshold on the currently recorded scalars can close. Per-token geometry is now instrumented
+so the next rule can be calibrated offline. **B-29** was opened and closed the same day (poster
+key derivable from the still keys a player already holds — migration 0011).
 
 The single hardest blocker remains **B-11 item 2** — the hand-built seed list of titles.
 It gates the entire curation pipeline, no amount of engineering removes it, and it is the
@@ -718,23 +728,237 @@ in stills-only rooms. Rejected alternatives, and why, in `doc/DATA-MODEL.md` §6
 **The riskiest unverified premise in the pipeline.** Frame selection is now the *only*
 thing standing between a title card and the player, since `nc:true` was measured not to
 protect the answer at all (B-20: 5/10 clips show the title, all ten `nc:true`). The filter
-is `tesseract --psm 11` with `eng+jpn`, run per candidate frame and tuned aggressively —
-a false positive costs one frame out of ~60, a false negative ships the answer.
+is tuned aggressively — a false positive costs one frame out of ~60, a false negative ships
+the answer.
 
 Anime title logos are the adversarial case for OCR: heavy stylisation, outlines, gradients,
 rotation, overlap with artwork. Tesseract may simply not see them.
 
 Cannot be tested locally: `tesseract`, `ffmpeg` and ImageMagick are all absent from this
-machine (`convert.exe` on PATH is the Windows filesystem converter, not ImageMagick), so
-the workflow's OCR step is provable only in CI.
+machine (`convert.exe` on PATH is the Windows filesystem converter, not ImageMagick), and
+the rapidocr wheel would be an out-of-project install, so the OCR step is provable only in
+CI. Each experiment therefore costs a ~20-40 minute run.
 
-**Verification plan:** dry-run 10 themes, then inspect the artifact *specifically for false
-negatives* — every surviving still viewed by eye — rather than only checking the run
+#### Measured 2026-08-23 — run `32605150598`: the premise is half-confirmed, and the failure mode is not the one expected
+
+Run `32605150598` dumped per-frame OCR telemetry for 647 candidates across 12 themes, and
+all 36 shipped stills were then viewed by eye. Two findings:
+
+**1. The threshold was wrong, and is now measured.** The original `chars_N` rule is
+disproven — junk sums across a frame (p90 = 9, max 34) while a real title card measured 43
+chars, so the distributions fully overlap. `chars_70 >= 4` skipped 8 of 10 themes in an
+earlier run while still not being safe. The working discriminator is the **longest single
+word**: at confidence >= 70 junk peaks at p50 = 2 / p95 = 3, and all 18 frames with
+`longest_70 >= 5` were genuine text. Rule is now `longest_word >= 5 @ conf >= 70`
+(§5.2.2 of `doc/GAME-DESIGN.md`).
+
+**2. The residual leak is blindness, not mis-tuning — which is why the blocker stays open.**
+3 of 36 shipped stills (8%) carry readable text; 1 is severe:
+
+| Still | Leaked text | tesseract `longest_70` |
+| --- | --- | --- |
+| `AnsatsuKyoushitsu-OP1-still3` | "KOROSENSEI teacher." | 1 |
+| `AnsatsuKyoushitsu-OP1-still1` | 出席番号 + character names | 1 |
+| `AngelBeats-OP1-still2` | credit names | 2 |
+| `BlackClover-OP1-still3` (marginal) | faint cursive | — |
+
+Tesseract scored these 1-2, meaning it did not *read* them. **No threshold could have
+caught them**, so tuning is exhausted as a remedy. (`AoNoExorcist-OP2-still1` shows
+diegetic in-world signage and is deliberately not counted — only title, credit and
+character-name overlays are leaks.) Leaks are also not positional: 79.5 s of a 90 s clip in
+one case, 39.1 s in another, so no edge-trim heuristic would catch both.
+
+**Action taken:** a second engine, `rapidocr-onnxruntime` (pinned `<2`, because 2.x renamed
+itself and downloads weights on first use, which would put a network fetch inside the
+60-frame loop). It runs on every candidate alongside tesseract, merged worst-case. A missing
+wheel is a **fatal** error rather than a silent tesseract-only downgrade, since that would
+invisibly restore the exact blindness the pass exists to remove; `RAPIDOCR_ENABLE=false` is
+the explicit opt-out. `jpn_vert` was dropped in the same pass — across all 647 frames it
+produced no high-confidence word while costing a pass per frame.
+
+**Closure criteria set before the run:** a CI run shows rapidocr reading the three known-bad
+frames above, *and* the `culprit` column attributes catches to it, *and* yield does not
+collapse (the previous filter's failure mode was over-rejection, so a run that catches
+everything by skipping most themes is not a pass).
+
+**Verification method:** dry-run, `ocr_dump=true`, inspect the artifact *specifically for
+false negatives* — every surviving still viewed by eye — rather than only checking the run
 went green. A green run proves nothing here.
 
-**Fallback if OCR proves unreliable:** stills-only rooms lose their safety margin, so the
-fallback is not "ship it anyway". Options, in order of preference: bias selection to
+#### Measured 2026-08-23 — run `32617226964`: two criteria pass, the decisive one fails
+
+Run `32617226964` completed SUCCESS in 18m59s — *faster* than the 21m6s tesseract-only run
+despite adding a third pass, so the second engine is free in practice. Rejections fell
+144 → 46 and yield held at 12/12 themes × 3 stills, so criterion 3 passes. All **14**
+newly-rejected frames are attributed to `rapid` in the `culprit` column, several of them
+logos tesseract could not read at all (`rapid:AngelBears(93)`, `rapid:AngelBeals(93)`,
+`rapid:AngelBeas(88)` across four frames of one "Angel Beats!" logo), so criterion 2 passes
+decisively. **rapidocr stays.**
+
+Criterion 1 fails, and it was the one that mattered. Of the six known leak frames, exactly
+one flipped to TEXTY. The rest are still classified CLEAN:
+
+| Frame | run-3 verdict | Evidence |
+| --- | --- | --- |
+| `AnsatsuKyoushitsu-OP1` ts=14.9 | TEXTY — caught | `rapid:????21(98)` |
+| `AnsatsuKyoushitsu-OP1` ts=79.5 | CLEAN | `longest=0`, culprit `-` |
+| `AnsatsuKyoushitsu-OP1` ts=43.6 | CLEAN | `longest=1 orig:?(86)` |
+| `AnsatsuKyoushitsu-ED1` ts=65.2 | CLEAN | `longest=1 up2x:?(77)` |
+| `AngelBeats-OP1` ts=39.1 | CLEAN | `longest=2` |
+| `BlackClover-OP1` ts=46.5 | CLEAN | `longest=2` |
+
+The shipped set nevertheless looked better, and **that improvement is coincidence, not
+protection.** Those frames left the shipped set because rejecting *other* frames reshuffled
+the timeline-spread groups — not because the filter flagged them. All 12 themes' `still_ts`
+changed, which also voids the run-2 eyeball: every shipped still is new and had to be viewed
+again. Doing so found **2 leaks in 36 stills (5.6%), both newly introduced by the reshuffle**,
+and between them they expose two *structural* blind spots rather than a bad threshold.
+
+#### Why tuning is exhausted: three frames that no recorded scalar separates
+
+| Frame | Verdict | `longest_70` | `chars_70` | `words` | `max_conf` | `longest_0` | Reality |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| `AngelBeats-OP1` ts=45.1 | CLEAN | 2 | 6 | 39 | 99.5 | 5 | **leak** |
+| `AnsatsuKyoushitsu-OP1` ts=78.0 | CLEAN | 2 | 6 | 29 | 89.5 | 2 | **leak** |
+| `AoNoExorcist-OP1` ts=37.6 | CLEAN | 4 | 7 | 65 | 95.4 | 6 | clean |
+
+**Blind spot A — Japanese.** `AngelBeats-OP1` ts=45.1 shows five bold character-name callouts
+(岩沢 / 関根 / ひさ子 / 入江 / 遊佐). OCR read them correctly and confidently:
+`top_words` = `子(99) 根(99) し(92) ひさ(90) ひさ(90) 遊佐(86)`. The rule missed it because a
+Japanese name is 1–3 glyphs and **can never reach a 5-character token**. The longest-token
+rule is structurally unable to see Japanese, at any threshold.
+
+**Blind spot B — scattered typography.** `AnsatsuKyoushitsu-OP1` ts=78.0 is a green striped
+background carrying huge isolated white Latin capitals (kinetic title typography; A, S, O and
+M are each individually legible). `top_words` = `ン(89) W(86) LN(78) A(75) L(70) NN(64)`. Note
+`longest_0 = 2`: **even with the confidence floor at zero the longest token never exceeds 2**,
+because the glyphs are spatially separated and every engine segments them individually. No
+confidence threshold can rescue this frame.
+
+**And the clean frame blocks the obvious fix.** `AoNoExorcist-OP1` ts=37.6 is a wide cityscape
+with no text anywhere, yet it scores `longest_70 = 4` — from `ーーーー(83)`, four katakana
+long-vowel marks that are really window mullions and bridge railings, plus `トン(95)` from more
+architectural detail. Lowering `OCR_MIN_WORD` from 5 to 4 would therefore reject a clean frame
+*while still missing both leaks*. The Latin threshold has no downward headroom.
+
+Every scalar currently recorded either fails to separate these three or ranks them backwards:
+`longest_70` is 2 / 2 / **4**, `chars_70` is 6 / 6 / **7**, and `words` is 39 / 29 / **65** —
+the clean frame wins two of the three. `max_conf` (99.5 / 89.5 / 95.4) does not separate them
+either, and lowering `OCR_MIN_CONF` was already rejected because junk floods in below 70.
+**The remedy must come from an axis that is not yet recorded, not from a threshold.**
+
+**Axis under consideration: glyph size.** Title cards, credits and name callouts are
+typographically large, while the false-positive material (mullions, railings, foliage, fabric
+folds) is small. A height-gated rule — a token counts only if its bounding box is a large
+enough fraction of frame height — would be indifferent to both language and token length,
+catching both blind spots while dismissing the cityscape. The geometry was already free:
+`ocr_words` parsed tesseract's 12-column TSV and discarded `col[9]` (height), and `rapid_words`
+discarded `det[0]` (the detection box) entirely.
+
+#### Instrumented 2026-08-23 — geometry now recorded, shipping rule deliberately unchanged
+
+The telemetry is implemented and unit-tested; **no threshold moved**. Both engines now return
+`(words, tokens)` instead of `words`, and `text_filter` writes a second artifact per theme,
+`tokens-<stem>.tsv`, with one row per token per pass and these 14 columns:
+
+```
+ts  verdict  pass  conf  h_px  hrot_px  w_px  top_px  img_w  img_h  line_ntok  len  text  raw
+```
+
+Design points that the next calibration depends on, each chosen deliberately:
+
+- **Raw pixels, never pre-divided fractions.** Normalisation — including undoing the 2×
+  upscale pass — can then be changed offline without spending another run.
+- **`img_w` / `img_h` come from tesseract's level-1 page row** (`col[8]`, `col[9]`), not from
+  PIL and not from ~60 `ffprobe` calls per theme. They are backfilled onto every token *after*
+  the parse loop, because the page row is only conventionally first; a late one would otherwise
+  leave rows that cannot be normalised. rapidocr does not report image size, so it writes `0`
+  sentinels which `ocr_frame` backfills from the **`orig`** pass of the same file — never from
+  `up2x`, whose page box is 2× and would silently halve every rapid fraction.
+- **Two heights for rapidocr.** `h_px` is the axis-aligned box height; `hrot_px` is the mean of
+  the two side edges. They disagree on rotated text — 70 px versus 22 px in the unit tests — so
+  the artifact, not a guess, decides which one gates.
+- **`line_ntok`** records that rapidocr boxes are line-level, so a height is shared by every
+  token on that line rather than measured per token.
+- **Written `encoding="ascii"` through an `_ascii()` escaper** (backslashes doubled first, so
+  escaping stays reversible), because the console is cp1252 and a raw CJK write would either
+  crash or corrupt. A non-ASCII leak now fails loudly instead of silently, and no downstream
+  reader has to guess an encoding. `len` counts glyphs before escaping.
+- **Geometry degrades to zeros and never raises.** The text half of the return value is the
+  safety filter; it must survive a malformed box.
+
+The safety argument for shipping this without a re-eyeball is a **mirror invariance**:
+`[(t["conf"], t["text"]) for t in tokens] == words` is asserted on *every* one of the 48 checks
+in `tools/pipeline/test_curate_contract.py`, so the geometry rows provably describe the same tokens the verdict was
+computed from. The metric path is byte-identical, so **run N+1 must ship exactly the same 36
+stills as run `32617226964`** — verified with `.tmp/cmp-ship.py` — which is what makes the
+already-eyeballed 36 (2 leaks, 34 clean) usable as labelled ground truth for choosing the
+threshold offline.
+
+Writing the tests found one real bug: the `RAPIDOCR_ENABLE=false` opt-out still returned a bare
+`[]` after the widening, which would have broken the documented fallback ladder below the first
+time anyone used it.
+
+**Closes when** a CI run rejects both leak frames in the table above while keeping
+`AoNoExorcist-OP1` ts=37.6, *and* all 36 shipped stills survive an eyeball, *and* yield stays
+at 3 stills for every theme. Attribution and runtime are no longer at issue.
+
+**Order of operations from here:** run the instrumented pipeline on the same 12 themes → prove
+the shipped set is identical → choose the height threshold offline against the labelled 36 →
+only then spend a run on a behaviour-changing rule.
+
+**Fallback if OCR still proves unreliable:** stills-only rooms lose their safety margin, so
+the fallback is not "ship it anyway". Options, in order of preference: bias selection to
 endings (0/4 EDs leaked a title versus 5/6 OPs), sample frames from the back half of the
 sequence where title cards are rare, or gate low-confidence themes into a manual review
 list rather than the question bank.
+
+---
+
+### B-29 — CLOSED · Poster key derivable from the still keys a player already holds
+
+**Opened and closed 2026-08-23**, recorded because the reasoning matters more than the fix.
+
+Migration 0010 correctly stopped keys deriving from `question_bank.id` (which every room
+member can read via `rounds.question_id` for *every future round*). It rooted all five
+objects in one `asset_slug` instead. That closed the `id` leak and opened a narrower one:
+
+```
+stills/{asset_slug}-1.jpg     <- sent to the player, legitimately
+posters/{asset_slug}.jpg      <- the title card, i.e. the answer
+```
+
+One path segment apart. A player holding the still for the round they were being asked
+could construct the answer image for that same round. `get_current_round` withholding the
+poster key was therefore a statement of intent, not a control.
+
+Two measurements made this exploitable rather than theoretical:
+
+1. **On a `public = true` bucket, object reads by key bypass RLS entirely.** Probed
+   directly: after dropping the read policy, `list` returned 0 objects but `GET` by key
+   still returned 200. The policy had only ever granted *enumeration*. So no policy could
+   restrict an object once its key was known.
+2. Key unguessability is consequently the *only* protection.
+
+**Fix — migration `20260823000011`:** three independent roots on `question_bank`
+(`asset_slug` for stills, `poster_slug`, `audio_slug`), each `not null unique`, plus a
+`question_bank_slugs_distinct` CHECK because the realistic ingest bug is one uuid reused for
+all three. The 2-argument `question_asset_keys` was **dropped** rather than kept as an
+overload — an overload leaves the hole one call site away. `ingest_question` v3 requires all
+three and adds `MISSING_POSTER_SLUG`, `MISSING_AUDIO_SLUG`, `SLUGS_NOT_DISTINCT`. The
+`"media is publicly readable"` policy was dropped outright rather than narrowed, per
+measurement 1. `get_current_round`'s anon grant was revoked by name — revoking from `PUBLIC`
+does not remove a grant to a named role, and `create or replace` does not reset an ACL.
+
+Verified: migration applied twice (idempotent), ACLs re-audited, all three new guards plus a
+positive round-trip exercised against the live database. **Still unproven over HTTP** — the
+guards have only been exercised in SQL.
+
+Bucket stays public and unsigned: that preserves CDN-cached repeat plays outside metered
+egress and avoids a signing round-trip per asset. Independent 122-bit roots make keys
+unguessable, not revocable — that trade is deliberate.
+
+**Related, deliberately not fixed:** `advance_round` is still callable by `anon`. Out of the
+approved scope for 0011 and contained by its own `now() >= deadline` check, but it is the
+next thing to look at in this area.
 

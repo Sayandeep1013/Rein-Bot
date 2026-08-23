@@ -561,3 +561,267 @@ egress numbers (~120 KB/round stills-only = ~530 games/month; ~280 KB with audio
 These are listed in `doc/HANDOFF.md` section 8 as leftover debt rather than left to be
 tripped over.
 
+---
+
+## 2026-08-23 — Independent asset keys, a measured OCR rule, and a second OCR engine
+
+Three things, in dependency order: a key-derivation hole found while reading 0010 and
+closed; the OCR text filter re-tuned on 647 real frames after the original rule was
+disproven; a second OCR engine added because the remaining leaks turned out to be blindness
+rather than mis-tuning.
+
+### What was done, and how
+
+**1. Closed the derivable-poster hole (migration `20260823000011`).**
+
+0010 had correctly stopped keys deriving from `question_bank.id`, rooting all five objects
+in one `asset_slug` instead. Reading it back showed that fix had a narrower hole inside it:
+`posters/{slug}.jpg` is one path segment from the `stills/{slug}-1.jpg` a player is
+legitimately sent, and the poster is deliberately the title card — i.e. the answer to the
+question being asked.
+
+Before fixing it, the actual read surface was **measured** rather than assumed
+(`.tmp/storage-probe.ps1`): with the `"media is publicly readable"` policy dropped, `list`
+returned 0 objects but `GET` by key still returned 200. **On a `public = true` bucket, reads
+by key bypass RLS entirely** — the policy had only ever granted *enumeration*. So no policy
+could ever have restricted a known key, and key unguessability is the only control.
+
+The migration therefore gives each asset class its own root (`asset_slug` for stills,
+`poster_slug`, `audio_slug`), each `not null unique`, plus a `question_bank_slugs_distinct`
+CHECK because the realistic ingest bug is one uuid reused for all three. The 2-argument
+`question_asset_keys` was **dropped, not overloaded** — an overload leaves the hole one call
+site away. `ingest_question` became v3 with `MISSING_POSTER_SLUG`, `MISSING_AUDIO_SLUG`,
+`SLUGS_NOT_DISTINCT`. The storage policy was dropped outright rather than narrowed, per the
+measurement. `get_current_round`'s anon grant was revoked **by name**, because revoking from
+`PUBLIC` does not remove a grant to a named role and `create or replace` does not reset an
+ACL.
+
+**2. Re-tuned the OCR filter on measured data (run `32605150598`, 12 themes, 647 frames).**
+
+The existing rule counted OCR characters per frame. That is disproven: junk sums across a
+frame (p90 = 9, max 34) while a real title card measured 43 characters, so the two
+distributions **fully overlap**. It failed in both directions — an earlier run skipped 8 of
+10 themes at `chars_70 >= 4` while still not being safe.
+
+Dumping per-frame telemetry (`ocr_dump=true`) and analysing all 647 candidates showed the
+discriminator is the **longest single word**, not the total: at confidence >= 70 junk peaks
+at p50 = 2 / p95 = 3, and every one of the 18 frames scoring `longest_70 >= 5` was genuine
+text (`ASSASSINATION(92)`, `BLACK(94) CLOVER(96)`). The rule is now `longest_word >= 5 @
+conf >= 70`, with the floor guarded at 2 in the workflow because 1 would reject nearly every
+frame.
+
+**3. Added `rapidocr-onnxruntime` as a second engine, because tuning was exhausted.**
+
+All 36 shipped stills were then viewed by eye rather than trusting a green run. 3 of 36 (8%)
+still leak text — "KOROSENSEI teacher.", 出席番号 plus character names, credit names — and
+tesseract scored those frames `longest_70` of 1-2. It did not *read* them, so **no threshold
+could have caught them**. That is a blindness problem, and the only fix is a second reader.
+
+Pinned `<2` deliberately: 2.x renamed itself to `rapidocr` and downloads weights on first
+use, which would put a network fetch inside the 60-frame loop. The install step constructs
+the engine once to prove the 1.x wheel bundles its weights — a 30-second check instead of
+discovering it 20 minutes into a run. A missing wheel is **fatal**, not a silent
+tesseract-only downgrade, since that would invisibly restore the exact blindness the pass
+exists to remove; `RAPIDOCR_ENABLE=false` is the explicit opt-out. `jpn_vert` was dropped in
+the same pass: across all 647 frames it produced no high-confidence word while costing a
+pass per frame.
+
+### What it changed in the live project
+
+- **Live database:** migration 0011 applied (twice, to confirm idempotence). `question_bank`
+  carries three key roots and a distinctness CHECK; `question_asset_keys` is 4-argument;
+  `ingest_question` is v3; `get_current_round` is no longer callable by `anon`; the `media`
+  read policy is gone.
+- **`tools/pipeline/curate_theme.py`:** longest-word rule, `eng+jpn`, three slugs minted per
+  question, new `rapid_words` pass with a one-element engine cache, `RAPIDOCR_ENABLE` knob,
+  and an OCR dump that now records `longest_at_min_conf` and a `culprit` column
+  (`engine:WORD(conf)`) so a future run can tell *which* engine earned its runtime.
+- **`.github/workflows/curate.yml`:** input renamed `ocr_min_chars` -> `ocr_min_word`
+  (default 5), `ocr_min_conf` default 0 -> 70, installs and probes the pinned wheel, new
+  guard rejecting `ocr_min_word < 2`.
+- Committed as `b830945` and pushed (3 files, 649 insertions).
+
+### Verified, and how
+
+- Migration applied twice with identical result; ACLs re-audited afterwards
+  (`get_current_round`: anon `-`, authenticated `YES`); all three new guards plus a positive
+  round-trip exercised against the live database in SQL; `ON DELETE CASCADE` confirmed.
+- Storage read surface probed empirically before and after the policy drop.
+- `rapid_words` unit-tested against a **faked** engine injected into `sys.modules`
+  (11 checks, 0 failures): tuple *and* bare-list returns, `None`
+  detections, score scaling, line-to-word splitting, malformed rows, single-construction
+  caching, the disable flag, and the missing-wheel error path. This is how the engine
+  contract gets tested at all without installing the wheel locally. *The suite started in
+  `.tmp/` and was later promoted to `tools/pipeline/test_curate_contract.py`; see the next
+  entry.*
+- Workflow YAML re-parsed, every input reference cross-checked against the declared inputs,
+  and all 5 `run` blocks extracted and `bash -n`'d.
+- The pinned wheel genuinely bundles its weights: the CI install step constructed
+  `RapidOCR()` successfully.
+
+### Still unproven — deliberately stated
+
+Whether rapidocr actually reads the three known-bad frames. That is the whole point of the
+change and it has never run against a real image. Verification run `32617226964` is in
+flight. Also still never executed even once: Storage upload, `ingest_question` over **HTTP**
+(SQL only so far), the retry ladder, and any real egress measurement.
+
+> **Resolved by the next entry.** Run `32617226964` completed: rapidocr earned its place
+> (14/14 new catches) but did **not** close the leak — 5 of the 6 known-bad frames are still
+> classified `CLEAN`, and 2 readable stills shipped. See
+> *2026-08-23 (later) — OCR geometry telemetry* below. The remaining never-executed items
+> (Storage upload, HTTP ingest, retry ladder, egress) are still never-executed.
+
+### What became possible next
+
+The OCR filter can now be argued about with numbers instead of intuition — the 647-frame
+distribution is written down in `doc/GAME-DESIGN.md` §5.2.2, so the next person cannot
+re-propose character-count gating without first contradicting measured data. And because the
+three key roots are independent, `get_current_round` withholding the poster key is now an
+*effective* control rather than a statement of intent, which is what stills-only rooms rest
+on.
+
+### Docs updated in this pass
+
+- `doc/DATA-MODEL.md` — §3.1 rewritten for three roots, schema block, §7.4 key table (now
+  with **measured** byte sizes from run `32605150598`, replacing estimates), `get_current_round`
+  withholding rationale, `ingest_question` v3 and the dropped-overload reasoning.
+- `doc/GAME-DESIGN.md` — §5.2.2 replaced with the measured thresholds, the disproven
+  char-count rule, the 8% residual table and the two-engine design; §5.3 column list and key
+  derivation; step 11 of §5.2.
+- `doc/BLOCKERS.md` — B-28 extended with the measurement, the counterexample table and an
+  explicit close condition; **B-29 opened and closed** in one entry; summary table re-scored
+  (B-27 closed, B-28 is now the riskiest open item).
+- `doc/HANDOFF.md` — schema columns, the Storage key block, rule 1 rewritten, the
+  `ingest_question` v3 payload and failure list, settled-decisions row.
+
+---
+
+## 2026-08-23 (later) — OCR geometry telemetry: the leak is structural, so measure a new axis
+
+### What was done
+
+Run `32617226964` came back and settled the rapidocr question in both directions. The second
+engine works — rejections rose to 46 and **all 14 newly-rejected frames were credited to
+`rapid`**, several of them "Angel Beats!" logo frames tesseract could not read at all — and it
+is free, finishing in 18m59s against the tesseract-only run's 21m6s. But it did not fix the
+leak. Of the six known-bad frames, exactly one flipped to TEXTY; the other five are still
+`CLEAN`. Eyeballing all 36 newly-shipped stills found **2 leaks, both introduced by the
+reshuffle** rather than caught by the filter.
+
+The important finding is *why* tuning cannot fix it. Three frames were pulled out of the dump
+side by side, and no scalar the pipeline records separates them — on `longest_70`, `chars_70`
+and `words`, the **clean** frame ranks highest of the three. Two distinct structural blind
+spots explain it: a Japanese name is 1–3 glyphs so it can never reach a 5-character token, and
+kinetic Latin title typography is segmented glyph-by-glyph so its longest token is 2 characters
+*at a confidence floor of zero*. The Latin threshold also has no downward headroom — dropping
+`OCR_MIN_WORD` to 4 would reject a clean cityscape frame (its 4-character token is `ーーーー`,
+i.e. window mullions) while still missing both leaks.
+
+So instead of guessing another threshold and burning another 20 CI minutes, this pass
+instrumented the axis that is *not* yet recorded: **glyph size**.
+
+### How it was done
+
+Both OCR functions were widened from returning `words` to returning `(words, tokens)`.
+`ocr_frame` now builds a `geoms` list in parallel with `passes` and returns both, and
+`text_filter` writes a second per-theme artifact, `tokens-<stem>.tsv`, with one row per token
+per pass across 14 columns: `ts verdict pass conf h_px hrot_px w_px top_px img_w img_h
+line_ntok len text raw`. **No threshold moved and no verdict logic changed.**
+
+The mechanism choices that matter, all of them things that would have quietly corrupted the
+calibration if done the obvious way:
+
+- Geometry is recorded as **raw pixels with the image dimensions alongside**, never as
+  pre-divided fractions, so normalisation — including undoing the 2× upscale pass — stays an
+  offline decision.
+- Image dimensions come from **tesseract's own level-1 page row**, not PIL and not ~60
+  `ffprobe` calls per theme, and are backfilled onto every token *after* the parse loop,
+  because the page row is only conventionally first. rapidocr reports no image size, so it
+  writes `0` sentinels that `ocr_frame` fills from the **`orig`** pass — never `up2x`, whose
+  page box is 2× and would have silently halved every rapid fraction.
+- rapidocr gets **two heights**, axis-aligned and rotation-aware (mean of the side edges),
+  because they disagree on rotated text — 70 px vs 22 px in the tests — and the artifact should
+  pick, not me.
+- The dump is opened `encoding="ascii"` behind an `_ascii()` escaper that doubles backslashes
+  first, so escaping is reversible, a non-ASCII leak fails loudly, and the cp1252 console
+  cannot corrupt CJK. `len` counts glyphs before escaping.
+- Geometry degrades to zeros and never raises. The text half of the return value *is* the
+  safety filter and has to survive a malformed box.
+
+The safety argument is a **mirror invariance**, asserted on every one of the 48 checks in
+`tools/pipeline/test_curate_contract.py`: `[(t["conf"], t["text"]) for t in tokens] == words`. If that ever drifts,
+the geometry rows describe different text than the verdict came from — i.e. the calibration
+would be against a lie. Test coverage was extended from 11 checks to 48: rapidocr quad geometry
+including a rotated and a malformed box, `ocr_words` TSV parsing driven by a faked `run()`
+(page row first, page row *last*, no page row, `conf = -1`, non-numeric box, non-zero exit),
+the `_ascii` escaper, and an end-to-end run of `text_filter` with a stubbed `ocr_frame` that
+reads the written file back and asserts the header is 14 columns and every row matches its
+width.
+
+Writing those tests found a real bug: the `RAPIDOCR_ENABLE=false` opt-out still returned a bare
+`[]` after the widening, which would have broken the documented fallback ladder the first time
+anyone reached for it.
+
+**The suite was also promoted out of scratch.** It had been living in `.tmp/`, which is
+gitignored — so `doc/BLOCKERS.md` was citing, as the safety argument for a pipeline change,
+a file that would not exist in a fresh clone. It is now
+`tools/pipeline/test_curate_contract.py`, tracked, runnable as
+`python tools/pipeline/test_curate_contract.py` with no arguments and no dependencies (it fakes
+both `rapidocr_onnxruntime` and `run()`, so it passes on a machine with neither the wheel nor
+tesseract). `ROOT` moved from `parent.parent` to `parents[2]` for the new depth, and the temp
+directory is now created if missing, since a fresh clone has no `.tmp/`.
+
+### What it changed in the live project
+
+Nothing in the database or in Storage — this pass touched the pipeline and the docs only, and
+deliberately produced **no behaviour change**. `tools/pipeline/curate_theme.py` compiles and
+its contract tests pass 48/48. The repo gained one tracked file,
+`tools/pipeline/test_curate_contract.py` (previously untracked scratch). The measured
+per-question size was corrected across the docs
+from ~42 MB to **45.6 MB** for 134 questions (mean `bytes_total` 356,637 B from run
+`32617226964`); the rise is not drift but a consequence of `ocr_min_conf` 0 → 70 changing which
+frames ship. `doc/ARCHITECTURE.md` was found to still describe a **`clips` bucket of 2 MB VP9
+videos** — an entire design generation stale — and was corrected to the `media` bucket with
+three opaque roots and five objects per question, including the Storage ceiling, which is
+~3,000 questions rather than the ~1,000 previously stated. `doc/DATA-MODEL.md` §8.3 had the
+same problem in a subtler form: a newer `media` block described the live bucket correctly, then
+an older migration-0009 note *below it* still asserted `file_size_limit = 5242880` and
+`allowed_mime_types = {video/webm}`, so a reader hit the wrong facts last. That note is now
+explicitly marked superseded and states the live values (512 KB, `{audio/webm, image/jpeg}`)
+alongside the historical ones.
+
+### What became possible next
+
+The next threshold can be chosen **offline from the artifact**. Because the metric path is
+byte-identical, the next run must ship exactly the same 36 stills as run `32617226964` —
+checkable with `.tmp/cmp-ship.py` — which promotes those already-eyeballed 36 (2 leaks, 34
+clean) into labelled ground truth. A candidate height rule can then be scored against real
+data with three hard acceptance criteria (rejects both leaks, keeps `AoNoExorcist-OP1`
+ts=37.6, holds yield at 3 stills per theme) before a single behaviour-changing CI minute is
+spent.
+
+### Still unproven
+
+The height hypothesis itself. Nothing yet demonstrates that glyph height separates the
+counterexamples — that is exactly what the next run's artifact is for. Normalising height
+across the `up2x` pass and across rapidocr's line-level boxes remains the part most likely to
+go wrong. And still never executed even once: Storage upload, `ingest_question` over **HTTP**,
+the retry ladder, and any real egress measurement.
+
+### Docs updated in this pass
+
+- `doc/BLOCKERS.md` — B-28 gains an *Instrumented* section: the 14-column schema, each
+  mechanism decision with its failure mode, the mirror-invariance safety argument, the bug the
+  tests caught, and an explicit order of operations. B-28 **stays OPEN** — 2 leaks shipped.
+- `doc/GAME-DESIGN.md` — §5.2.2's "3 of 36, cause unverified" replaced with the measured
+  2-of-36 outcome, the coincidence warning, both blind spots, the three-frame counterexample
+  table, the no-downward-headroom finding, and the glyph-size hypothesis; §3's "riskiest
+  unverified premise" sharpened to *measured insufficient*; a dangling §5.2.4 reference fixed.
+- `doc/DATA-MODEL.md` — §9 byte table re-sourced to run `32617226964` with the 45.6 MB
+  arithmetic and why it moved; §4.3 `rounds` key-derivation note corrected to name all three
+  roots; §8.3's migration-0009 paragraph marked superseded and given the live bucket settings.
+- `doc/ARCHITECTURE.md` — both pipeline diagrams, the stack table, the Edge Function list, the
+  Storage ceiling and the no-cache rationale corrected from video clips to the five-object
+  still/audio model.
+

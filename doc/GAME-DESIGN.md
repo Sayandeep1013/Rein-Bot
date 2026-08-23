@@ -167,8 +167,9 @@ credits artefact, so a flag about credits was never going to catch it.
 The `nc:true` constraint is kept, but for a weaker and honest reason: credit-free sources
 carry less on-screen text overall, so they yield more usable frames per sequence. The thing
 that actually protects the answer is per-frame OCR rejection at selection time
-(`doc/RESEARCH.md` §4.10), and it is the riskiest unverified premise in the pipeline
-(`doc/BLOCKERS.md` B-28).
+(`doc/RESEARCH.md` §4.10). It is the riskiest premise in the pipeline, and it is now
+**measured insufficient rather than merely unverified**: the current rule shipped 2 readable
+stills out of 36 (§5.2.2, `doc/BLOCKERS.md` B-28).
 
 ### Option A — hot-link AnimeThemes directly · REJECTED
 
@@ -587,10 +588,10 @@ that evening. Needs a source whose terms permit it — unresearched.
 9. **Choose 2–3 survivors with temporal spread** (§5.2.3). Fewer than 2 → skip the theme.
 10. **Choose the poster from the text-positive rejects** — the title card is the ideal
     reveal image, and step 8 has already identified it.
-11. **Upload all five objects** to the `media` bucket under keys derived from a fresh
-    `asset_slug`, **then** write the row via `ingest_question` v2. Objects first: a row
-    pointing at bytes that never arrived is worse than an orphaned upload, and with five
-    objects that window is five times wider.
+11. **Upload all five objects** to the `media` bucket under keys derived from three fresh
+    uuids — one per asset class — **then** write the row via `ingest_question` v3. Objects
+    first: a row pointing at bytes that never arrived is worse than an orphaned upload, and
+    with five objects that window is five times wider.
 
 Step 4's old form said "spot-check a frame visually". That was never going to scale to 136
 themes and, per B-20, four sampled frames out of ~600 would not have caught the title cards
@@ -620,16 +621,80 @@ At 45% the cut rejects 3 of 40 frames and leaves every one of the ten sampled th
 
 #### 5.2.2 Text filter — OCR, tuned to over-reject
 
-Run `tesseract --psm 11` with `eng+jpn` on each surviving candidate and reject any frame
-with a text hit. **Tune aggressively: a false positive costs one frame out of ~60; a false
-negative ships the answer.** The asymmetry is total, so there is no reason to be
-conservative.
+Two OCR engines run on each surviving candidate: `tesseract --psm 11` with `eng+jpn`, and
+`rapidocr-onnxruntime` (pinned `<2`). A frame is rejected when **any** pass sees a single
+word of at least `OCR_MIN_WORD` characters at confidence at least `OCR_MIN_CONF`. Passes
+are merged worst-case. **A false positive costs one frame out of ~60; a false negative
+ships the answer**, so the asymmetry is total.
 
-This is now the *only* protection against a title card reaching the player, because
-`nc: true` was measured not to provide any (§3). It is also the pipeline's biggest
-unverified assumption — stylised anime logos are the adversarial case for OCR, and it
-cannot be tested on the dev machine. Tracked as **`doc/BLOCKERS.md` B-28**, including the
-fallback ladder if it proves unreliable.
+**The measured rule is `longest_word >= 5` at confidence >= 70.** Both numbers come from
+647 candidate frames dumped by pipeline run `32605150598`, not from intuition:
+
+| Metric at conf >= 70 | Junk (noise) | Real title text |
+| --- | --- | --- |
+| longest word | p50 = 2, p95 = 3, max 13 | 5-13 |
+| total chars | p50 ~4, p90 = 9, max 34 | overlaps junk completely |
+
+Every one of the 18 frames (2.8%) with `longest_70 >= 5` was genuine text —
+`ASSASSINATION(92)`, `BLACK(94) CLOVER(96)`, `gelBeals(90)`, `Musamit(86)`.
+
+**Character-count gating was tried first and is disproven.** `chars_N` sums junk across the
+whole frame, so it both over-rejected (an early run skipped 8 of 10 themes at
+`chars_70 >= 4`) and under-rejected, because a real title card measured 43 chars — squarely
+inside the junk range. It is not a matter of picking a better threshold: the distributions
+fully overlap. No char-count backstop is OR-ed in for the same reason.
+
+`OCR_MIN_WORD` is floored at 2 by a workflow guard, because 1 would reject every frame
+containing a single stray glyph, which is most of them.
+
+**Measured residual after adding the second engine: 2 of 36 shipped stills still carry
+readable text.** Run `32617226964` rejected 46 candidates against run `32605150598`'s
+baseline, and **all 14 newly-rejected frames were credited to `rapid`** — the second engine
+earns its runtime. But the count fell from 3 to 2 by coincidence, not by fix: raising
+`ocr_min_conf` to 70 changed which frames survive, so the spread groups reshuffled and
+different frames shipped. Of the 6 leak frames identified by eye in the earlier run, **5 are
+still classified `CLEAN`**, and the reshuffle introduced 2 leaks that had not shipped before.
+The earlier run's eyeball does not transfer to a later run's output.
+
+**The rule has two structural blind spots, not two missed thresholds:**
+
+- **A — CJK length.** A Japanese name is 1-3 glyphs, so it can never reach a 5-character
+  longest word. `AngelBeats-OP1` ts=45.1 has five names read at confidence 86-99
+  (岩沢 / 関根 / ひさ子 / 入江 / 遊佐) and scores `longest_70 = 2`.
+- **B — scattered or kinetic Latin typography.** Isolated large glyphs are segmented
+  individually, so the longest token is 2 characters *at every confidence floor including
+  zero*. `AnsatsuKyoushitsu-OP1` ts=78.0 is huge white Latin capitals over green stripes and
+  scores `longest_0 = 2`. No confidence floor can rescue this one.
+
+**No scalar in the current feature set separates the counterexamples.** All three frames
+below are classified `CLEAN`, and on every metric the *clean* frame ranks highest:
+
+| frame | longest_70 | chars_70 | words | max_conf | longest_0 | reality |
+| --- | --- | --- | --- | --- | --- | --- |
+| `AngelBeats-OP1` ts=45.1 | 2 | 6 | 39 | 99.5 | 5 | **LEAK** |
+| `AnsatsuKyoushitsu-OP1` ts=78.0 | 2 | 6 | 29 | 89.5 | 2 | **LEAK** |
+| `AoNoExorcist-OP1` ts=37.6 | 4 | 7 | 65 | 95.4 | 6 | clean |
+
+**There is also no downward headroom.** Lowering `OCR_MIN_WORD` from 5 to 4 would reject
+that clean cityscape frame — its `longest_70 = 4` comes from `ーーーー`, i.e. window
+mullions — while still missing both leaks.
+
+**Working hypothesis for the next iteration: glyph size.** Title cards, credits and
+character-name callouts are typographically large; texture false positives are small. Height
+gating is indifferent to both language and token length, so it addresses A and B together.
+The pipeline now records per-token pixel geometry to `tokens-<stem>.tsv` for exactly this
+calibration, without changing the shipping rule — see **`doc/BLOCKERS.md` B-28**, which also
+carries the fallback ladder and the closure criteria. `jpn_vert` was dropped along the way
+because across all 647 frames it produced no high-confidence word while costing a pass per
+frame.
+
+One cost worth recording: raising `ocr_min_conf` to 70 cost 3 of 12 themes their poster,
+which fell back to `fallback-clean-unused` (§5.2 step 10).
+
+This is the *only* protection against a title card reaching the player, because
+`nc: true` was measured not to provide any (§3): 5 of 10 sampled clips showed the Latin
+title with `nc:true, subbed:false`. Leaks are not positional either — one sat at 79.5 s of a
+90 s clip, another at 39.1 s — so no edge-trim heuristic substitutes for reading the frame.
 
 #### 5.2.3 Spread — best frame from each third
 
@@ -648,7 +713,7 @@ A single Postgres table (`doc/RESEARCH.md` §3.5). Read-only to clients except t
 guess-checking function; the answer-bearing columns are not exposed (§4.4).
 
 ```
-id, asset_slug, still_count, audio_seconds, bytes_total,
+id, asset_slug, poster_slug, audio_slug, still_count, audio_seconds, bytes_total,
 anime_slug, title_romaji, title_english, title_native,
 synonyms_json, year, season, theme_type, theme_sequence,
 song_title, cover_image_url, anilist_id, mal_id, difficulty
@@ -656,12 +721,15 @@ song_title, cover_image_url, anilist_id, mal_id, difficulty
 
 `clip_key` is gone as of migration `20260823000010`. It was `r2_key` before the stack
 decision, then `clip_key`, and is now nothing at all: no object key is stored on the row.
-Keys are computed from `asset_slug` by `question_asset_keys`, so the Storage layout exists
-in exactly one place and a row can never disagree with the bucket.
+Keys are computed from the three slugs by `question_asset_keys`, so the Storage layout
+exists in exactly one place and a row can never disagree with the bucket.
 
-`asset_slug` is a *second* uuid, separate from `id`, because the two need different
-visibility: `id` is client-readable via `rounds.question_id`, and anything derived from it
-is therefore effectively public. `doc/DATA-MODEL.md` §3.1 has the full argument.
+The three slugs are uuids *separate from `id`*, and separate from each other, because they
+need different visibility: `id` is client-readable via `rounds.question_id`, so anything
+derived from it is effectively public — and the poster is the title card, so it must not be
+derivable from the stills a player is legitimately sent either. Migration
+`20260823000011` split what had been one `asset_slug` into three roots for that reason.
+`doc/DATA-MODEL.md` §3.1 has the full argument.
 
 At ~400 bytes/row, 500 rows is ~200 KB — trivially inside any plausible free
 storage allowance, which is what retired B-6.

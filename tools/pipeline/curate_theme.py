@@ -29,6 +29,7 @@ arrived (doc/GAME-DESIGN.md 5.2 step 11).
 
 import io
 import json
+import math
 import os
 import shutil
 import statistics
@@ -281,7 +282,32 @@ def detail_filter(cands):
 # finding text rejects the frame. The upscale is a throwaway: the shipped file
 # is always the original candidate.
 def ocr_words(path):
-    """OCR one image, returning [(confidence, alnum_text), ...] per word.
+    """OCR one image, returning (words, tokens).
+
+    `words` is the metric contract and is unchanged: [(confidence, alnum), ...].
+    `tokens` is the same tokens, in the same order, each a dict that also carries
+    the glyph geometry tesseract already gives away for free in its TSV and this
+    function used to throw away.
+
+    The geometry exists because the longest-token rule has two *measured* blind
+    spots (B-28), neither of which is a threshold problem:
+
+      * a Japanese name is 1-3 glyphs, so it can never reach a 5-character
+        token -- `AngelBeats-OP1` t=45.1 shipped five name callouts read at
+        86-99 confidence with longest_70 = 2;
+      * scattered kinetic title typography is segmented glyph by glyph, so
+        `AnsatsuKyoushitsu-OP1` t=78.0 has longest_0 = 2. With the confidence
+        floor at *zero* the longest token is still 2, so no floor can catch it.
+
+    What both leaks share, and what the clean frames that currently score
+    highest do not, is that the text is physically large. The frame that blocks
+    every cheaper fix is `AoNoExorcist-OP1` t=37.6: a cityscape with no text at
+    all scoring longest_70 = 4, because four window mullions read as the
+    katakana long-vowel mark.
+
+    Heights are recorded raw, in pixels, next to the image dimensions rather
+    than pre-divided, so the normalisation and the threshold can both be chosen
+    offline from the artifact instead of costing another 20-minute CI run.
 
     TSV rather than plain stdout because plain text discards the one number
     that actually separates a rendered title card from a cloud: tesseract's
@@ -304,10 +330,22 @@ def ocr_words(path):
             % (path, p.stdout.decode("utf-8", "replace")[-400:])
         )
     words = []
+    tokens = []
+    img_w = img_h = 0
     for line in p.stdout.decode("utf-8", "replace").splitlines()[1:]:
         col = line.split("\t")
         if len(col) < 12:
             continue
+        # level 1 is the page row, and its box is the image itself -- the only
+        # dependency-free way to learn the dimensions here, given that ffprobing
+        # every frame would add 60 subprocesses per theme. It carries conf -1
+        # and no text, so the filters below still drop it.
+        if col[0] == "1":
+            try:
+                img_w = int(float(col[8]))
+                img_h = int(float(col[9]))
+            except ValueError:
+                pass
         try:
             conf = float(col[10])
         except ValueError:
@@ -317,14 +355,34 @@ def ocr_words(path):
         alnum = "".join(ch for ch in col[11] if ch.isalnum())
         if alnum:
             words.append((conf, alnum))
-    return words
+            try:
+                box_w = int(float(col[8]))
+                box_h = int(float(col[9]))
+                box_top = int(float(col[7]))
+            except ValueError:
+                box_w = box_h = box_top = 0
+            tokens.append({
+                "conf": conf, "text": alnum, "raw": col[11],
+                # tesseract boxes are axis-aligned, so the rotated and
+                # axis-aligned heights are the same number here. Both are still
+                # recorded, so one dump schema covers both engines.
+                "h": box_h, "hrot": box_h, "w": box_w, "top": box_top,
+                "ntok": 1,
+            })
+    # Assigned after the loop rather than inside it because the page row is only
+    # conventionally first, and a token that recorded img_h = 0 would silently
+    # become an un-normalisable row in the dump.
+    for t in tokens:
+        t["img_w"] = img_w
+        t["img_h"] = img_h
+    return words, tokens
 
 
 _RAPID = []      # one-element cache; [] means "not built yet"
 
 
 def rapid_words(path):
-    """Second OCR engine, returning the same [(confidence, alnum_text), ...].
+    """Second OCR engine, returning the same (words, tokens) pair as ocr_words.
 
     Confidences are rescaled to tesseract's 0-100 so both passes can be gated
     on one OCR_MIN_CONF floor.
@@ -342,7 +400,7 @@ def rapid_words(path):
     60-frame theme.
     """
     if not RAPIDOCR_ENABLE:
-        return []
+        return [], []
     if not _RAPID:
         try:
             from rapidocr_onnxruntime import RapidOCR
@@ -365,6 +423,7 @@ def rapid_words(path):
     # v1.x returns (detections, timings); no detections is None, not [].
     dets = out[0] if isinstance(out, tuple) else out
     words = []
+    tokens = []
     for det in dets or []:
         # Each detection is [box, text, score] with score in 0..1.
         if len(det) < 3:
@@ -374,11 +433,46 @@ def rapid_words(path):
             conf = float(score) * 100.0
         except (TypeError, ValueError):
             continue
-        for tok in str(text).split():
-            alnum = "".join(ch for ch in tok if ch.isalnum())
-            if alnum:
-                words.append((conf, alnum))
-    return words
+        # det[0] is a 4-point quad in original-frame pixels, and was previously
+        # discarded outright. Two heights are recorded because they disagree on
+        # rotated text: the axis-aligned extent inflates as a line tilts, while
+        # the mean of the two short edges stays near the true glyph height.
+        # Which one discriminates better is a question for the artifact, not a
+        # guess to be baked in here.
+        h_aa = w_aa = h_rot = top = 0
+        try:
+            pts = [(float(pt[0]), float(pt[1])) for pt in det[0]]
+        except (TypeError, ValueError, IndexError):
+            pts = []
+        if len(pts) == 4:
+            xs = [x for x, _ in pts]
+            ys = [y for _, y in pts]
+            h_aa = int(round(max(ys) - min(ys)))
+            w_aa = int(round(max(xs) - min(xs)))
+            top = int(round(min(ys)))
+            h_rot = int(round((
+                math.hypot(pts[0][0] - pts[3][0], pts[0][1] - pts[3][1])
+                + math.hypot(pts[1][0] - pts[2][0], pts[1][1] - pts[2][1])
+            ) / 2.0))
+        toks = [a for a in (
+            "".join(ch for ch in tok if ch.isalnum())
+            for tok in str(text).split()
+        ) if a]
+        for alnum in toks:
+            words.append((conf, alnum))
+            tokens.append({
+                "conf": conf, "text": alnum, "raw": str(text),
+                "h": h_aa, "hrot": h_rot, "w": w_aa, "top": top,
+                # rapidocr detects whole *lines*, so every token split out of
+                # one line inherits that line's height. ntok records how many
+                # shared it, because offline analysis must not read a line
+                # height as a per-glyph height.
+                "ntok": len(toks),
+                # Unknown to this engine; ocr_frame backfills from the orig
+                # tesseract pass, which measured the same file.
+                "img_w": 0, "img_h": 0,
+            })
+    return words, tokens
 
 
 def ocr_frame(path, workdir):
@@ -392,8 +486,19 @@ def ocr_frame(path, workdir):
 
     Returns a dict of metrics at several confidence floors, so a threshold can
     be chosen later from the dump without re-running the whole pipeline.
+
+    It also returns `geoms`, the per-token geometry parallel to `passes`. The
+    metric code below deliberately does not read it: keeping the (conf, text)
+    contract byte-for-byte identical is what guarantees this change cannot move
+    a single verdict, which in turn is what lets the already-eyeballed run-3
+    shipped set serve as labelled ground truth when the height threshold is
+    picked offline. Geometry is measurement only, until it is calibrated.
     """
-    passes = [("orig", ocr_words(path))]
+    passes = []
+    geoms = []
+    w, g = ocr_words(path)
+    passes.append(("orig", w))
+    geoms.append(("orig", g))
     if OCR_UPSCALE > 1:
         big = workdir / ("up-" + path.stem + ".png")
         p = run([
@@ -403,15 +508,38 @@ def ocr_frame(path, workdir):
             str(big),
         ])
         if p.returncode == 0:
-            passes.append(("up%dx" % OCR_UPSCALE, ocr_words(big)))
+            name = "up%dx" % OCR_UPSCALE
+            w, g = ocr_words(big)
+            passes.append((name, w))
+            geoms.append((name, g))
             big.unlink(missing_ok=True)
     if RAPIDOCR_ENABLE:
         # Detector-first second engine, on the original frame only: rapidocr
         # rescales internally as part of detection, so feeding it the 2x
         # upscale mostly buys runtime.
-        passes.append(("rapid", rapid_words(path)))
+        w, g = rapid_words(path)
+        passes.append(("rapid", w))
+        geoms.append(("rapid", g))
 
-    m = {"passes": passes}
+    # rapidocr does not report the image size, but its boxes are in
+    # original-frame pixels and the orig tesseract pass measured that exact
+    # file, so its page box is reused rather than ffprobing 60 frames a theme.
+    # Only the orig pass will do: up2x's page box is twice the size.
+    ref = None
+    for name, g in geoms:
+        if name == "orig":
+            ref = next((t for t in g if t.get("img_h")), None)
+            break
+    if ref:
+        for name, g in geoms:
+            if name != "rapid":
+                continue
+            for t in g:
+                if not t.get("img_h"):
+                    t["img_w"] = ref["img_w"]
+                    t["img_h"] = ref["img_h"]
+
+    m = {"passes": passes, "geoms": geoms}
     for floor in (0, 50, 60, 70, 80, 90):
         best_chars = 0
         best_word = 0
@@ -432,6 +560,23 @@ def ocr_frame(path, workdir):
                  key=lambda ct: -ct[0])[:6]
     m["sample"] = " ".join("%s(%d)" % (t, int(c)) for c, t in top)
     return m
+
+
+def _ascii(s):
+    """Escape a token to pure ASCII, and flatten anything that breaks a TSV.
+
+    The dumps are read back on a cp1252 console, where merely *printing* a CJK
+    character raises UnicodeEncodeError, and they are parsed by throwaway
+    analysis scripts that should not each have to remember an encoding. Escaping
+    at the point of writing removes the whole class of problem: the file is
+    7-bit, so every reader is correct by default. Backslashes are doubled first
+    so that a literal backslash in OCR output cannot be mistaken for an escape.
+    """
+    return (str(s)
+            .replace("\\", "\\\\")
+            .replace("\t", " ").replace("\r", " ").replace("\n", " ")
+            .encode("ascii", "backslashreplace")
+            .decode("ascii"))
 
 
 def text_filter(cands, workdir, outdir, stem):
@@ -490,6 +635,41 @@ def text_filter(cands, workdir, outdir, stem):
                 vals += [m["sample"].replace("\t", " ")]
                 f.write("\t".join(str(v).replace("\t", " ") for v in vals) + "\n")
         log("  ocr dump: %s" % dump.name)
+
+        # Second dump: one row per token per pass, with geometry. This is the
+        # whole point of the next run. B-28 showed that no scalar currently
+        # recorded separates the three-frame counterexample set, so the next
+        # threshold has to be chosen against real per-token data. Dumping it
+        # costs nothing (~26k rows for 12 themes) and it is the difference
+        # between calibrating offline and burning a 20-minute CI run per guess.
+        #
+        # Written as ASCII with an ASCII codec, not UTF-8: if a token ever
+        # escapes _ascii() the write should fail loudly here rather than produce
+        # a file that silently mis-decodes in three tools downstream.
+        tdump = outdir / ("tokens-" + stem + ".tsv")
+        ntok = 0
+        with io.open(tdump, "w", encoding="ascii", newline="\n") as f:
+            cols = ["ts", "verdict", "pass", "conf", "h_px", "hrot_px", "w_px",
+                    "top_px", "img_w", "img_h", "line_ntok", "len", "text",
+                    "raw"]
+            f.write("\t".join(cols) + "\n")
+            for c, m, chars, longest, culprit in rows:
+                verdict = "TEXTY" if longest >= OCR_MIN_WORD else "CLEAN"
+                for name, toks in m.get("geoms", []):
+                    for t in toks:
+                        vals = ["%.1f" % c["ts"], verdict, name,
+                                "%.1f" % t["conf"],
+                                t["h"], t["hrot"], t["w"], t["top"],
+                                t["img_w"], t["img_h"], t["ntok"],
+                                len(t["text"]),
+                                _ascii(t["text"]), _ascii(t["raw"])]
+                        if len(vals) != len(cols):
+                            raise RuntimeError(
+                                "token dump column drift: %d vals vs %d cols"
+                                % (len(vals), len(cols)))
+                        f.write("\t".join(str(v) for v in vals) + "\n")
+                        ntok += 1
+        log("  token dump: %s (%d tokens)" % (tdump.name, ntok))
 
     log("  ocr: clean=%d text-positive=%d (word>=%d at conf>=%g, psm=%s, langs=%s)"
         % (len(clean), len(texty), OCR_MIN_WORD, OCR_MIN_CONF,

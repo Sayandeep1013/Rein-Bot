@@ -70,7 +70,13 @@ directly by clients** (§7.1).
 ```sql
 create table question_bank (
   id                  uuid primary key default gen_random_uuid(),
-  asset_slug          uuid        not null unique default gen_random_uuid(),
+  asset_slug          uuid        not null unique default gen_random_uuid(),  -- stills
+  poster_slug         uuid        not null unique default gen_random_uuid(),
+  audio_slug          uuid        not null unique default gen_random_uuid(),
+  -- one uuid reused for all three is the realistic ingest bug, so it is rejected:
+  constraint question_bank_slugs_distinct check (
+    asset_slug <> poster_slug and asset_slug <> audio_slug and poster_slug <> audio_slug
+  ),
   still_count         smallint    not null check (still_count between 2 and 3),
   audio_seconds       int         not null,
   bytes_total         int         not null,
@@ -122,9 +128,23 @@ the bucket is public-read, holding the keys is equivalent to holding the content
 
 `asset_slug` is an independent random uuid living only on `question_bank`, which carries
 no client grant at all (§7.1). Keys are computed server-side by
-`question_asset_keys(asset_slug, still_count)`, the single place the Storage layout is
-written down. Two uuids per row is intentional: `id` is public, `asset_slug` is not.
-They are not meant to agree.
+`question_asset_keys(still_slug, poster_slug, audio_slug, still_count)`, the single place
+the Storage layout is written down.
+
+**Each asset class has its own independent key root** (migration 0011). Sharing one
+`asset_slug` across all five objects closed the `id` leak but opened a smaller one in its
+place: `stills/{slug}-1.jpg` and `posters/{slug}.jpg` differ by one path segment, and the
+poster is deliberately the title card, so a player holding the still they were legitimately
+sent could derive the answer to the question they were being asked. `question_bank`
+therefore carries three roots — `asset_slug` for stills, `poster_slug`, `audio_slug` — each
+`not null unique`, and a `question_bank_slugs_distinct` CHECK rejects the realistic bug of
+one uuid reused for all three.
+
+Four uuids per row is intentional: `id` is public; the three roots are not, and are not
+derivable from `id`, from public data, or from **each other**. They are not meant to agree.
+Each root is a full 122 bits of randomness, which is the only thing protecting an object:
+on a `public = true` bucket, reads by key bypass RLS entirely, so no policy can restrict an
+object once its key is known (§7.4).
 
 **`still_count` is 2 or 3, never 0 or 1.** Frame selection rejects any frame containing
 text and any frame too flat to be recognisable (`doc/RESEARCH.md` §4.10), so yield per
@@ -303,7 +323,8 @@ that table regardless of grants.
 Assets now reach clients only through `get_current_round` (§6.6), which re-checks
 membership and returns one round. `question_id` stays on the row and remains harmless:
 `question_bank` and `question_titles` carry no client grant (§7.1), and keys derive from
-`asset_slug`, which lives only on `question_bank`.
+`asset_slug`, `poster_slug` and `audio_slug`, all three of which live only on
+`question_bank`.
 
 `unique (room_id, question_id)` prevents the same clip appearing twice in one game.
 
@@ -663,10 +684,14 @@ client. `security definer`, `stable`, granted to `authenticated` only.
 
 It re-checks `is_room_member(p_room_id)` rather than trusting the caller, reads the
 room's `current_round`, and returns **that round only**. Keys come from
-`question_asset_keys(asset_slug, still_count)` (§3.1), so the Storage layout is written
-down once.
+`question_asset_keys(still_slug, poster_slug, audio_slug, still_count)` (§3.1), so the
+Storage layout is written down once.
 
-**Two keys are withheld, for two different reasons.**
+**Two keys are withheld, for two different reasons.** Since migration 0011 those two
+omissions are **effective** rather than advisory: before it, a client that received the
+still keys could reconstruct the withheld poster key by editing one path segment, so
+withholding it was a statement of intent rather than a control. With independent roots,
+a key this function does not return cannot be derived from the ones it does.
 
 `poster` is removed **always**, and this is a correctness requirement, not caution. The
 poster is the title card — frame selection deliberately harvests it from the frames the
@@ -781,14 +806,29 @@ periodic write activity helps mitigate the 7-day inactivity auto-pause (B-16).
 
 ### 8.3 Storage
 
-One bucket, `media`, five objects per question, all keyed from `question_bank.asset_slug`
-and never from `id` (§3.1):
+One bucket, `media`, five objects per question. Each asset class is keyed from its **own**
+root on `question_bank`, never from `id` and never from another class's root (§3.1):
 
-| Object | Key | Approx |
+| Object | Key | Measured |
 | --- | --- | --- |
-| audio | `audio/{asset_slug}.webm` | ~160 KB Opus |
-| still *n* | `stills/{asset_slug}-{n}.jpg`, *n* = 1..`still_count` | ~30 KB each |
-| poster | `posters/{asset_slug}.jpg` | ~30 KB |
+| audio | `audio/{audio_slug}.webm` | ~198 KB Opus |
+| still *n* | `stills/{asset_slug}-{n}.jpg`, *n* = 1..`still_count` | 27-31 KB each |
+| poster | `posters/{poster_slug}.jpg` | ~30 KB |
+
+Sizes are measured from pipeline run `32617226964` (12 themes, all five objects built), not
+estimated: `bytes_total` came to a mean of 356,637 B per question, so all 134 questions land
+at **~45.6 MB**. This is up from the ~42 MB measured in the earlier run `32605150598`; the
+increase is not drift but a consequence of raising `ocr_min_conf` to 70, which changed which
+frames survive the text filter and therefore which frames ship (see `doc/BLOCKERS.md` B-28).
+Both figures are averages over 12 themes extrapolated to 134, so treat 45.6 MB as an
+estimate with a measured basis, not a measurement of the full set.
+
+The three roots are independent because they are on **different sides of a trust boundary
+within the same question**. A player is legitimately sent the stills for the round they are
+playing; the poster for that same round is the title card, i.e. the answer. When one
+`asset_slug` rooted all five objects, `posters/{slug}.jpg` was a one-segment edit away from
+the `stills/{slug}-1.jpg` the player already held. Separate roots make the poster
+unreachable from the still, and the audio unreachable from either.
 
 The bucket was renamed from `clips` while it was empty, the only moment that is free.
 Its limits **tightened** rather than widened: `allowed_mime_types` is
@@ -809,15 +849,18 @@ egress allowance (`doc/ARCHITECTURE.md` §10).
 
 ---
 
-**IMPLEMENTED 2026-08-22 - migration 0009.** The bucket is created by
+**IMPLEMENTED 2026-08-22 - migration 0009.** *Historical; superseded by migration 0011 above —
+see the `media` block at the top of 8.3 for live settings.* The bucket was created by
 `supabase/migrations/20260822000009_storage_clips.sql`. Until then 8.3 specified a bucket
 that did not exist, so the pipeline had nowhere to upload; the gap was found while
-writing the ingest path. Live settings: `public = true`, `file_size_limit = 5242880`
-(5 MB - a clip is ~1 MB at 480p/20 s, so this catches a transcode that silently passed a
-62 MB source through), `allowed_mime_types = {video/webm}`. No INSERT/UPDATE/DELETE
-policy exists on `storage.objects` for this bucket, so anon and authenticated cannot
-write to it - a public bucket is public to *read* only. The pipeline uploads with the
-service_role key, which bypasses RLS.
+writing the ingest path. Settings **as of 0009**: `public = true`, `file_size_limit = 5242880`
+(5 MB - a clip was ~1 MB at 480p/20 s, so this caught a transcode that silently passed a
+62 MB source through), `allowed_mime_types = {video/webm}`. Both were tightened once the
+design dropped video: the live limit is **512 KB** and the live MIME allow-list is
+**`{audio/webm, image/jpeg}`**, with `video/webm` removed. What has *not* changed, and is the
+part worth carrying forward: no INSERT/UPDATE/DELETE policy exists on `storage.objects` for
+this bucket, so anon and authenticated cannot write to it — a public bucket is public to
+*read* only. The pipeline uploads with the service_role key, which bypasses RLS.
 
 ### 8.4 Ingest path
 
@@ -828,29 +871,38 @@ service_role key, which bypasses RLS.
    function `grade_guess` applies to the player's guess (3). A pipeline that normalised
    titles itself would let the two implementations drift, and answers would silently
    stop matching with nothing wrong on either side.
-2. No object key is ever supplied by the caller. The pipeline passes `asset_slug` and
+2. No object key is ever supplied by the caller. The pipeline passes the three slugs and
    `still_count`; every key is computed by `question_asset_keys` (§3.1). The AnimeThemes
    basename therefore cannot be supplied at all, rather than being rejected by a guard.
 
-**Amended by migration `20260823000010`.** v1 took a single `clip_uuid` and derived both
-`id` and `clip_key` from it. v2 takes `asset_slug` (plus `still_count`, `audio_seconds`,
-`bytes_total`) and lets `id` default independently.
+**Amended by migration `20260823000010`, then `20260823000011`.** v1 took a single
+`clip_uuid` and derived both `id` and `clip_key` from it. v2 took `asset_slug` (plus
+`still_count`, `audio_seconds`, `bytes_total`) and let `id` default independently. v3
+requires all three roots — `asset_slug`, `poster_slug`, `audio_slug` — and adds
+`MISSING_POSTER_SLUG`, `MISSING_AUDIO_SLUG`, and `SLUGS_NOT_DISTINCT` to its named
+failures.
+
+The two-argument `question_asset_keys(asset_slug, still_count)` was **dropped**, not left
+in place beside the four-argument version. Keeping it as an overload would have left the
+derivable-poster hole exactly one call site away, and the whole point of routing keys
+through one function is that there is no second way to compute them.
 
 That reverses the shape of the original rule, so it is worth being precise about what the
 rule was protecting. The 0008 warning was against **a derived key string disagreeing with
 the row that owns it** — one uuid in the path, another in the column, and a live round
 resolving to a missing object. It was never an argument that a row may hold only one
-uuid. Here the second uuid exists precisely because the two values need different
-visibility: `id` is client-readable, `asset_slug` must not be (§3.1). Nothing has to
-agree, because no key is stored — keys are a pure function of `asset_slug`, computed in
+uuid. Here the extra uuids exist precisely because the values need different
+visibility: `id` is client-readable, the three roots must not be (§3.1). Nothing has to
+agree, because no key is stored — keys are a pure function of the roots, computed in
 one place.
 
-Because the pipeline chooses `asset_slug`, it uploads all five objects **before**
+Because the pipeline chooses the slugs, it uploads all five objects **before**
 inserting the row. The reverse order can leave a row pointing at bytes that never
 arrived, and with five objects the window is five times wider.
 
-The function is idempotent on `asset_slug`, so a batch that fails partway can be retried
-without duplicating rows or orphaning uploads. Its named failures are `MISSING_ASSET_SLUG`
+The function stays idempotent on `asset_slug` alone, so a batch that fails partway can be
+retried without duplicating rows or orphaning uploads. Its named failures are
+`MISSING_ASSET_SLUG`
 (caller bug), `INSUFFICIENT_STILLS` (fewer than 2 usable frames survived selection —
 the theme is skipped, not degraded) and `NO_TITLES (slug %)`, which refuses to insert an
 unwinnable question and now identifies *which* one in a 136-item CI log. It is granted to
