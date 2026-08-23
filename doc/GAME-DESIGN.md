@@ -12,7 +12,7 @@ come from `doc/BLOCKERS.md`.
 
 | # | Decision | Choice |
 | --- | --- | --- |
-| 1 | What the player gets each round | **2–3 progressively revealed still frames, text-free; audio optional per room** (revised 2026-08-23, §3) |
+| 1 | What the player gets each round | **2–3 progressively revealed still frames carrying no title card; audio optional per room** (revised 2026-08-23, §3) |
 | 2 | How the player answers | **Free text with fuzzy matching** |
 | 3 | Player model | **Realtime multiplayer rooms** |
 | 4 | Content pool | **Curated pool from a popularity cut** |
@@ -142,7 +142,7 @@ changed on 2026-08-23 (`doc/BLOCKERS.md` B-25), so read Option A/B as an argumen
 hot-linking versus preprocessing, not about video.
 
 **No video is stored or served, ever.** Each question is five objects: one ~160 KB Opus
-audio track, two or three text-free stills, and one poster used only on reveal
+audio track, two or three stills carrying no title card, and one poster used only on reveal
 (`doc/DATA-MODEL.md` §8.3). A round reveals stills progressively at roughly 0 s / 7 s /
 14 s; the reveal then shows poster + title. The host chooses **stills-only** or
 **audio + stills** when creating the room (`rooms.audio_enabled`).
@@ -173,8 +173,16 @@ stills out of 36. A replacement rule was calibrated offline — it catches all 4
 with none promoted — and **ran in CI on 2026-08-23** (run `32629295922`), reproducing the
 predicted ship set frame-for-frame and removing both known leaks. That run also surfaced a
 **second leak class the rule cannot represent**: a cursive character-name card, invisible to
-every available discriminator and not fixable by any threshold (§5.2.2, `doc/BLOCKERS.md` B-28,
-which stays open for this reason).
+every available discriminator and not fixable by any threshold (§5.2.2, `doc/BLOCKERS.md` B-28).
+
+**Decided 2026-08-23 — the promise here is "no title card", not "text-free".** B-28 was
+reframed from a security blocker to a quality defect, which is what settled it. §2.1.1 of
+this document already accepts reverse image search as an unfixable residual, and a name
+card is a *weaker* attack than that — but it differs in a way that matters: it spoils the
+round without anyone choosing to cheat. So the measured 8.3%-of-questions rate is what
+counts, and the remedy is `question_bank.retired_at` (which `create_room` already filters
+on) rather than a 402-frame human review. Ship, and retire what surfaces. The full
+reasoning and the four filter integrity fixes made alongside it are in B-28.
 
 ### Option A — hot-link AnimeThemes directly · REJECTED
 

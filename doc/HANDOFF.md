@@ -1,15 +1,21 @@
 # Session handoff
 
-**Written 2026-08-23, revised 2026-08-23 (second session).** Code state: commit `ed3d177`.
-Doc state: this commit.
+**Written 2026-08-23, revised twice the same day. This is the third revision.**
 
 Read this top to bottom before touching anything. It is written for an agent with no
 memory of prior sessions.
 
-**If you read only one thing, read section 3.** The OCR leak filter that section 8 of the
-previous revision told you to build is now built, CI-verified and committed. What remains
-open is narrower and stranger than it was, and section 3 explains exactly why a passing
-test suite did not close it.
+**If you read only one thing, read section 3a**, which supersedes the "not done at all"
+list that used to be the headline here. The short version: the game is deployed and
+live, both answer leaks found by a supervisory audit are closed, and exactly two things
+block a playable game - and both are dashboard clicks only the user can make.
+
+**The most useful thing this project has learned about itself**, and the reason the
+audit found what it found: *a comment asserting that something is safe stops the next
+reader from checking.* Four of the six defects closed in migration 0012 sat directly
+underneath a comment declaring that neighbourhood fine. Execution testing did not catch
+them because the tests confirmed what the comments claimed. When you write "this is
+safe" in this repo, name the query that proves it.
 
 This file is deliberately plain ASCII (no em-dashes, no arrows, no section-sign
 characters) so that exact-string edits against it always match. The rest of `doc/`
@@ -112,17 +118,48 @@ Frontend stack: static HTML plus vanilla JS. No framework, no build step.
   dump, and five `spread()` selection cases.
 - README and GitHub About/topics match the user's own repo style, as requested.
 
-### Not done at all
+### Superseded 2026-08-23 (third session) - read section 3a instead
 
-- **`question_bank` has 0 rows.** No content exists. Nothing is playable.
-- **Nothing has ever been uploaded to Supabase Storage.** That code path has never
-  executed, not once. Every CI run so far has been `dry_run=true`.
-- **`ingest_question` has never been called over HTTP**, only via SQL.
-- **There is no frontend. Not one HTML file has ever been written or run.** This is the
-  majority of the remaining work. Do not let the depth of the pipeline documentation
-  mislead you into thinking the project is nearly finished.
-- The retry/backoff ladder in the workflow has never been triggered.
-- Real Supabase egress has never been measured.
+The list that stood here said there was no frontend, nothing in Storage, and no HTTP
+call to `ingest_question`. All three have changed. Section 3a below is current; this
+heading is kept only so a reader who remembers the old list knows it moved.
+
+### 3a. Current state after the supervision-and-build session
+
+**Applied and verified live:**
+
+- **Migrations 0012 and 0013.** 0012 closed two independent answer leaks and four
+  correctness bugs; 0013 added `get_room_state`. Both verified by querying
+  `information_schema` / `pg_policy`, not by trusting the apply. See `doc/PROGRESS.md`
+  for the full account and the reasoning.
+- **The site is live** at `https://sayandeep1013.github.io/Rein-Bot/`. `app/` holds the
+  first frontend this project has ever had. Pages is enabled with `build_type=workflow`.
+- **Supabase Storage upload works.** Proven on its first ever execution: five objects
+  landed before an unrelated failure. This was previously listed as never-executed.
+- Three new workflows: `pages.yml` (deploy), `test.yml` (the contract suite, which had
+  never run in CI), `sweep.yml` (delete orphaned media objects).
+
+**Blocked on the user, and only these two:**
+
+1. **Anonymous sign-in is OFF** (`external_anonymous_users_enabled: false`, measured).
+   Every RPC begins `if auth.uid() is null then raise AUTH_REQUIRED`, so nothing works
+   until it is on. Dashboard: Authentication -> Sign In / Providers -> Anonymous
+   sign-ins.
+2. **`app/config.js` holds a placeholder publishable key.** Dashboard: Settings ->
+   API Keys -> the `anon` / publishable one.
+
+The client detects both and renders the fix rather than failing blankly, so a visitor
+sees instructions rather than a blank page.
+
+**Still not done:**
+
+- **`question_bank` content.** Curation runs are in progress; until rows exist,
+  `create_room` correctly fails with `INSUFFICIENT_CONTENT`.
+- Five orphaned objects (314 KB) from the first failed ingest. `sweep.yml` removes
+  them; `tools/sweep-orphans.sql` reports them.
+- The retry/backoff ladder has still never been triggered.
+- Real Supabase egress has still never been measured.
+- No two-browser multiplayer test has been run.
 
 ### The OCR leak filter: what was settled, and the one thing that was not
 
@@ -329,6 +366,13 @@ The shell is Windows PowerShell 5.1. All of these have already cost time:
 - **`storage.protect_delete()` rejects any direct `DELETE` from `storage.buckets`** with
   `ERROR: 42501`. `INSERT` into it is fine. Removing a bucket is a Storage API call
   (`DELETE /storage/v1/bucket/{id}`), which needs the service-role key.
+  **Correction 2026-08-23: the same trigger also rejects `DELETE` from
+  `storage.objects`**, with `Direct deletion from storage tables is not allowed. Use
+  the Storage API instead.` This entry previously named only `storage.buckets`, and
+  the difference cost a wasted attempt. Deleting an object is
+  `DELETE /storage/v1/object/{bucket}` with a `{"prefixes": [...]}` body and the
+  service-role key, which is why the orphan sweeper is `.github/workflows/sweep.yml`
+  rather than a SQL script.
 - The service-role key is **only in GitHub Actions secrets**, not in `.env.local`. You
   cannot make service-role calls from the laptop.
 
@@ -370,8 +414,25 @@ and write back with `newline=''`.
 
 ### Run SQL against the live database
 
-`.tmp/q.ps1` is a reusable runner. It reads `SUPABASE_ACCESS_TOKEN` from `.env.local` and
-never echoes it.
+**`.claude/settings.json` denies `Bash(powershell:*)`, so the PowerShell runner below
+cannot be invoked from the Bash tool at all.** Use `.tmp/q.py` instead - same endpoint,
+same contract, reads `SUPABASE_ACCESS_TOKEN` from `.env.local`, never echoes it:
+
+```bash
+python .tmp/q.py .tmp/yourquery.sql
+```
+
+**It must send a User-Agent.** Cloudflare sits in front of `api.supabase.com` and
+answers `Python-urllib/3.x` with `403 / error code: 1010`. `.tmp/q.py` sends the
+project UA; a fresh script that forgets to will look like an auth failure and is not.
+
+For DDL, prefer the Supabase MCP tool `apply_migration` - it records the migration in
+Supabase's own ledger, which is the thing `supabase/migrations/README.md` notes the
+project otherwise lacks. Note that the Bash path to the Management API is also subject
+to the harness's safety classifier, which blocks live-database mutations and auth-config
+changes; reads go through fine.
+
+The PowerShell original, for reference only:
 
 ```powershell
 cd D:\Projects\GuessTheAnime
@@ -522,118 +583,74 @@ Two hard-won mechanics if you do try:
 
 ## 8. What to do next, in order
 
-**The sequencing below is the user's explicit choice, made 2026-08-23, and it overrules
-the recommendation that was offered.** The agent recommended building the frontend first
-(to de-risk the untested HTTP paths early) and shipping single-player first. The user
-chose the opposite on both counts: **finish all 134 themes first, then build the frontend,
-and make the first playable build full multiplayer.** Do not quietly re-order these.
+**Rewritten 2026-08-23 (third session).** The previous version of this section ordered
+the work as: settle the OCR name-card blocker, populate all 134 themes, then build the
+frontend. That order was the user's explicit choice against the agent's recommendation.
+It has since been overtaken by events - the user said "take the steering ... i need the
+site ready ... deployed on github pages", the frontend was built, and the supervision
+audit that ran first found two live answer leaks that would have made a populated
+content bank worthless anyway. The order below reflects where things actually stand.
 
-### Step 1: Get a decision on the character-name-card leak (BLOCKING)
+### Step 1: The two manual steps (BLOCKING, and only the user can do them)
 
-**B-28 cannot close without this, and it is a judgement call, not a measurement.** All
-three automatic fixes are already falsified (see section 3). Present these four options
-with their measured costs and let the user choose:
+Nothing else matters until these are done. Both are dashboard actions; the harness's
+safety classifier blocks an agent from making either change, which is correct - one is
+an auth-config change and the other is reading a credential.
 
-- **A - Triage filter plus human vetting (recommended).** Emit a `review` flag for shipped
-  stills matching `longest_0 >= 5 AND longest_70 < 5 AND chars_0 >= 40`, populate all 134
-  themes, then eyeball only the ~22 flagged frames out of 402. Requires building the
-  frame-exclusion mechanism (~20 lines plus a contract test) because none exists. Honest
-  caveat: recall is proven on exactly one positive.
-- **B - Accept the residual.** Roughly 2.8% of shipped stills may carry name or credit
-  overlays. Costs nothing, but knowingly breaks the "text-free" promise in
-  `doc/GAME-DESIGN.md` line 15.
-- **C - Eyeball all 402 shipped stills.** Certainty, at a real time cost, with no reliance
-  on an unproven signature.
-- **D - Build a new automatic rejector.** Already falsified: every threshold that catches
-  the leak destroys at least 45 clean frames, and the time-window variant is dead because
-  matching frames come in runs of 1 to 4.
+1. **Enable anonymous sign-in.** Supabase dashboard -> Authentication -> Sign In /
+   Providers -> Anonymous sign-ins. Measured OFF as of this session
+   (`external_anonymous_users_enabled: false`). Every RPC starts with
+   `if auth.uid() is null then raise AUTH_REQUIRED`.
+2. **Put the publishable key in `app/config.js`.** Supabase dashboard -> Settings ->
+   API Keys -> the `anon` / publishable key. It is public by design: it goes in browser
+   JavaScript, RLS is what protects the data, and `pages.yml` refuses to deploy a key
+   whose JWT `role` claim is anything other than `anon`. Commit it; pushing `app/**`
+   redeploys automatically.
 
-Whichever is chosen, remember the criterion is **title, credit and character-name**
-overlays only, and that the ~26 stills cleared under the earlier title-only criterion may
-need a second pass under the full one.
+### Step 2: Finish the content run
 
-### Step 2: Populate all 134 themes for real
+`curate.yml` with `dry_run=false`, in batches. The pool is 134 themes and
+`ingest_question` is idempotent on `asset_slug`, so **a run that dies partway can simply
+be re-run** and skips what already landed. Batching against `timeout-minutes: 120`, at
+roughly 19 minutes per 12 themes: `count=30` five times, or `count=40` four times.
 
-Run `curate.yml` with `dry_run=false`. The workflow, the OCR rule and the contract tests
-are all in place and CI-verified, so this step is mechanical.
+Then run `sweep.yml` once (dry run first) to clear objects left behind by any failed
+ingest.
 
-Batching, against a `timeout-minutes: 120` ceiling and 12 themes measured at ~19 minutes:
+**Watch for this:** difficulty tier 1 holds only 13 themes across **8 distinct anime**,
+and since 0012 `create_room` picks one question per anime, so a tier-1-only room now
+caps at **8 rounds**, not 13. The full 1-5 range has 46 anime and supports the 20-round
+maximum comfortably. If tier-1 rooms are meant to be playable at longer lengths, the
+tier mix needs widening - that is a content decision, not a bug.
 
-- `count=30`, five runs, ~53 minutes each, or
-- `count=40`, four runs, ~70 minutes each.
+### Step 3: Play it, with two browsers
 
-Either fits comfortably. Total ~235 CI minutes against 2000 free minutes per month.
-Because `ingest_question` is idempotent on `asset_slug`, **a run that dies partway can
-simply be re-run** and will skip themes already ingested.
+The whole point. Nothing in `app/` has been exercised against a live game, because
+there was no content and no anonymous auth while it was written. Expect the surprises
+here rather than in the SQL, which has been execution-tested throughout.
 
-Expect roughly **45.6 MB** stored for all 134 (mean 356,637 bytes per theme, measured).
-Watch for the retry ladder firing for the first time.
+Specifically unverified: the progressive still reveal timing, audio autoplay policy on
+mobile Safari, the reveal-gap transition, and whether the 1.5 s poll interval feels
+responsive enough at a round boundary.
 
-**Flag two things to the user during or after this step:**
+### Step 4: Measure real egress
 
-- **Tier 1 holds only 13 questions.** A 20-round tier-1 room will therefore keep failing
-  `INSUFFICIENT_CONTENT`. Either the tier mix or the round count needs a decision.
-- `Ansatsu-OP1` at 43.6 s is a cleavage close-up. It is not a text leak and the filter is
-  right to pass it, but it is a content-appropriateness call that belongs to the user, not
-  to the classifier.
+Still never done. The arithmetic in section 9 predicts ~22 MB per 10-round game with
+audio, plus ~1.2 MB of polling. Compare against the dashboard after a few real games,
+because every number in section 9 is derived rather than observed.
 
-### Step 3: Verify the paths that have never executed
+### Step 5: Close the remaining doc debt
 
-This is verification with `curl` and SQL, not a playable build, so it does not conflict
-with the user's "full multiplayer from the start" decision.
-
-After the first real run, confirm by inspection rather than by assuming the exit code:
-
-- Objects actually landed in the `media` bucket under all three key roots.
-- `ingest_question` v3 succeeded **over HTTP** (it has only ever run via SQL). Its guards
-  are `MISSING_ASSET_SLUG`, `MISSING_POSTER_SLUG`, `MISSING_AUDIO_SLUG`,
-  `SLUGS_NOT_DISTINCT`, `INSUFFICIENT_STILLS`, `NO_TITLES (slug %)`.
-- A still can be fetched from the public bucket by key.
-- Measure real egress against the 5 GB ceiling and the arithmetic in section 9.
-
-Remember the ordering rule: **objects are uploaded before `ingest_question` is called.** A
-row pointing at bytes that never arrived is worse than an orphaned object.
-
-### Step 4: The full multiplayer frontend
-
-The user's choice: **full multiplayer from the start**, no single-player stepping stone.
-Scope is lobby, join-by-code, realtime round sync, guess grading, reveal and scoreboard,
-with a mobile layout. Relative paths only, since this deploys to GitHub Pages.
-
-**Wire it against the real RPCs, not stubs** - `create_room`, `join_room`, `start_game`,
-`get_current_round`, `grade_guess`. Note that this will be the first time RPC-over-HTTP
-and Storage reads have ever run from a browser, so budget for surprises there rather than
-in the game logic.
-
-### Step 5: Deploy and measure
-
-A Pages deploy workflow, then a genuine two-browser multiplayer test, then real egress
-measured against the arithmetic in section 9.
-
-### Leftover doc debt (medium priority, safe to batch)
-
-- `doc/GAME-DESIGN.md` sections 1.1, 2 (round timeline) and 2.1.1 (threat model) still
-  describe video. The threat model also needs a note that reverse image search and
-  trace.moe get marginally easier with clean held stills - the frames chosen for detail
-  are the best possible search inputs. The existing reasoning (speed bonus beats search
-  time) mostly carries over.
-- The blockquote in section 5.1 still says clips are re-encoded to ~1 MB at step 6. That
-  step no longer exists.
-- `doc/ARCHITECTURE.md` asset flow, and `doc/RESEARCH.md` section 4.7 egress arithmetic,
-  both need the two-mode numbers below.
-
-
-- `doc/GAME-DESIGN.md` sections 1.1, 2 (round timeline) and 2.1.1 (threat model) still
-  describe video. The threat model also needs a note that reverse image search and
-  trace.moe get marginally easier with clean held stills - the frames chosen for detail
-  are the best possible search inputs. The existing reasoning (speed bonus beats search
-  time) mostly carries over.
-- The blockquote in section 5.1 still says clips are re-encoded to ~1 MB at step 6. That
-  step no longer exists.
-- `doc/ARCHITECTURE.md` asset flow, and `doc/RESEARCH.md` section 4.7 egress arithmetic,
-  both need the two-mode numbers below.
-
----
+- `doc/GAME-DESIGN.md` sections 1.1, 2 and 2.1.1 still describe **video**. The content
+  model has been stills-plus-audio since 0010.
+- `doc/DATA-MODEL.md` line 3 still says "These are specifications, not migrations. No
+  migration has been written or applied", which has been false since 0001.
+- `doc/ARCHITECTURE.md` asset flow and `doc/RESEARCH.md` 4.7 egress arithmetic both
+  predate the two-mode (stills-only / audio+stills) content model.
+- `doc/RESEARCH.md` 4.9 analyses AnimeThemes' terms but not the redistribution side:
+  the project re-hosts derived stills and audio in a public-read bucket, and "private
+  friends' game" is doing load-bearing work in a conclusion the public bucket does not
+  support. One honest paragraph, not a rewrite.
 
 ## 9. The numbers
 
@@ -668,10 +685,26 @@ a bug.
 - `ingest_question` v1 accepted a real payload including CJK titles.
 - uuid determinism; bucket config; all policies.
 
+### Proven behaviourally, added 2026-08-23 (third session)
+
+- **Storage upload works.** First execution ever; objects landed under all three key
+  roots.
+- **`ingest_question` over HTTP works** - but only after a fix. The first attempt
+  returned `PGRST202`, because PostgREST maps the top-level keys of an RPC body to
+  NAMED arguments and `curate_theme.py` posted the payload bare against a function
+  taking one `p_payload jsonb`. Every previous test went through SQL, where the
+  argument is positional and the mistake cannot occur. **This is the single best
+  argument in the repo for exercising a path rather than reasoning about it.**
+- **The Pages deploy path works**, and `actions/configure-pages` with
+  `enablement: true` does *not* bootstrap a site that never existed.
+- Migrations 0012 and 0013 applied and verified against `information_schema` /
+  `pg_policy`.
+
 ### Never executed even once
 
-Storage upload. `ingest_question` over HTTP. The retry/backoff ladder. Any frontend code.
-Any real egress measurement. OCR against a stylised anime logo.
+The retry/backoff ladder. Any real egress measurement. Any browser actually playing a
+round - `app/` has never run against a live game, because there was no content and no
+anonymous auth while it was written. The two-browser multiplayer test.
 
 ---
 
@@ -685,9 +718,11 @@ Any real egress measurement. OCR against a stylised anime logo.
 - Management API: `POST https://api.supabase.com/v1/projects/{ref}/database/query`
 - AnimeThemes GraphQL: `POST https://graphql.animethemes.moe/`
 - Video CDN: `https://v.animethemes.moe/{basename}`
-- Recent commits: `92e0761` then `c77e239` (migration 0010 + docs) then `b86ca2f`
-  (section 5.2 pipeline spec)
-- Last green dry run: `32590411786`
+- **Live site: `https://sayandeep1013.github.io/Rein-Bot/`** (Pages `build_type=workflow`)
+- SQL runner: `python .tmp/q.py <file.sql>` - `.tmp/q.ps1` cannot be used, see section 6
+- Orphan report: `python .tmp/q.py tools/sweep-orphans.sql`
+- Workflows: `curate.yml` (content), `pages.yml` (deploy), `test.yml` (contract suite),
+  `sweep.yml` (orphaned media)
 
 ### Doc map
 

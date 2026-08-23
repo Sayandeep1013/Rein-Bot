@@ -6,38 +6,60 @@ cleared.
 
 ## Open
 
-### Triage index — added 2026-08-22
+### Triage index — rewritten 2026-08-23 (third session)
 
 `## Open` below is a chronological log, not a to-do list: some entries are closed but
 never moved, and others are permanent constraints that will never clear. Counting the
-headings therefore overstates how much is outstanding. The real split:
+headings overstates how much is outstanding.
+
+**The previous version of this index was itself stale, which is worth recording because
+this index exists specifically to prevent that.** It called B-28 "not yet implemented in
+the pipeline" after the rule had shipped in `ed3d177`, and it called B-11 item 2 "the
+single hardest blocker — it gates the entire curation pipeline" after the seed list had
+been hand-authored into `doc/SEED-LIST.md` and `pipeline/manifest.json` had been built
+from it. An index that is not re-read when the thing it indexes changes is worse than no
+index, because it is trusted.
 
 | | Entries | Meaning |
 | --- | --- | --- |
-| **Actionable — genuinely blocking** | **B-11** (item 2 only), **B-13**, **B-16**, **B-28** | Needs work or a decision before launch. |
-| **Needs one verification step** | **B-19** | Mitigated already; only needs an opencode restart to confirm. |
+| **Blocking launch, needs the user** | **B-30** | Two dashboard actions. Nothing else matters until they are done. |
+| **Actionable** | **B-13**, **B-16** | Egress-overage behaviour unverified; the inactivity-pause mitigation is documented but not implemented. |
+| **Decided, monitoring** | **B-28** | Decision recorded below: accept the residual, remedy through `retired_at`. Not a launch blocker. |
 | **Permanent constraints — not clearable** | B-9, B-10 | Provider behaviour. Keep for reference; never "fix". |
-| **Closed, left in place** | B-4, B-14, B-15, B-20, B-21, B-25, B-26, B-27, **B-29** | Resolved or decided; retained here for the reasoning trail. |
+| **Closed, left in place** | B-4, B-11, B-14, B-15, B-19, B-20, B-21, B-25, B-26, B-27, B-29 | Resolved or decided; retained for the reasoning trail. |
 
-So the honest count is **four actionable items**, and as of 2026-08-23 **none of them is waiting on the user**: B-21 was resolved on 2026-08-22 once the dashboard showed 0% egress, and B-25 was decided on 2026-08-23 (three progressive stills, audio optional per room, no video anywhere). B-27 was opened and resolved the same day.
+**B-11 item 2 is closed.** The hand-built seed list exists (`doc/SEED-LIST.md`), the
+manifest was built from it (46 anime, 136 themes, deduping to 134), and the curation
+pipeline has run against it. Items 4, 5, 7 and 8 of that entry were never blockers and
+have all been defaulted in the shipped build.
 
-**B-28 is now the single riskiest open item**, and it moved from "unverified premise" through
-*partially measured* and **measured insufficient** to **rule chosen, not yet shipped**. Two
-things changed on 2026-08-23. First, a re-eyeball of the suspect pool found **three of five
-labels were wrong** — including one frame previously written off as an "uncatchable leak" that
-is simply clean — so the ground truth is **4 positives, 37 clean**, and the rule that was one
-step from production had been fitted to bad labels. Second, with corrected labels the
-**glyph-size hypothesis is falsified**: the tallest token in 16,038 is a hallucination on a hair
-curve in a clean frame. The replacement is a **two-feature union** — typographic coherence plus a
-confidence-free count of large boxes — measured at **4 of 4 known-bad caught, 0 missed, 0
-promoted, 5 clean frames lost, yield intact at 3 stills per theme**. It is not yet implemented in
-the pipeline, and runs 3/4 still ship 2 confirmed leaks, so B-28 stays open; what remains is a
-code change plus eyeballing the 7 frames the new rule promotes. **B-29** was opened and closed
-the same day (poster key derivable from the still keys a player already holds — migration 0011).
+**B-16 deserves a note it never had.** Its mitigation is "`pg_cron` keeps the project
+active", and **`pg_cron` is not installed and no job is scheduled** — verified by
+grepping every migration. The same non-existent cron is cited in `doc/DATA-MODEL.md` 8.2
+for retention and in `doc/ARCHITECTURE.md` 12 as the liveness net for a room whose
+players all disconnect. Three documented mechanisms rest on one component that was never
+built. None of them blocks launch, but none of them works either.
 
-The single hardest blocker remains **B-11 item 2** — the hand-built seed list of titles.
-It gates the entire curation pipeline, no amount of engineering removes it, and it is the
-one item that needs the user's own taste rather than a decision I can make.
+### B-30 — Two Supabase dashboard actions block a playable game · OPEN, needs the user
+
+- **What:** the deployed site cannot complete a single RPC until both are done.
+  1. **Anonymous sign-in is disabled.** Measured, not assumed:
+     `GET /v1/projects/{ref}/config/auth` returns
+     `"external_anonymous_users_enabled": false`. Every game RPC opens with
+     `if auth.uid() is null then raise AUTH_REQUIRED`, and the game has no accounts by
+     design, so an anonymous session is the only identity a player can have.
+     Fix: Authentication → Sign In / Providers → Anonymous sign-ins.
+  2. **`app/config.js` carries a placeholder publishable key.**
+     Fix: Settings → API Keys → the `anon` / publishable key, pasted in and committed.
+- **Why it needs the user:** the harness safety classifier blocks an agent from changing
+  hosted auth configuration or reading a project credential, which is the correct
+  boundary. Neither is a decision — both are mechanical.
+- **Not a design risk.** The publishable key is public by construction: it goes in
+  browser JavaScript, RLS is what protects the data, and `.github/workflows/pages.yml`
+  refuses to deploy any key whose JWT `role` claim is not `anon`.
+- **Mitigated meanwhile:** the client detects both conditions at boot and renders the
+  exact fix, so a visitor sees instructions rather than a blank page.
+- **Closes when** a real game runs end to end in a browser.
 
 ### B-11 — Game design partially decided; secondary decisions still open
 - **Status 2026-08-21:** The four load-bearing decisions are **made** and recorded
@@ -1141,6 +1163,59 @@ needs no further calibration; what is missing is a review gate and a way to act 
 no frame-level exclusion mechanism exists today: `manifest.json`'s `excluded` is theme-level, and
 `curate_theme.py` has no per-timestamp blocklist, so acting on a rejected frame currently requires
 adding one.
+
+#### DECIDED 2026-08-23 (third session) — accept the residual, remedy through `retired_at`
+
+Option **B** of the four presented above, but not for the reason option B was written.
+The framing was wrong, and correcting it is what makes the decision cheap.
+
+**A name card is not a security failure. It is a quality defect.** `doc/GAME-DESIGN.md`
+§2.1.1 already accepts reverse image search as an unfixable residual — *"Anime OP/ED
+frames are extremely well indexed, so this will usually succeed. This is unfixable in
+principle."* Against a player who is willing to cheat, every frame this pipeline ships
+is one right-click from `trace.moe`, and a cursive name card is a strictly weaker attack
+than that: it requires noticing text, reading it, and searching for it.
+
+What a name card actually does is different, and it is why "just accept it" was still
+the wrong answer on its own: **it fires without anyone choosing to cheat.** The round is
+simply spoiled for everyone. So the thing that matters is not certainty, it is the
+*rate* — and the measured rate is 1 leaking still in 36 shipped, which is 8.3% of
+questions, which is roughly a 58% chance that a 10-round game contains one dud round.
+That is too high to ignore and far too low to justify eyeballing 402 frames.
+
+**Reframing it from security to quality collapses the remedy cost, because a quality
+defect has a repair path that a security hole does not.** `question_bank.retired_at`
+already exists and `create_room` already filters on it. A dud round is therefore one
+`UPDATE` away from never being served again:
+
+```sql
+update public.question_bank set retired_at = now() where id = '<question id>';
+```
+
+So: **ship, and retire what surfaces.** No 402-frame review, now or ever.
+
+**What was done instead of a review**, because the measured rate is only as good as the
+filter's own integrity, and the audit found three ways it was silently failing open:
+
+| Fixed | Effect |
+| --- | --- |
+| rapidocr geometry discarded when the `orig` pass read nothing (24 of 621 frames) | The second engine's evidence was being dropped on precisely the frames where it is the only defence |
+| A failed ffmpeg upscale silently deleted an OCR pass | Now fatal, matching `ocr_words`' own policy three lines above it |
+| Unresolvable geometry scored `0.0` | Now scores at the reject line: unmeasured is not clean |
+| The baseline bonus read `toks[0]` rather than `grp[0]` | Latent, but an under-rejection whenever it fired |
+
+Two of those widen the *measured* false-negative rate rather than narrowing it, which is
+the honest direction: 2.8% was an underestimate taken with a partly-broken filter.
+
+**Consequence for the docs.** `doc/GAME-DESIGN.md` promises "2-3 progressively revealed
+still frames, **text-free**". That is not what the filter delivers and never was. The
+honest claim is **"no title cards"**, and the promise should be reworded rather than the
+filter over-tuned to meet it.
+
+**This is no longer a launch blocker.** It stays open as a monitoring item: if real play
+shows the dud rate is materially worse than 8%, revisit — with the triage filter
+(`longest_0 >= 5 AND longest_70 < 5 AND chars_0 >= 40`, 2 of 36 on the ship set) as the
+review tool, not as a rejector.
 
 **Fallback if OCR still proves unreliable:** stills-only rooms lose their safety margin, so
 the fallback is not "ship it anyway". Options, in order of preference: bias selection to

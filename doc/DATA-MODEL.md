@@ -1,8 +1,14 @@
 # ReIN Bot — Data Model
 
-Status: **first draft, 2026-08-22.** **These are specifications, not migrations.** No
-migration has been written or applied. The Supabase MCP is still bound to an unrelated
-project (B-19), so none of this has been validated against a live database.
+Status: **applied and live, last revised 2026-08-23.** Migrations `0001`–`0013` are
+applied to Supabase project `mxkqivivqultfuattuin` and verified against
+`information_schema` / `pg_policy`.
+
+> **This header used to read** *"These are specifications, not migrations. No migration
+> has been written or applied."* It stayed that way through thirteen applied migrations.
+> Worth leaving a scar on: a status line nobody re-reads is the cheapest possible way to
+> mislead the next reader, and §9 of this very file had been recording applied
+> migrations the whole time.
 
 Companion documents: `doc/ARCHITECTURE.md` (component boundaries), `doc/GAME-DESIGN.md` (game
 rules and matching semantics), `doc/RESEARCH.md` (verified platform numbers),
@@ -721,6 +727,55 @@ Verified 2026-08-23 against the live database: in a room with `audio_enabled=fal
 
 ---
 
+### 6.7 `get_room_state(p_room_id uuid) → jsonb`
+
+Added by migration 0013. **The client's single read endpoint**, polled roughly every
+1.5 s. `security definer`, `stable`, granted to `authenticated` only; it re-checks
+membership rather than trusting the caller, exactly as `get_current_round` does.
+
+```
+{ server_now, room_id, code, state, round_count, current_round, audio_enabled,
+  my_player_id, is_host, deadline,
+  players: [ { id, name, score, is_me, is_host } ],
+  round:   { round_id, ordinal, starts_at, ends_at, answered, assets:{ stills[], audio? } } | null,
+  reveal:  { titles, year, season, format, theme, anime_slug, source_url,
+             ordinal, poster, winner:{ name, points } | null } | null }
+```
+
+**Why this exists rather than Realtime.** `emit_room_event` publishes with
+`realtime.send(..., false)` — a public channel — and the reveal payload contains the
+answer. 0012 narrowed the topic from `room:<4-char code>` (about a million topics,
+enumerable) to `room:<uuid>`, which makes eavesdropping impractical, but the channel is
+still public by construction. That is the security argument, and it is the weaker one.
+
+The decisive argument is that **a push tells a client what happened; it does not tell a
+client what is true.** After a refresh, a backgrounded tab, or a dropped socket, the
+client needs a "what is the state right now" call regardless. Once that call has to
+exist, polling it *is* the whole client, and the transport stops being a second thing
+that can be wrong. Measured cost: ~800 bytes per response, so ~1.2 MB per 10-round
+8-player game, against 10–22 MB of media for the same game.
+
+**Three things it computes server-side, each for a reason:**
+
+- **The scoreboard.** 0012's `guesses` policy deliberately hides other players' rows
+  until their round has ended, so a client cannot sum `points` itself without either
+  seeing answers early or showing a stale board.
+- **`reveal`, gated on `now() >= rd.ends_at`.** It describes the most recently
+  *finished* round and cannot describe one still in play.
+- **`server_now`.** A browser clock can be minutes out, and every deadline in this
+  schema is server-side. The client measures its own offset from this rather than
+  trusting `Date.now()`.
+
+**What it strips, matching `get_current_round` §6.6:** `poster` always, because the
+poster is harvested from the frames the OCR filter *rejected for containing text* and is
+the single most spoiling image of the sequence; and `audio` when `rooms.audio_enabled`
+is false, which is an egress control rather than a security one — the bucket is
+public by key, so a determined player could fetch it anyway.
+
+Errors: `AUTH_REQUIRED`, `ROOM_NOT_FOUND`, `NOT_A_MEMBER`.
+
+---
+
 ## 7. RLS and grants
 
 RLS here is **row scoping, not answer secrecy.** The user has dropped secrecy as a goal.
@@ -752,8 +807,24 @@ for a second read path to bypass. `pg_graphql` is also not installed.
 | --- | --- | --- |
 | `rooms` | rows the caller has a `players` row for | none |
 | `players` | rows sharing a room with the caller | none |
-| `rounds` | rows in the caller's room | none |
-| `guesses` | rows for rounds in the caller's room | none |
+| `rounds` | rows in the caller's room, **and only the columns `id, room_id, ordinal, started_at, ends_at`** | none |
+| `guesses` | own rows always; other players' rows only once that round's `ends_at` has passed | none |
+
+> **Both of those rows were widened by migration 0012, because both were answer leaks.**
+>
+> **`rounds.question_id` is no longer granted to any client role.** RLS is row-level and
+> cannot withhold a column, so this is a column-level `GRANT`. `question_id` is a
+> *globally stable* identifier for a fixed answer and `create_room` pre-inserts every
+> round, so a member could read the whole game's question ids out of the lobby, pair them
+> with `ROUND_REVEAL` titles over a few games, and hold a permanent answer key to the
+> bank. Migration 0010 had considered this and written *"question_id stays on the row and
+> remains harmless"*.
+>
+> **`guesses` no longer streams the answer to the room.** The table is in the
+> `supabase_realtime` publication, so under the previous whole-room policy the winning
+> guess's `raw` text was *pushed* to every client with the round still running. The 0006
+> policy comment called that "a UI obligation, not schema-enforceable"; it is enforceable,
+> in one predicate, using the SECURITY DEFINER helper `is_own_player(uuid)`.
 
 **Every write goes through a function.** No table has a direct `INSERT`, `UPDATE`, or
 `DELETE` grant, which means the schema cannot be driven into an invalid state by a

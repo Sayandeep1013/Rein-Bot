@@ -73,24 +73,36 @@ code out. No auth provider, no email, no PII, no extra quota to budget.
 
 ## Status
 
-**Backend schema is live and the curation pipeline is being debugged.**
+**Deployed at [sayandeep1013.github.io/Rein-Bot](https://sayandeep1013.github.io/Rein-Bot/).**
+Content is loading; two dashboard steps remain before a game can be played.
 
 Done:
 
-- Migrations `0001`–`0009` applied to a live Supabase project and execution-tested —
+- Migrations `0001`–`0013` applied to a live Supabase project and execution-tested —
   rooms, players, rounds, guesses, the question bank, RLS posture, the grading RPC,
-  the idempotent ingest RPC, and the `clips` storage bucket.
+  the idempotent ingest RPC, the `media` bucket, and `get_room_state`.
+- **A supervisory audit of everything above**, which found and closed two independent
+  paths by which a client could read the answer, four correctness bugs, and three
+  places where the curation pipeline's spoiler filter failed *open*. Written up in
+  [PROGRESS.md](./doc/PROGRESS.md); the short version is that the schema's comments had
+  become its weak point, and execution testing passed because the tests confirmed what
+  the comments claimed.
 - A curated manifest of **46 anime / 136 openings**, every one verified credit-free,
   unsubbed, non-spoiler and SFW from the source API rather than assumed.
-- The GitHub Actions curation workflow, which now transcodes and reports correctly.
+- The web client, in [`app/`](./app) — no framework, no build step, and no
+  `supabase-js`: one polled RPC plus REST is all `fetch()`, so the page has zero
+  third-party runtime dependencies.
 
-Deliberately not built yet:
+Remaining, and both need a human with dashboard access
+([B-30](./doc/BLOCKERS.md)):
 
-- **The web client.** Nothing is playable in a browser yet. This is the next piece.
-- Persistent profiles or lifetime stats — out of scope, see `GAME-DESIGN.md` §8.
+1. Enable **anonymous sign-in** on the Supabase project.
+2. Paste the **publishable key** into `app/config.js`.
 
-Known open work is tracked in [BLOCKERS.md](./doc/BLOCKERS.md); progress is logged
-per task in [PROGRESS.md](./doc/PROGRESS.md).
+The client detects both and renders the fix, so the deployed site explains itself
+rather than failing blankly.
+
+Out of scope: persistent profiles or lifetime stats — see `GAME-DESIGN.md` §8.
 
 ## Content and credits
 

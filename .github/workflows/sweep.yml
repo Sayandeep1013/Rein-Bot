@@ -1,0 +1,158 @@
+# Delete objects in the `media` bucket that no question_bank row points at.
+#
+# WHY THIS IS A WORKFLOW AND NOT A SQL SCRIPT
+# storage.protect_delete() rejects a direct DELETE from storage.objects --
+# `42501: Direct deletion from storage tables is not allowed. Use the Storage API
+# instead.` -- so removing an object needs a Storage API call authenticated with the
+# service-role key, and that key exists only in this repository's Actions secrets.
+# tools/sweep-orphans.sql is the read-only twin: it reports the same set from SQL,
+# for anyone who has the Management token but not the service key.
+#
+# WHY ORPHANS EXIST AT ALL
+# curate_theme.py uploads all five objects for a question and THEN calls
+# ingest_question, deliberately in that order: a row pointing at bytes that never
+# arrived is worse than bytes no row points at. Any failure in between leaves 1-5
+# objects behind, and a retry mints fresh uuids -- it must, because the slugs are the
+# only thing protecting a public-read object -- so the earlier upload can never be
+# adopted, only swept.
+#
+# SAFETY
+# Defaults to a dry run: it prints what it would delete and stops. It also refuses to
+# run while a curation workflow is in flight, because an object uploaded seconds ago
+# whose ingest has not yet committed is indistinguishable from an orphan.
+
+name: Sweep orphaned media
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "List orphans without deleting anything"
+        type: boolean
+        required: true
+        default: true
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: curate      # same group as curate.yml: never sweep during a curation run
+  cancel-in-progress: false
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Refuse to sweep while curation is running
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          n=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?status=in_progress&per_page=100" \
+                --jq '[.workflow_runs[] | select(.name == "curate")] | length')
+          q=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?status=queued&per_page=100" \
+                --jq '[.workflow_runs[] | select(.name == "curate")] | length')
+          if [ "$n" -gt 0 ] || [ "$q" -gt 0 ]; then
+            echo "::error::A curate run is in progress or queued. Its in-flight uploads would look like orphans."
+            exit 1
+          fi
+          echo "no curation in flight"
+
+      - name: Sweep
+        env:
+          SUPABASE_URL: https://mxkqivivqultfuattuin.supabase.co
+          SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SERVICE_KEY:-}" ]; then
+            echo "::error::SUPABASE_SERVICE_ROLE_KEY is not set."
+            exit 1
+          fi
+          python3 - <<'PY'
+          import json, os, urllib.request, urllib.error
+
+          URL = os.environ["SUPABASE_URL"].rstrip("/")
+          KEY = os.environ["SERVICE_KEY"]
+          DRY = os.environ.get("DRY_RUN", "true").lower() == "true"
+          H = {"Authorization": "Bearer " + KEY, "apikey": KEY,
+               "Content-Type": "application/json"}
+
+          def call(method, path, body=None):
+              req = urllib.request.Request(
+                  URL + path,
+                  data=json.dumps(body).encode() if body is not None else None,
+                  headers=H, method=method)
+              try:
+                  with urllib.request.urlopen(req, timeout=120) as r:
+                      return r.status, json.loads(r.read().decode() or "null")
+              except urllib.error.HTTPError as e:
+                  raise SystemExit("HTTP %d on %s %s: %s"
+                                   % (e.code, method, path, e.read().decode()[:300]))
+
+          # Valid keys, built from the same layout question_asset_keys() defines.
+          _, rows = call("GET", "/rest/v1/question_bank"
+                                "?select=asset_slug,poster_slug,audio_slug,still_count"
+                                "&limit=5000")
+          valid = set()
+          for r in rows:
+              valid.add("audio/%s.webm" % r["audio_slug"])
+              valid.add("posters/%s.jpg" % r["poster_slug"])
+              for n in range(1, int(r["still_count"]) + 1):
+                  valid.add("stills/%s-%d.jpg" % (r["asset_slug"], n))
+          print("question_bank rows: %d, valid keys: %d" % (len(rows), len(valid)))
+
+          # The Storage list endpoint is folder-scoped, so each prefix is listed
+          # separately and paged; a flat list of the bucket root returns folders.
+          found = []
+          for prefix in ("audio", "posters", "stills"):
+              offset = 0
+              while True:
+                  _, page = call("POST", "/storage/v1/object/list/media",
+                                 {"prefix": prefix + "/", "limit": 1000,
+                                  "offset": offset, "sortBy": {"column": "name",
+                                                               "order": "asc"}})
+                  if not page:
+                      break
+                  for o in page:
+                      if o.get("id") is None:
+                          continue          # a nested folder, not an object
+                      found.append((prefix + "/" + o["name"],
+                                    (o.get("metadata") or {}).get("size") or 0))
+                  if len(page) < 1000:
+                      break
+                  offset += len(page)
+
+          orphans = [(k, b) for k, b in found if k not in valid]
+          kb = sum(b for _, b in orphans) / 1024.0
+          print("objects in bucket: %d, orphans: %d (%.0f KB)"
+                % (len(found), len(orphans), kb))
+          for k, _ in sorted(orphans):
+              print("  orphan:", k)
+
+          summary = os.environ.get("GITHUB_STEP_SUMMARY")
+          if summary:
+              with open(summary, "a") as f:
+                  f.write("### Orphan sweep\n\n")
+                  f.write("- bucket objects: **%d**\n" % len(found))
+                  f.write("- referenced by question_bank: **%d**\n" % len(valid))
+                  f.write("- orphans: **%d** (%.0f KB)\n" % (len(orphans), kb))
+                  f.write("- mode: **%s**\n" % ("dry run" if DRY else "DELETED"))
+
+          if not orphans:
+              print("nothing to sweep")
+              raise SystemExit(0)
+          if DRY:
+              print("dry run: nothing deleted")
+              raise SystemExit(0)
+
+          # The Storage delete endpoint takes a batch of keys.
+          for i in range(0, len(orphans), 100):
+              batch = [k for k, _ in orphans[i:i + 100]]
+              call("DELETE", "/storage/v1/object/media", {"prefixes": batch})
+              print("deleted %d" % len(batch))
+          print("swept %d orphaned object(s)" % len(orphans))
+          PY
