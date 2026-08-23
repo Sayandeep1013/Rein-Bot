@@ -541,6 +541,76 @@ try:
 except KeyError:
     expect("unscored candidate raises", "KeyError", "KeyError")
 
+# --------------------------------------------------------------------------
+# The union rule's own arithmetic.
+# --------------------------------------------------------------------------
+# Added after a review found that neither text_filter fixture above ever drives
+# _coherence to a nonzero value or makes _dedupe merge anything: fake_frame's two
+# tokens land in singleton clusters, and big_box_frame's three are all one pass and
+# all below OCR_MIN_CONF. So the two functions the entire calibration rests on had
+# zero coverage, and any refactor that quietly zeroed them would still have gone
+# green. These drive them directly.
+
+import math
+
+
+def rt(pass_name, h, top, conf, w=220, img_w=1280, img_h=720):
+    return {"pass": pass_name, "conf": float(conf), "h_px": float(h),
+            "w_px": float(w), "top_px": float(top),
+            "img_w": float(img_w), "img_h": float(img_h)}
+
+
+# Three confident boxes of near-identical height on a shared baseline: a run of set
+# type, which is what the coherence feature exists to name.
+line = [rt("orig", 80, 300, 90), rt("orig", 82, 302, 90), rt("orig", 78, 301, 90)]
+coh = mod._coherence(line, mod.OCR_MIN_CONF)
+expect("coherence is nonzero on a real typographic cluster", coh > 0.0, True)
+# Pinned from the calibrated implementation: median height fraction 82/720, three
+# boxes, conf weight (0.9)^2, and the tight-baseline multiplier. Pinning the value
+# rather than just its sign is what makes this a regression test on the constants.
+want_coh = (80.0 / 720.0) * math.sqrt(3) * (0.9 ** mod._CONF_K) * mod._BASELINE_BONUS
+expect("  ^ and equals median_h * sqrt(n) * conf_weight * baseline_bonus",
+       round(coh, 10), round(want_coh, 10))
+
+# Below _MIN_SIZE nothing is a typeface, at any size. This is the relaxation that
+# was tried and abandoned because it readmitted a hair-curve pair.
+expect("two boxes are not a cluster",
+       mod._coherence(line[:2], mod.OCR_MIN_CONF), 0.0)
+
+# Cross-pass duplicate suppression. The same glyph found by two engines is one
+# piece of evidence, not two -- before this, one confirmed-clean frame scored the
+# highest risk of all 41 labelled frames purely from double-counting.
+dup = [rt("orig", 80, 300, 70), rt("rapid", 81, 301, 95)]
+merged = mod._dedupe(dup)
+expect("cross-pass duplicates collapse to one box", len(merged), 1)
+expect("  ^ the higher-confidence reading survives", merged[0]["conf"], 95.0)
+
+# Same-pass boxes really are two boxes.
+expect("same-pass boxes are never merged",
+       len(mod._dedupe([rt("orig", 80, 300, 90), rt("orig", 81, 301, 90)])), 2)
+
+# Dedupe must actually change the verdict, not merely the token list: three boxes
+# is the reject line for the count feature, so a triple-counted single feature
+# would reject a clean frame.
+one_feature_thrice = [rt("orig", 300, 100, 60),
+                      rt("up2x", 302, 101, 60),
+                      rt("rapid", 299, 99, 60)]
+expect("one feature seen by three passes does not reach the box-count threshold",
+       mod._bigcount(one_feature_thrice) < mod.OCR_BIG_T, True)
+
+# --------------------------------------------------------------------------
+# Unresolvable geometry is rejected, not scored zero.
+# --------------------------------------------------------------------------
+# rapidocr reports no page box, so its rows are backfilled from a tesseract pass.
+# When neither the orig nor the up2x pass yields one, the boxes used to keep
+# img_h = 0, score _frac() == 0.0, and drop out of BOTH features -- on exactly the
+# frames where tesseract read nothing and rapidocr is the only defence.
+unresolved = {"geoms": [("rapid", [])], "geom_unresolved": True}
+expect("unresolvable geometry scores at the reject line",
+       mod.ocr_risk(unresolved) >= 1.0, True)
+expect("resolvable-but-empty geometry still scores zero",
+       mod.ocr_risk({"geoms": [("rapid", [])], "geom_unresolved": False}), 0.0)
+
 print()
 print("FAILURES: %d" % len(fails))
 if fails:

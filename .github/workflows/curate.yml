@@ -384,9 +384,35 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
           echo "ok=$ok dry=$dry skipped=$skipped already=$already failed=$failed"
+
           # SKIP is a designed outcome (a sequence that yielded fewer than two
-          # clean frames), so it must not fail the run. Only real errors do.
-          [ "$failed" -eq 0 ]
+          # clean frames), so it must not fail the run on its own. Only real errors do.
+          if [ "$failed" -ne 0 ]; then
+            echo "::error::$failed theme(s) failed."
+            exit 1
+          fi
+
+          # MINIMUM-YIELD GATE.
+          # Without this the job goes green when the pipeline produces nothing at
+          # all: every theme SKIPping is "0 failures". That is not hypothetical --
+          # GAME-DESIGN 5.2.2 records a measured run where the then-current text
+          # rule skipped 8 of 10 themes, and that run would have reported success
+          # here. A tightened OCR threshold is exactly the change that causes it,
+          # and it is precisely the change nobody wants to discover silently.
+          produced=$(( ok + dry + already ))
+          attempted=$(( produced + skipped + failed ))
+          if [ "$attempted" -eq 0 ]; then
+            echo "::error::Empty slice: no themes attempted. Check start/count against the pool size."
+            exit 1
+          fi
+          # 70% is chosen to sit well clear of normal variation (runs so far skip
+          # 0 of 12) while still catching a rule change that guts the yield.
+          floor=$(( (attempted * 7 + 9) / 10 ))
+          if [ "$produced" -lt "$floor" ]; then
+            echo "::error::Yield too low: $produced/$attempted themes produced content, floor is $floor (70%). $skipped skipped for too few clean stills -- usually an OCR threshold rejecting real frames."
+            exit 1
+          fi
+          echo "yield ok: $produced/$attempted (floor $floor)"
 
       # Uploaded even when the job fails, because these frames ARE the evidence
       # for B-28 and a green run proves nothing by itself. out/stills holds

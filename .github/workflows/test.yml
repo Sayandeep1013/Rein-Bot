@@ -1,0 +1,48 @@
+# Run the pipeline contract tests.
+#
+# WHY THIS FILE EXISTS
+# tools/pipeline/test_curate_contract.py has been tracked and green since it was
+# written, and it had never run in CI even once: curate.yml was the repo's only
+# workflow and invokes no test runner. A suite that only runs when someone
+# remembers to type the command is a suite that goes stale silently.
+#
+# It needs no services, no database and no secrets -- every OCR pass is faked --
+# so it runs on push and on pull request in well under a minute.
+
+name: Tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "tools/pipeline/**"
+      - ".github/workflows/test.yml"
+  pull_request:
+    paths:
+      - "tools/pipeline/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Byte-compile the pipeline
+        run: python -m py_compile tools/pipeline/curate_theme.py
+
+      - name: Contract tests
+        # The suite prints "FAILURES: n" and exits non-zero when n > 0.
+        # PYTHONUTF8 because the suite handles CJK tokens and the runner's locale is
+        # not something this repo should depend on -- the same reasoning that made
+        # curate_theme.py decode stdin explicitly.
+        env:
+          PYTHONUTF8: "1"
+        run: python tools/pipeline/test_curate_contract.py

@@ -1,0 +1,110 @@
+# Deploy the static client to GitHub Pages.
+#
+# The site root is app/, not the repo root: everything else here is docs, SQL and the
+# curation pipeline, none of which should be world-readable as a website. Paths inside
+# app/ are all relative ("./style.css"), because Pages serves this project under
+# /Rein-Bot/ rather than at a domain root -- an absolute "/style.css" would 404.
+#
+# There is no build step. app/ is uploaded exactly as committed, which is the whole
+# reason the client has no framework and no bundler.
+#
+# WHY enablement: true
+# actions/configure-pages turns Pages on for the repo and sets its source to "GitHub
+# Actions" if it is not already. That makes this workflow self-sufficient: the first
+# run configures Pages instead of failing with "Pages is not enabled", so nobody has
+# to visit repo Settings first.
+
+name: Deploy site
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "app/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never let two deploys race. Unlike the curation workflow this one is cheap, so a
+# queued run is preferable to a cancelled one.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Refuse to publish an unconfigured or misconfigured client
+        run: |
+          set -euo pipefail
+          cfg=app/config.js
+
+          # A placeholder key deploys a site whose every action fails at the first
+          # RPC. The client detects this and shows setup instructions rather than
+          # breaking silently, but shipping it is still a mistake worth catching here.
+          if grep -q 'PASTE_PUBLISHABLE_KEY_HERE' "$cfg"; then
+            echo "::warning::app/config.js still holds the placeholder key. The site deploys and shows its own setup instructions, but is not playable until the key is filled in."
+          fi
+
+          # A service_role key must never reach a browser: it bypasses RLS entirely,
+          # so a copy-paste slip here would hand every visitor the answer bank. Hard
+          # failure, not a warning.
+          #
+          # This decodes any JWT it finds and inspects the role claim rather than
+          # grepping for the word "service_role" -- the first version of this guard
+          # did grep, and it failed the deploy on config.js's own comment explaining
+          # that the service_role key must not go there. A grep for a key name cannot
+          # tell a key from a sentence about keys.
+          node - <<'GUARD'
+          const fs = require("fs"), path = require("path");
+          let bad = [];
+          for (const f of fs.readdirSync("app")) {
+            const p = path.join("app", f);
+            if (!fs.statSync(p).isFile()) continue;
+            const s = fs.readFileSync(p, "utf8");
+            if (/\bsb_secret_[A-Za-z0-9_-]{10,}/.test(s)) bad.push(f + ": literal sb_secret_ key");
+            for (const m of s.matchAll(/eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/g)) {
+              let payload;
+              try { payload = JSON.parse(Buffer.from(m[0].split(".")[1], "base64url").toString("utf8")); }
+              catch (e) { continue; }
+              if (payload.role && payload.role !== "anon") bad.push(f + ": JWT with role=" + payload.role);
+            }
+          }
+          if (bad.length) { for (const b of bad) console.log("::error::" + b); process.exit(1); }
+          console.log("no privileged key in app/");
+          GUARD
+
+          # Absolute asset paths break under the /Rein-Bot/ path prefix.
+          if grep -Eq '(src|href)="/[^/]' app/index.html; then
+            echo "::error::app/index.html uses an absolute asset path. Pages serves this site from a subpath, so paths must be relative."
+            exit 1
+          fi
+
+          node --check app/app.js
+          node --check app/config.js
+          echo "client checks passed"
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: Upload app/ as the site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: app
+
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4

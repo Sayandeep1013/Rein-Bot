@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ReIN Bot - Guess the Anime</title>
+<meta name="description" content="Guess the anime from its opening. A multiplayer party game for 2-8 friends.">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#127916;</text></svg>">
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ============ boot / fatal ============ -->
+  <section id="scr-boot" class="screen active">
+    <div class="card center">
+      <div class="spinner"></div>
+      <p class="muted">Connecting…</p>
+    </div>
+  </section>
+
+  <section id="scr-fatal" class="screen">
+    <div class="card">
+      <h1 class="logo">ReIN<span>Bot</span></h1>
+      <div class="banner error" id="fatal-msg"></div>
+      <div id="fatal-help" class="help"></div>
+    </div>
+  </section>
+
+  <!-- ============ home ============ -->
+  <section id="scr-home" class="screen">
+    <div class="card">
+      <h1 class="logo">ReIN<span>Bot</span></h1>
+      <p class="tagline">Guess the anime from its opening.</p>
+
+      <label class="field">
+        <span>Your name</span>
+        <input id="in-name" type="text" maxlength="24" autocomplete="nickname"
+               placeholder="e.g. Sayan" spellcheck="false">
+      </label>
+
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-tab="join" role="tab">Join a room</button>
+        <button class="tab" data-tab="create" role="tab">Create a room</button>
+      </div>
+
+      <div id="pane-join" class="pane active">
+        <label class="field">
+          <span>Room code</span>
+          <input id="in-code" type="text" maxlength="4" placeholder="AB12"
+                 autocomplete="off" spellcheck="false" class="code-input">
+        </label>
+        <button id="btn-join" class="primary">Join</button>
+      </div>
+
+      <div id="pane-create" class="pane">
+        <label class="field">
+          <span>Rounds <b id="lbl-rounds">10</b></span>
+          <input id="in-rounds" type="range" min="3" max="20" value="10">
+        </label>
+        <label class="field">
+          <span>Difficulty <b id="lbl-diff">1 – 5</b></span>
+          <div class="dual">
+            <input id="in-dmin" type="range" min="1" max="5" value="1">
+            <input id="in-dmax" type="range" min="1" max="5" value="5">
+          </div>
+        </label>
+        <label class="check">
+          <input id="in-audio" type="checkbox" checked>
+          <span>Play the opening's audio</span>
+        </label>
+        <button id="btn-create" class="primary">Create</button>
+      </div>
+
+      <div id="home-err" class="banner error hidden"></div>
+    </div>
+    <p class="footer">
+      Clips from <a href="https://animethemes.moe" target="_blank" rel="noopener">AnimeThemes.moe</a>.
+      No accounts, no tracking.
+    </p>
+  </section>
+
+  <!-- ============ lobby ============ -->
+  <section id="scr-lobby" class="screen">
+    <div class="card">
+      <p class="muted small">Room code</p>
+      <div class="roomcode" id="lobby-code">----</div>
+      <button id="btn-copy" class="ghost small">Copy invite link</button>
+
+      <h2 class="section">Players <span id="lobby-count" class="pill">0/8</span></h2>
+      <ul id="lobby-players" class="players"></ul>
+
+      <p id="lobby-hint" class="muted small"></p>
+      <button id="btn-start" class="primary hidden">Start game</button>
+      <div id="lobby-err" class="banner error hidden"></div>
+      <button id="btn-leave" class="ghost small">Leave</button>
+    </div>
+  </section>
+
+  <!-- ============ play ============ -->
+  <section id="scr-play" class="screen">
+    <div class="playhead">
+      <span id="play-round" class="pill">Round 1/10</span>
+      <span id="play-clock" class="clock">20</span>
+    </div>
+    <div class="timerbar"><div id="play-bar"></div></div>
+
+    <div class="stills" id="play-stills"></div>
+
+    <div class="guessbox">
+      <div id="play-feedback" class="feedback"></div>
+      <form id="frm-guess" autocomplete="off">
+        <input id="in-guess" type="text" maxlength="120" placeholder="Name the anime…"
+               autocomplete="off" spellcheck="false" enterkeyhint="send">
+        <button type="submit" class="primary">Guess</button>
+      </form>
+      <ul id="play-mine" class="mine"></ul>
+    </div>
+
+    <button id="btn-sound" class="ghost small hidden">Tap to enable sound</button>
+    <ul id="play-scores" class="scores"></ul>
+  </section>
+
+  <!-- ============ reveal ============ -->
+  <section id="scr-reveal" class="screen">
+    <div class="card reveal">
+      <p class="muted small" id="rev-ordinal"></p>
+      <img id="rev-poster" alt="" class="poster">
+      <h2 id="rev-title"></h2>
+      <p id="rev-sub" class="muted"></p>
+      <div id="rev-winner" class="winner"></div>
+      <a id="rev-src" class="ghost small" target="_blank" rel="noopener">View on AnimeThemes</a>
+      <p class="muted small" id="rev-next"></p>
+    </div>
+  </section>
+
+  <!-- ============ over ============ -->
+  <section id="scr-over" class="screen">
+    <div class="card">
+      <h1 class="logo small">Final scores</h1>
+      <ul id="over-scores" class="scores big"></ul>
+      <button id="btn-again" class="primary">Back to start</button>
+    </div>
+  </section>
+
+</div>
+
+<!-- charset is explicit on both: this project has been bitten by encoding defaults
+     more than once, and app.js carries typographic characters in user-facing strings. -->
+<script src="./config.js" charset="utf-8"></script>
+<script src="./app.js" charset="utf-8"></script>
+</body>
+</html>

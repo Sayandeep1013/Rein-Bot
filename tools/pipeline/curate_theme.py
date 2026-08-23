@@ -539,11 +539,25 @@ def ocr_frame(path, workdir):
             "-vf", "scale=iw*%d:ih*%d:flags=lanczos" % (OCR_UPSCALE, OCR_UPSCALE),
             str(big),
         ])
-        if p.returncode == 0:
+        try:
+            if p.returncode != 0:
+                # A skipped OCR pass is indistinguishable from "this pass found no
+                # text", which is exactly how the one safety filter turns into a
+                # no-op. ocr_words() already makes a tesseract crash fatal for that
+                # reason; the same reasoning applies to the ffmpeg that feeds it.
+                # Until this fix the branch dropped the pass silently -- no log, no
+                # counter, no effect on the run's exit status.
+                raise RuntimeError(
+                    "upscale pass failed on %s (ffmpeg rc=%d): %s"
+                    % (path, p.returncode,
+                       p.stdout.decode("utf-8", "replace")[-400:])
+                )
             name = "up%dx" % OCR_UPSCALE
             w, g = ocr_words(big)
             passes.append((name, w))
             geoms.append((name, g))
+        finally:
+            # Was inside the success branch, so a partial PNG leaked on failure.
             big.unlink(missing_ok=True)
     if RAPIDOCR_ENABLE:
         # Detector-first second engine, on the original frame only: rapidocr
@@ -557,21 +571,48 @@ def ocr_frame(path, workdir):
     # original-frame pixels and the orig tesseract pass measured that exact
     # file, so its page box is reused rather than ffprobing 60 frames a theme.
     # Only the orig pass will do: up2x's page box is twice the size.
-    ref = None
+    ref_w = ref_h = 0
     for name, g in geoms:
         if name == "orig":
-            ref = next((t for t in g if t.get("img_h")), None)
+            t = next((t for t in g if t.get("img_h")), None)
+            if t:
+                ref_w, ref_h = t["img_w"], t["img_h"]
             break
-    if ref:
+
+    if not ref_h and OCR_UPSCALE > 1:
+        # FALLBACK ADDED AFTER REVIEW. Previously only the orig pass would do, and
+        # when it produced no alphanumeric tokens -- 24 of 621 frames in run 5 --
+        # every rapidocr box kept img_h = 0, so _frac() returned 0.0 and the box was
+        # dropped from BOTH union features. That happened on precisely the frames
+        # where tesseract read nothing and rapidocr is therefore the only defence,
+        # which is the worst possible place for a silent fail-open. up2x's page box
+        # is a known multiple of the real one, so it converts exactly.
         for name, g in geoms:
-            if name != "rapid":
-                continue
-            for t in g:
-                if not t.get("img_h"):
-                    t["img_w"] = ref["img_w"]
-                    t["img_h"] = ref["img_h"]
+            if name == "up%dx" % OCR_UPSCALE:
+                t = next((t for t in g if t.get("img_h")), None)
+                if t:
+                    ref_w = t["img_w"] // OCR_UPSCALE
+                    ref_h = t["img_h"] // OCR_UPSCALE
+                break
+
+    orphans = 0
+    for name, g in geoms:
+        if name != "rapid":
+            continue
+        for t in g:
+            if not t.get("img_h"):
+                if ref_h:
+                    t["img_w"] = ref_w
+                    t["img_h"] = ref_h
+                else:
+                    orphans += 1
 
     m = {"passes": passes, "geoms": geoms}
+    # Detections whose geometry cannot be resolved by either route are UNMEASURED,
+    # not clean. The cost asymmetry that settles every other threshold in this file
+    # settles this one too: a missed leak makes a round unplayable, a lost clean
+    # frame is one fewer out of ~50. ocr_risk() reads this and rejects.
+    m["geom_unresolved"] = orphans > 0
     for floor in (0, 50, 60, 70, 80, 90):
         best_chars = 0
         best_word = 0
@@ -756,7 +797,14 @@ def _coherence(toks, min_conf, key="h_px"):
         med_h = statistics.median([_frac(t, key) for t in grp])
         w = statistics.median([(t["conf"] / 100.0) ** _CONF_K for t in grp])
         risk = med_h * math.sqrt(len(grp)) * w
-        if toks[0]["img_h"]:
+        # grp[0], not toks[0]. The baseline bonus is a property of THIS cluster, but
+        # the guard used to read the first token of the whole frame -- which need not
+        # be in the cluster at all. When that unrelated token had no page box, the
+        # 1.5x bonus was skipped for every cluster in the frame even though each
+        # member had valid dimensions: an under-rejection, the unsafe direction.
+        # Latent rather than firing on run-5 data (only 5 tokens of 16,038 lacked
+        # img_h), and faithfully ported from the offline calibrator, defect included.
+        if grp[0]["img_h"]:
             tops = [t["top_px"] / float(t["img_h"]) for t in grp]
             if statistics.pstdev(tops) < med_h:
                 risk *= _BASELINE_BONUS
@@ -789,6 +837,14 @@ def ocr_risk(metrics):
     which turns a two-threshold rule into one scalar that the filter, the
     selector, the telemetry and the offline calibrator all consume unchanged.
     """
+    # Unmeasurable is not clean. If a detection survived with no resolvable page box
+    # (see the backfill in ocr_frame), both features would silently score it 0.0 --
+    # a frame the engines DID see text on, scoring as if they had seen nothing.
+    # Rejecting costs at most a handful of frames per run; the alternative is the
+    # exact fail-open this rule exists to prevent.
+    if metrics.get("geom_unresolved"):
+        return 1.0
+
     toks = _risk_tokens(metrics)
     if not toks:
         return 0.0
@@ -1255,7 +1311,14 @@ def process(job, result):
 
 
 def main():
-    job = json.load(sys.stdin)
+    # Decode stdin as UTF-8 explicitly rather than through the locale. Every job line
+    # carries titles.native in CJK, and the workflow sets no LANG, LC_ALL, PYTHONUTF8
+    # or PYTHONIOENCODING -- this works today only because GitHub's ubuntu-latest
+    # image happens to set LANG=C.UTF-8. One runner-image change away, json.load(
+    # sys.stdin) would raise UnicodeDecodeError on every theme in the batch. The
+    # module docstring already cites an encoding fault that corrupted titles once,
+    # and build-manifest.ps1 defends the PowerShell side of the same boundary.
+    job = json.loads(sys.stdin.buffer.read().decode("utf-8"))
     basename = job.get("basename") or "?"
     stem = basename[:-5] if basename.endswith(".webm") else basename
 
