@@ -1067,3 +1067,82 @@ remain untouched.
 - `doc/PROGRESS.md` — this entry.
 
 
+
+## 2026-08-23 (verification) — The rule passes CI, and passing CI is how a second leak class surfaced
+
+Run `32629295922` (dry, `ocr_dump=true`, 12 themes, 19m29s) was the first CI execution of the
+calibrated union rule. **Every automated gate passed.** `.tmp/cmp-sim.py` reported its positive
+control at `disagreements: 0 -- control PASSES` with the negative control firing as required,
+`PROMOTED 0`, and `themes shipping fewer than 3 stills: 0`. The shipped set matched
+`simulate()`'s offline prediction **exactly** — all 12 themes, all 36 frames. Both previously
+confirmed leaks are gone (`AngelBeats-OP1` 45.1, `AnsatsuKyoushitsu-OP1` 78.0). A second checker
+written for this run, `.tmp/check5.py`, cross-validated the telemetry three independent ways
+(TSV `CLEAN` against `ocr_clean`, TSV `reason=union` against `ocr_union_only`, and
+`clean(run4) - union_only == clean(run5)`) and reported `inconsistencies: 0`; clean population
+fell 599 -> 535 with 64 union-only rejections.
+
+### How that turned into a blocker rather than a closure
+
+The rule was verified. Coverage was not. The union rule promotes 10 frames that no earlier pass
+had looked at, and the automated gates could only ever measure the **4 labelled** positives —
+`PROMOTED 0` means "no *known* bad frame shipped", not "no bad frame shipped". Eyeballing all ten
+found nine clean and one leak: **`BlackClover-OP1` @ 57.9 s, a cursive character-name card**
+("Vanessa Enoteca", "Gauche", "Charmy Pappitson", ...). Overlaid production text, no title
+anywhere, one search from the answer. The criterion recorded back in the first eyeball pass
+already counts this as a leak — *title, credit and character-name overlays* — and the run-3 table
+had in fact flagged a different `BlackClover-OP1` frame as "faint cursive, verdict ?" and never
+resolved it. The first three eyeball passes hunted *title* text specifically, which is exactly how
+a name card walked through them.
+
+### Every available remedy was priced, and all but one were falsified
+
+`.tmp/shipscan.py` ranked all 36 shipped frames by text density and priced every candidate risk
+threshold against the full 535-frame clean pool. `.tmp/cursive.py` tested whether the hazard is
+confined to a credits window.
+
+- **Threshold-lowering: rejected.** The leak scores `risk` 0.5183 while **four confirmed-clean
+  shipped frames score 0.6667**. Catching it costs 67 of 535 clean frames and displaces those four
+  known-good stills to gain one — the same trade already rejected for `BIG_T=4` and for dilation.
+- **Density: rejected.** The leak ranks **9th** at 72 `chars_0`. The two densest shipped frames
+  (287 and 253) are a repeating damask motif and a grunge texture — **zero text in either**.
+- **Time-window exclusion: rejected.** Matching frames occur in contiguous runs of **1-4,
+  overwhelmingly 1**, scattered across the clip. There is no window to cut.
+- **Triage filter: viable.** The same signature (`longest_0 >= 5 AND longest_70 < 5 AND
+  chars_0 >= 40`) is far too noisy to reject on — 47 of 647 candidates, mostly texture. But
+  restricted to the *ship set* it fires on **2 of 36 frames, one being the leak**: 1 true
+  positive, 1 false positive, 0 false negatives. That scales a 402-frame human review across all
+  134 themes down to roughly **22 flagged frames**. Recall rests on a single positive and is
+  honestly unproven.
+
+### What this changed in the repo
+
+No code changed. The pipeline shipped at `ed3d177` is confirmed correct and needs no
+recalibration. What changed is knowledge: B-28's closing condition is now *"the name-card class has
+an agreed remedy and all 134 themes' shipped stills are cleared under the full criterion"* rather
+than *"seven frames survive an eyeball"*. A newly documented gap blocks any remedy — **no
+frame-level exclusion mechanism exists**: `manifest.json`'s `excluded` is theme-level and
+`curate_theme.py` has no per-timestamp blocklist, so acting on a rejected frame means building one
+first (small, but it does not exist today).
+
+Two stale claims were also corrected. The "~3x coherence safety margin" was measured over the 41
+labelled frames only; the name-card leak sits at coherence 0.1088 against `COH_T` 0.21, so the
+**real margin is 1.93x**. And `doc/GAME-DESIGN.md` still said the rule "has not yet run in CI".
+
+### What became possible next
+
+The content run is unblocked on correctness grounds — the rule is proven and re-runs skip
+already-ingested themes, so the 134-theme batch can proceed whenever the review policy is settled.
+What is *not* yet decided is that policy, and it needs a call rather than a default, because it
+trades a documented product promise ("2-3 progressively revealed still frames, **text-free**",
+shown during play at 0/7/14 s) against days of review effort.
+
+### Docs updated in this pass
+
+- `doc/BLOCKERS.md` - B-28's evidence-only *Closes when* struck through and superseded by a
+  verification section carrying the six-row gate table, the new leak class, the three-row
+  discriminator table, the threshold cost, the dead time-window option, the triage finding, and
+  the missing-exclusion-mechanism note.
+- `doc/GAME-DESIGN.md` - 3 no longer claims the rule is unrun in CI and now names the second leak
+  class; 5.2.2 records the CI confirmation, why the blocker still stays open, and the corrected
+  1.93x coherence margin.
+- `doc/PROGRESS.md` - this entry.

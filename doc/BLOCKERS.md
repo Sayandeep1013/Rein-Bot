@@ -1065,10 +1065,82 @@ The ship set is **unchanged** under the tiered selector, so the review debt is s
 same 7 frames listed above. No workflow change is needed to see them: dry runs already write all 36
 stills, and `out/` is uploaded wholesale — confirmed against run 4 (`status='DRY'`, 36 stills).
 
-**Closes when** a CI run with `ocr_dump=true` reproduces `simulate()`'s predicted ship set
+**Closes when** ~~a CI run with `ocr_dump=true` reproduces `simulate()`'s predicted ship set
 frame-for-frame (`.tmp/cmp-sim.py` reporting `PROMOTED 0` and `themes shipping fewer than 3: 0`)
 and **all seven** newly promoted picks survive an eyeball. Until then B-28 stays open: runs 3 and 4
-ship two confirmed leaks.
+ship two confirmed leaks.~~ *(Superseded — the CI half passed, the eyeball half did not; see below.)*
+
+#### Verified 2026-08-23 — run `32629295922`: the rule does exactly what it was calibrated to do, and that is how a second leak class was found
+
+The run was a dry run over the same 12 themes with `ocr_dump=true`, 19m29s, artifact in
+`.tmp/artifact5/curate-0-12-all`. **Every automated gate passed:**
+
+| Gate | Result |
+| --- | --- |
+| `.tmp/cmp-sim.py` positive control (rule off must match run 4) | `disagreements: 0 — control PASSES` |
+| `.tmp/cmp-sim.py` negative control (rule on must differ) | differs, as required |
+| Known-bad frames promoted into the ship set | **0** |
+| Themes shipping fewer than 3 stills | **0** |
+| Shipped set vs `simulate()`'s prediction | **exact match, all 12 themes / 36 frames** |
+| `.tmp/check5.py` three-way telemetry consistency | `inconsistencies: 0` |
+
+Both previously confirmed leaks are gone (`AngelBeats-OP1` 45.1, `AnsatsuKyoushitsu-OP1` 78.0).
+Clean population fell 599 → 535 with 64 union-only rejections; no theme dropped below 3 candidates.
+
+**The rule is correct. The blocker does not close, because correctness was never the question —
+coverage was.** The union rule promoted 10 frames that had never been looked at. Eyeballing all
+ten (plus a re-check of one previously cleared frame) found **one leak of a class the rule cannot
+represent**.
+
+**The new leak: `BlackClover-OP1` @ 57.9 s** — a character-name card. Cursive Latin captions
+composited over the art ("Vanessa Enoteca", "Gauche", "Charmy Pappitson", "Luck Voltia",
+"Magna Swing"). Per the criterion already recorded above — *only title, credit and character-name
+overlays are leaks* — this is a leak: non-diegetic production text that resolves to the answer
+via one search, with no anime knowledge required. The title itself never appears.
+
+**Why no threshold catches it, measured rather than argued** (`.tmp/shipscan.py`, priced against
+all 535 clean frames):
+
+| Discriminator | The leak | Confirmed-clean frames that score *higher* |
+| --- | --- | --- |
+| union `risk` | 0.5183 | **four at 0.6667**, all eyeballed clean |
+| `longest_70` | 3 | indistinguishable from clean frames |
+| `chars_0` (text density) | 72 — ranks **9th** | 287 (damask pattern), 253 (grunge texture) |
+
+Lowering the risk threshold to 0.5183 to catch it costs **67 of 535 clean frames** and displaces
+**four already-confirmed-clean shipped stills** to gain one — the same shape of trade already
+rejected for `BIG_T=4` and for dilation. **Threshold-lowering is rejected by measurement.**
+Cursive defeats both OCR engines, so no long high-confidence word is ever produced
+(`longest_70 = 3` against a floor of 5, `max_conf` 93.7 on junk, `culprit rapid:den(73)`).
+
+**A time-window exclusion is also dead** (`.tmp/cursive.py`). Frames carrying the
+"engine saw shape but could not read it" signature (`longest_0 >= 5 AND longest_70 < 5 AND
+chars_0 >= 40`) occur in contiguous runs of **1–4 frames, overwhelmingly 1** — scattered across
+the clip, not confined to a credits sequence. There is no window to cut.
+
+**What the same measurement did produce is a triage filter.** That signature fires on 47 of 647
+candidates (7.3%) — far too noisy to reject on, since most matches are texture rather than text.
+But applied *only to the ship set* it fires on **2 of 36 shipped frames, one of which is the
+leak**: 1 true positive, 1 false positive (`BlackClover-OP1` 86.6, grunge), 0 false negatives.
+That converts an intractable 402-frame human review across the full 134-theme run into roughly
+**22 flagged frames**. Its recall is honestly unproven — it rests on a single positive.
+
+**Also corrected in this pass.** The earlier eyeball rounds hunted *title* text specifically, so a
+name card could pass them; `BlackClover-OP1-still3` was in fact already flagged "faint cursive,
+verdict ?" in the run-3 table above and never resolved. The nine other newly promoted frames are
+**clean**: `AngelBeats-ED1` 67.9, `AngelBeats-OP1` 37.6, `AnsatsuKyoushitsu-OP1` 66.5,
+`AoNoExorcist-ED2` 54.9 and 60.7, `AoNoExorcist-OP1` 57.0, `AoNoExorcist-OP2` 47.5,
+`BlackClover-OP1` 86.6. The two densest frames in the entire ship set (287 and 253 `chars_0`) are
+a repeating damask motif and a grunge texture respectively — **zero text in either**, which is
+precisely why density cannot be used as a discriminator.
+
+**Closes when** the name-card class has an agreed remedy and the shipped stills for all 134 themes
+have been cleared under the *full* criterion (title **and** credit **and** character-name
+overlays) — not the title-only criterion the first three eyeball passes used. The rule itself
+needs no further calibration; what is missing is a review gate and a way to act on it. Note that
+no frame-level exclusion mechanism exists today: `manifest.json`'s `excluded` is theme-level, and
+`curate_theme.py` has no per-timestamp blocklist, so acting on a rejected frame currently requires
+adding one.
 
 **Fallback if OCR still proves unreliable:** stills-only rooms lose their safety margin, so
 the fallback is not "ship it anyway". Options, in order of preference: bias selection to

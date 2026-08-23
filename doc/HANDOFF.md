@@ -1,9 +1,15 @@
 # Session handoff
 
-**Written 2026-08-23.** State at commit `b86ca2f`.
+**Written 2026-08-23, revised 2026-08-23 (second session).** Code state: commit `ed3d177`.
+Doc state: this commit.
 
 Read this top to bottom before touching anything. It is written for an agent with no
 memory of prior sessions.
+
+**If you read only one thing, read section 3.** The OCR leak filter that section 8 of the
+previous revision told you to build is now built, CI-verified and committed. What remains
+open is narrower and stranger than it was, and section 3 explains exactly why a passing
+test suite did not close it.
 
 This file is deliberately plain ASCII (no em-dashes, no arrows, no section-sign
 characters) so that exact-string edits against it always match. The rest of `doc/`
@@ -89,47 +95,104 @@ Frontend stack: static HTML plus vanilla JS. No framework, no build step.
 
 ### Done and verified
 
-- **Migrations 0001 through 0010 are applied live** to Supabase project
-  `mxkqivivqultfuattuin` and schema-verified.
-- `pipeline/manifest.json` holds **46 anime, 136 themes**, 5469 MB of source video.
-  Difficulty distribution across tiers 1-5 is **13 / 32 / 28 / 28 / 35**.
-- `.github/workflows/curate.yml` exists and its **dry run is green** (run
-  `32590411786`, `ok=0 skipped=10 failed=0`). Three separate bugs in it were found and
-  fixed.
+- **Migrations 0001 through 0011 are applied live** to Supabase project
+  `mxkqivivqultfuattuin` and schema-verified. 0011 (`independent_asset_keys`) was applied
+  twice to prove it is idempotent, and the `anon` grant audit re-run afterwards (result:
+  `anon` has no privileges on the answer-bearing tables).
+- `pipeline/manifest.json` holds **46 anime, 136 themes** pre-dedupe. The workflow
+  de-duplicates to a **pool of exactly 134** (79 OP, 55 ED). Difficulty distribution
+  across tiers 1-5 is **13 / 32 / 28 / 28 / 33**. Compute the pool yourself rather than
+  trusting `theme_count`; the recipe is in section 6.
+- `.github/workflows/curate.yml` is **407 lines, correct, and needs no further change.**
+  Five CI runs have executed against it.
+- **The OCR leak filter is implemented, parity-proven offline, and confirmed in CI.**
+  See the subsection below; this is the bulk of the work done this session.
+- A tracked contract test exists, `tools/pipeline/test_curate_contract.py`, and is green
+  (`FAILURES: 0`). It covers union-rule inertness, `ocr_risk` presence, the 24-column
+  dump, and five `spread()` selection cases.
 - README and GitHub About/topics match the user's own repo style, as requested.
-- Docs are current as of `b86ca2f`.
 
 ### Not done at all
 
 - **`question_bank` has 0 rows.** No content exists. Nothing is playable.
 - **Nothing has ever been uploaded to Supabase Storage.** That code path has never
-  executed, not once.
+  executed, not once. Every CI run so far has been `dry_run=true`.
 - **`ingest_question` has never been called over HTTP**, only via SQL.
-- **There is no frontend.** Not one HTML file.
+- **There is no frontend. Not one HTML file has ever been written or run.** This is the
+  majority of the remaining work. Do not let the depth of the pipeline documentation
+  mislead you into thinking the project is nearly finished.
 - The retry/backoff ladder in the workflow has never been triggered.
 - Real Supabase egress has never been measured.
 
-### The single most important open risk: B-28
+### The OCR leak filter: what was settled, and the one thing that was not
 
-Frame selection uses OCR to reject any frame containing text. **That OCR step is now the
-only thing standing between an anime's title card and the player.**
+Frame selection uses OCR to reject any frame containing text, because **that OCR step is
+the only thing standing between an anime's title card and the player.** The `nc: true`
+(credit-free) flag was measured worthless for this purpose: 5 of 10 sampled clips display
+the title in Latin script, split 5 of 6 openings vs 0 of 4 endings, so it is an *opening
+convention* rather than a credits artefact.
 
-The previous protection was believed to be the AnimeThemes `nc: true` (credit-free) flag.
-On 2026-08-23 that was measured and found to be worthless for this purpose: **5 of 10
-sampled clips display the title in Latin script**, and all ten satisfied
-`nc:true, subbed:false, overlap:NONE`. The split was **5 of 6 openings vs 0 of 4
-endings** - the title card is an *opening convention*, not a credits artefact, so a flag
-about credits was never going to catch it.
+**The rule that now ships** rejects a frame if either of two independent signals fires:
 
-Anime title logos are the adversarial case for OCR: heavy stylisation, outlines,
-gradients, rotation, overlap with artwork. Tesseract may simply not see them.
+- a **coherence** score, which catches stylised titles the engine did read, and
+- a **large-box count**, which catches logos it misread into junk tokens.
 
-**This cannot be tested locally.** `tesseract`, `ffmpeg` and ImageMagick are all absent
-from the user's machine. It is provable only in CI.
+Formally `risk = max(coherence / 0.21, bigboxes / 3)`, rejected at `risk >= 1.0`, plus the
+pre-existing rule "reject if any word of 5+ characters is read at 70+ confidence". Both
+OCR passes (tesseract and rapidocr) feed one deduplicated token pool, because the same
+glyph found twice is not corroboration.
 
-**A green CI run proves nothing here.** You must open the dry-run artifact and look at
-every surviving still with your own eyes, specifically hunting false negatives. Full
-detail and the fallback ladder are in `doc/BLOCKERS.md` under B-28.
+This rule was calibrated offline against 41 hand-labelled frames, ported into
+`curate_theme.py`, proven bit-identical on 621 frames with a deliberately broken control
+so agreement could not be vacuous, and then **executed in CI as run `32629295922`**. That
+run reproduced the offline prediction frame-for-frame across all 12 themes and 36 stills,
+removed both previously confirmed leaks, and passed every automated gate.
+
+**B-28 nonetheless remains OPEN, and you must understand why before touching it.** The
+rule is correct. Coverage was the problem. The automated gates could only measure the 4
+frames that had labels, so `PROMOTED 0` means "no *known* bad frame shipped", not "no bad
+frame shipped". The rule newly promoted 10 frames nobody had ever looked at. Eyeballing
+all ten found nine clean and **one leak of a class the rule cannot represent**:
+
+> `BlackClover-OP1` at 57.9 s is a **character-name card** - cursive Latin captions
+> ("Vanessa Enoteca", "Gauche", "Charmy Pappitson") composited over the artwork. The
+> title never appears, but the names resolve to the answer in one search.
+
+Cursive defeats both OCR engines, so no long high-confidence word is ever produced. Every
+knob was priced against all 535 clean frames and **all three obvious fixes are falsified**
+- do not retry them:
+
+| Attempted fix | Why it is dead |
+| --- | --- |
+| Lower the risk threshold | The leak scores 0.5183; **four confirmed-clean shipped frames score 0.6667**. Catching it costs 67 of 535 clean frames and discards 4 known-good stills to gain 1. |
+| Gate on text density (`chars_0`) | The leak ranks **9th** at 72 chars. The two densest shipped frames (287, 253) are a damask pattern and a grunge texture with **zero text**. |
+| Exclude a time window around it | Matching frames occur in contiguous runs of **1 to 4, overwhelmingly 1**, scattered across the clip. There is no window to cut. |
+
+**What did survive is a triage filter, and it is the recommended path.** The signature
+`longest_0 >= 5 AND longest_70 < 5 AND chars_0 >= 40` ("the engine saw shape but could not
+read it") is far too noisy to reject on - it fires on 47 of 647 candidates, mostly texture.
+But restricted to the **ship set only** it fires on 2 of 36 frames, one being the leak:
+1 true positive, 1 false positive, 0 false negatives. That turns an intractable 402-frame
+human review across all 134 themes into roughly **22 flagged frames**. Its recall rests on
+a single positive and is honestly unproven.
+
+**A blocking gap if you pursue any remedy: there is no frame-level exclusion mechanism.**
+`manifest.json`'s `excluded` key is *theme*-level, and `curate_theme.py` has no
+per-timestamp blocklist. Acting on a rejected frame means building one first (roughly 20
+lines plus a contract test). Verified by inspection, not assumed.
+
+**Note the criterion**, recorded in `doc/BLOCKERS.md`: only **title, credit and
+character-name** overlays are leaks. Diegetic in-world text (a sign, a blade inscription,
+a doodle) is acceptable and several such frames are deliberately shipped. The first three
+eyeball passes hunted *title* text specifically, which is exactly how a name card walked
+through them - so **any re-review must use the full criterion**, and the ~26 stills
+cleared under the old title-only criterion arguably need a second pass.
+
+**None of this can be tested locally.** `tesseract`, `ffmpeg` and ImageMagick are absent
+from the user's machine, and locally saved JPEGs cannot be re-OCR'd - only the recorded
+TSV metrics are available offline. Every OCR experiment costs a 16 to 19 minute CI run.
+Full detail, all measurements and the fallback ladder are in `doc/BLOCKERS.md` under B-28.
+
 
 ---
 
@@ -357,6 +420,16 @@ docs. Reversing one means reading that reasoning first.
 | `size` is a tiebreak, never a filter | Credit-free variants are the *larger* population (~46.7 MB median vs 26.1 MB unfiltered), so "pick the smallest" systematically selects against `nc: true`. |
 | JPEG-bytes vs per-theme median for frame quality | Needs no tooling beyond the encoder already present. Per-theme because one sampled theme's frames all sit below the global median, so a global cut would over-reject dark shows. |
 | Winner-takes-all scoring | Resolved B-22. A correct-but-second guess scoring 0 is intended. |
+| Two complementary OCR signals, reject if **either** fires | Coherence catches stylised titles the engine *did* read; large-box count catches logos it *misread* into junk. Neither separates the labelled set alone: the tallest clean frame outscores the shortest leak on both features individually. |
+| `BIG_T = 3`, not 4 | 4 only works by relying on one degenerate 1.0 x 1.0 detection artefact in a single frame. 3 removes that dependency. Prefer the threshold that does not hinge on a bug. |
+| Confidence enters as a continuous weight, never a second hard floor | `(conf/100)^k`. A second hard cutoff throws away the gradient that makes the score separable. |
+| Duplicate detections across the two OCR passes are **not** corroboration | The same glyph found by both engines is one piece of evidence, not two. Before dedupe, one confirmed-clean frame scored 0.9918 - the highest of all 41 labelled frames. Dedupe dropped it to 0.0000. |
+| Both OCR passes, tesseract plus rapidocr | rapidocr earned its runtime empirically: 14 rejections tesseract missed entirely. |
+| `jpn_vert` dropped, `jpn` kept | Advice from consultation, acted on. Vertical Japanese is not the leak class in practice. |
+| Cost asymmetry settles every threshold tie | A missed leak makes a round unplayable. A lost clean frame is one fewer out of ~50. When two thresholds are close, pick the stricter one - but see the name-card case in section 3, where the arithmetic reverses and strictness costs 67 frames to gain 1. |
+| The frame OCR cleared is the frame that ships | A safety invariant, and it is why cropping or blurring a leak is not an option: it would ship pixels the filter never inspected. |
+| All 134 themes before any frontend work | User's explicit choice, 2026-08-23, against the agent's recommendation. See section 8. |
+| First playable build is full multiplayer | User's explicit choice, 2026-08-23, against the agent's recommendation of a single-player stepping stone. |
 
 ### Approaches already tried and rejected - do not retry
 
@@ -381,89 +454,174 @@ docs. Reversing one means reading that reasoning first.
   a download failure. Both were wrong diagnoses.
 - **`sleep 1` to `sleep 5`** as a fix - it was a no-op for the actual failure.
 
-### Delegation does not work in this environment
+The following were all measured and rejected during the OCR filter work. Each cost real
+CI time or real analysis; the numbers are in `doc/BLOCKERS.md` under B-28.
 
-Four specialist subagent invocations across two agent types returned **empty or
-unusable** output: two `oracle` calls (failed after 7m43s and 2m10s, the second with
-every fact inlined and file reading forbidden), and two `librarian` calls. The top-50
-seed list was ultimately authored by hand into `doc/SEED-LIST.md`; the GitHub Pages
+- **Lowering the union risk threshold below 1.0** to catch the character-name card. Costs
+  67 of 535 clean frames and displaces 4 confirmed-clean shipped stills to gain 1. Full
+  cost table is in B-28.
+- **Gating on text density (`chars_0`) at any floor.** The two densest shipped frames are
+  a damask pattern (287 chars) and a grunge texture (253); the actual leak ranks 9th at
+  72. Density measures decoration, not text.
+- **Excluding a time window around a detected name card.** Matching frames occur in runs
+  of 1 to 4, overwhelmingly 1, scattered through the clip. There is no window.
+- **Using the cursive signature as an automatic rejector.** It fires on 47 of 647
+  candidates for 1 true positive. Usable only as a review flag on the ship set, where the
+  ratio collapses to 2 of 36.
+- **Cropping or blurring a detected leak.** Violates the invariant that the frame OCR
+  cleared is the frame that ships.
+- **Frame dilation, in every form tried** - as a rejection mechanism, and seeded from
+  `longest_N` rejections. Deleted by measurement, not preference.
+- **Single-token peak height at any confidence floor**, **coherence alone**, and
+  **large-box count alone.** Each fails to separate the labelled set; that failure is
+  precisely why the union rule exists.
+- **A raw byte-size floor** and **pure risk-ranked frame selection.** Both lost to the
+  tiered quiet-band selector on measurement.
+- **Raising `OCR_MIN_CHARS` alone, lowering `min_conf`, lowering `OCR_MIN_WORD` to 4, and
+  restricting OCR to a screen region.** All tried, none helped.
+- **Making the four structural union constants env-tunable.** They are calibrated
+  together against a labelled set; exposing them as knobs invites incoherent combinations.
+
+### Delegation is unreliable here, but not useless - revised
+
+The previous revision of this file said "delegation does not work, decide directly". That
+was too strong, and the second session disproved it. The accurate position:
+
+**It failed four times in session one**: two `oracle` calls (7m43s and 2m10s, the second
+with every fact inlined and file reading forbidden) and two `librarian` calls, all empty or
+unusable. The top-50 seed list was hand-authored into `doc/SEED-LIST.md`; the GitHub Pages
 limits were answered with `webfetch`.
 
-**Decide directly. Do not delegate.** If you do try, note that `task(task_id=...)`
-requires the session id (`ses_...`), not the background handle (`bg_...`).
+**It succeeded twice in session two**, and both results were acted on:
+
+- an `oracle` consultation on the OCR filter design returned four usable answers, one of
+  which (drop `jpn_vert`, keep `jpn`) is now a settled decision;
+- a `librarian` call confirmed the `rapidocr-onnxruntime` API surface, including that v2
+  renamed it, which is why the install is pinned `"rapidocr-onnxruntime<2"`.
+
+Two further calls in the same session still returned nothing, and two `explore` calls hit
+seven model-routing failures. So: **treat delegation as roughly a coin flip.** It is worth
+trying for external-reference questions and for adversarial review of a design you have
+already reasoned through. It is not worth trying for anything on the critical path, and
+**doc edits are not delegable at all** - they need exact-string precision the subagents do
+not reliably deliver.
+
+Two hard-won mechanics if you do try:
+
+- `task(task_id=...)` requires the session id (`ses_...`), **not** the background handle
+  (`bg_...`).
+- `background_output(full_session=true)` returns the *earliest* messages, not the tail, so
+  it is a poor way to retrieve a long answer. `session_search(session_id=...)` is the
+  reliable test for whether a session produced anything at all.
+- **Trust your own measurement over the advice.** Consultation suggested a hard
+  `conf >= 85` cut, a specific height threshold, a +/- 2.0 s window, and relaxing cluster
+  size to 2 when median height is large. All four were tested against the labelled frames
+  and all four were rejected.
 
 ---
 
 ## 8. What to do next, in order
 
-### Step 1: Rewrite `.github/workflows/curate.yml`
+**The sequencing below is the user's explicit choice, made 2026-08-23, and it overrules
+the recommendation that was offered.** The agent recommended building the frontend first
+(to de-risk the untested HTTP paths early) and shipping single-player first. The user
+chose the opposite on both counts: **finish all 134 themes first, then build the frontend,
+and make the first playable build full multiplayer.** Do not quietly re-order these.
 
-This is the immediate next task and the biggest one. The spec is
-**`doc/GAME-DESIGN.md` section 5.2**, which was written specifically so you can implement
-from the doc rather than re-deriving it. Read it first.
+### Step 1: Get a decision on the character-name-card leak (BLOCKING)
 
-Shape:
+**B-28 cannot close without this, and it is a judgement call, not a measurement.** All
+three automatic fixes are already falsified (see section 3). Present these four options
+with their measured costs and let the user choose:
 
-1. `apt-get install tesseract-ocr tesseract-ocr-jpn` (plus ffmpeg, already installed on
-   the runner).
-2. **Download the source once.** It is the expensive step (~46.7 MB median); everything
-   else derives from that one file. Do not re-download per asset.
-3. Extract ~20 s of audio from the musical body, encode Opus, target ~160 KB.
-4. Extract ~60 candidate frames, evenly spaced, **skipping the first and last ~2 s** so
-   fades and hard cuts are excluded.
-5. **Detail filter:** encode each candidate at fixed quality, reject any below **45% of
-   that theme's median byte size**. At 45% this rejected 3 of 40 in the sample and left
-   every one of the ten themes with at least 2 survivors.
-6. **OCR filter:** `tesseract --psm 11 -l eng+jpn` per frame, reject on any text hit.
-   **Tune to over-reject.** A false positive costs one frame out of sixty; a false
-   negative ships the answer.
-7. **Spread:** split survivors into three equal spans by timestamp, take the
-   highest-detail survivor from each. Fewer than 2 survivors total means **skip the
-   theme** - do not degrade to one still.
-8. **Poster:** take it from the frames rejected in step 6 for containing text.
-9. **Upload all five objects** to `media` under keys from three fresh uuids (one per asset
-   class), **then** call `ingest_question`. Objects first, always: a row pointing at bytes
-   that never arrived is worse than an orphaned upload, and with five objects that window
-   is five times wider.
+- **A - Triage filter plus human vetting (recommended).** Emit a `review` flag for shipped
+  stills matching `longest_0 >= 5 AND longest_70 < 5 AND chars_0 >= 40`, populate all 134
+  themes, then eyeball only the ~22 flagged frames out of 402. Requires building the
+  frame-exclusion mechanism (~20 lines plus a contract test) because none exists. Honest
+  caveat: recall is proven on exactly one positive.
+- **B - Accept the residual.** Roughly 2.8% of shipped stills may carry name or credit
+  overlays. Costs nothing, but knowingly breaks the "text-free" promise in
+  `doc/GAME-DESIGN.md` line 15.
+- **C - Eyeball all 402 shipped stills.** Certainty, at a real time cost, with no reliance
+  on an unproven signature.
+- **D - Build a new automatic rejector.** Already falsified: every threshold that catches
+  the leak destroys at least 45 clean frames, and the time-window variant is dead because
+  matching frames come in runs of 1 to 4.
 
-`ingest_question` v3 payload takes `asset_slug`, `poster_slug`, `audio_slug`,
-`still_count`, `audio_seconds`, `bytes_total`. It stays idempotent on `asset_slug` alone,
-so a batch that dies partway can be retried. Its named failures are `MISSING_ASSET_SLUG`,
-`MISSING_POSTER_SLUG`, `MISSING_AUDIO_SLUG`, `SLUGS_NOT_DISTINCT`, `INSUFFICIENT_STILLS`
-and `NO_TITLES (slug %)`. All four guards have been exercised against the live database in
-SQL; **none has been exercised over HTTP yet.**
+Whichever is chosen, remember the criterion is **title, credit and character-name**
+overlays only, and that the ~26 stills cleared under the earlier title-only criterion may
+need a second pass under the full one.
 
-Validate the YAML after every edit. The previous version needed three separate bug fixes.
+### Step 2: Populate all 134 themes for real
 
-### Step 2: Dry-run 10 themes and inspect for OCR FALSE NEGATIVES
+Run `curate.yml` with `dry_run=false`. The workflow, the OCR rule and the contract tests
+are all in place and CI-verified, so this step is mechanical.
 
-Not for crashes. **Look at every surviving still.** If any shows the title, B-28's
-fallback ladder applies: bias selection toward endings (0 of 4 EDs leaked a title vs 5 of
-6 OPs), or sample from the back half of the sequence where title cards are rare, or gate
-low-confidence themes into a manual review list rather than the question bank.
+Batching, against a `timeout-minutes: 120` ceiling and 12 themes measured at ~19 minutes:
 
-Note that the existing artifact tiles sample only 4 frames of roughly 600, so **the four
-clips that looked clean are not actually cleared.**
+- `count=30`, five runs, ~53 minutes each, or
+- `count=40`, four runs, ~70 minutes each.
 
-### Step 3: Populate for real
+Either fits comfortably. Total ~235 CI minutes against 2000 free minutes per month.
+Because `ingest_question` is idempotent on `asset_slug`, **a run that dies partway can
+simply be re-run** and will skip themes already ingested.
 
-Run with `dry_run=false` for all 136 themes. Expect ~38 MB stored. Watch for the retry
-ladder actually firing for the first time.
+Expect roughly **45.6 MB** stored for all 134 (mean 356,637 bytes per theme, measured).
+Watch for the retry ladder firing for the first time.
 
-### Step 4: A single-file HTML page against the live backend
+**Flag two things to the user during or after this step:**
 
-Smallest thing that proves the untested paths: anon sign-in, `create_room`, `join_room`,
-`start_game`, `get_current_round`, fetch a still from the public bucket, submit a guess
-through `grade_guess`. This is the first time Storage reads and RPC-over-HTTP will ever
-have run.
+- **Tier 1 holds only 13 questions.** A 20-round tier-1 room will therefore keep failing
+  `INSUFFICIENT_CONTENT`. Either the tier mix or the round count needs a decision.
+- `Ansatsu-OP1` at 43.6 s is a cleavage close-up. It is not a text leak and the filter is
+  right to pass it, but it is a content-appropriateness call that belongs to the user, not
+  to the classifier.
 
-### Step 5: The real UI, then Pages deploy
+### Step 3: Verify the paths that have never executed
 
-Lobby, play, reveal, scoreboard, mobile layout. Relative paths only. Then a Pages deploy
-workflow, then a two-browser multiplayer test, then measure real egress against the
-arithmetic below.
+This is verification with `curl` and SQL, not a playable build, so it does not conflict
+with the user's "full multiplayer from the start" decision.
+
+After the first real run, confirm by inspection rather than by assuming the exit code:
+
+- Objects actually landed in the `media` bucket under all three key roots.
+- `ingest_question` v3 succeeded **over HTTP** (it has only ever run via SQL). Its guards
+  are `MISSING_ASSET_SLUG`, `MISSING_POSTER_SLUG`, `MISSING_AUDIO_SLUG`,
+  `SLUGS_NOT_DISTINCT`, `INSUFFICIENT_STILLS`, `NO_TITLES (slug %)`.
+- A still can be fetched from the public bucket by key.
+- Measure real egress against the 5 GB ceiling and the arithmetic in section 9.
+
+Remember the ordering rule: **objects are uploaded before `ingest_question` is called.** A
+row pointing at bytes that never arrived is worse than an orphaned object.
+
+### Step 4: The full multiplayer frontend
+
+The user's choice: **full multiplayer from the start**, no single-player stepping stone.
+Scope is lobby, join-by-code, realtime round sync, guess grading, reveal and scoreboard,
+with a mobile layout. Relative paths only, since this deploys to GitHub Pages.
+
+**Wire it against the real RPCs, not stubs** - `create_room`, `join_room`, `start_game`,
+`get_current_round`, `grade_guess`. Note that this will be the first time RPC-over-HTTP
+and Storage reads have ever run from a browser, so budget for surprises there rather than
+in the game logic.
+
+### Step 5: Deploy and measure
+
+A Pages deploy workflow, then a genuine two-browser multiplayer test, then real egress
+measured against the arithmetic in section 9.
 
 ### Leftover doc debt (medium priority, safe to batch)
+
+- `doc/GAME-DESIGN.md` sections 1.1, 2 (round timeline) and 2.1.1 (threat model) still
+  describe video. The threat model also needs a note that reverse image search and
+  trace.moe get marginally easier with clean held stills - the frames chosen for detail
+  are the best possible search inputs. The existing reasoning (speed bonus beats search
+  time) mostly carries over.
+- The blockquote in section 5.1 still says clips are re-encoded to ~1 MB at step 6. That
+  step no longer exists.
+- `doc/ARCHITECTURE.md` asset flow, and `doc/RESEARCH.md` section 4.7 egress arithmetic,
+  both need the two-mode numbers below.
+
 
 - `doc/GAME-DESIGN.md` sections 1.1, 2 (round timeline) and 2.1.1 (threat model) still
   describe video. The threat model also needs a note that reverse image search and

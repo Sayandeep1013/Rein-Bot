@@ -170,8 +170,11 @@ that actually protects the answer is per-frame OCR rejection at selection time
 (`doc/RESEARCH.md` §4.10). It is the riskiest premise in the pipeline, and it is now
 **measured insufficient rather than merely unverified**: the current rule shipped 2 readable
 stills out of 36. A replacement rule was calibrated offline — it catches all 4 known-bad frames
-with none promoted — and is **now implemented**, though it has not yet run in CI (§5.2.2,
-`doc/BLOCKERS.md` B-28).
+with none promoted — and **ran in CI on 2026-08-23** (run `32629295922`), reproducing the
+predicted ship set frame-for-frame and removing both known leaks. That run also surfaced a
+**second leak class the rule cannot represent**: a cursive character-name card, invisible to
+every available discriminator and not fixable by any threshold (§5.2.2, `doc/BLOCKERS.md` B-28,
+which stays open for this reason).
 
 ### Option A — hot-link AnimeThemes directly · REJECTED
 
@@ -713,9 +716,19 @@ frames promoted into the ship set**, at a cost of 5 clean frames — with every 
 yield its 3 stills (worst theme retains 33 candidates). **The rule is now implemented in the
 pipeline**, and proven to be the same rule that was calibrated: the ported arithmetic scores all
 621 dumped frames bit-identically to the calibration harness, checked against a deliberately
-broken control so that agreement cannot be vacuous. B-28 stays open only because 7 frames the rule
-newly promotes have not been eyeballed yet. `jpn_vert` was dropped along the way because across
-all 647 frames it produced no high-confidence word while costing a pass per frame.
+broken control so that agreement cannot be vacuous. Run `32629295922` then confirmed the rule in
+CI — predicted ship set reproduced frame-for-frame, both known leaks gone, no theme below 3
+stills. **B-28 nonetheless stays open**, because eyeballing the 10 frames the rule newly promotes
+found a leak of a *different* class: a cursive character-name card scoring 0.5183 where four
+confirmed-clean shipped frames score 0.6667, so no threshold separates it. `jpn_vert` was dropped
+along the way because across all 647 frames it produced no high-confidence word while costing a
+pass per frame.
+
+**One caveat on the safety margin quoted for coherence.** The comfortable gap between `COH_T`
+(0.21) and the tallest surviving clean frame (0.0781) was measured over the 41 labelled frames
+only. The name-card leak sits at coherence 0.1088, so the **real margin is 1.93×, not the ~3×
+the labelled set implied**. The rule still separates every frame it was calibrated on; the
+margin is simply thinner than the calibration sample suggested.
 
 **Spatial dilation was considered and deleted.** The idea was to also reject frames adjacent to a
 rejected one, on the theory that a title card spans several consecutive samples. Tested, it
