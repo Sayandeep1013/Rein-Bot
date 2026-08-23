@@ -169,7 +169,9 @@ carry less on-screen text overall, so they yield more usable frames per sequence
 that actually protects the answer is per-frame OCR rejection at selection time
 (`doc/RESEARCH.md` §4.10). It is the riskiest premise in the pipeline, and it is now
 **measured insufficient rather than merely unverified**: the current rule shipped 2 readable
-stills out of 36 (§5.2.2, `doc/BLOCKERS.md` B-28).
+stills out of 36. A replacement rule has been calibrated offline and catches all 4 known-bad
+frames with none promoted, but it is **not yet implemented in the pipeline** (§5.2.2,
+`doc/BLOCKERS.md` B-28).
 
 ### Option A — hot-link AnimeThemes directly · REJECTED
 
@@ -679,14 +681,39 @@ below are classified `CLEAN`, and on every metric the *clean* frame ranks highes
 that clean cityscape frame — its `longest_70 = 4` comes from `ーーーー`, i.e. window
 mullions — while still missing both leaks.
 
-**Working hypothesis for the next iteration: glyph size.** Title cards, credits and
-character-name callouts are typographically large; texture false positives are small. Height
-gating is indifferent to both language and token length, so it addresses A and B together.
-The pipeline now records per-token pixel geometry to `tokens-<stem>.tsv` for exactly this
-calibration, without changing the shipping rule — see **`doc/BLOCKERS.md` B-28**, which also
-carries the fallback ladder and the closure criteria. `jpn_vert` was dropped along the way
-because across all 647 frames it produced no high-confidence word while costing a pass per
-frame.
+**The glyph-size hypothesis was tested on real data and falsified.** The tallest token across
+all 16,038 — 0.69 of frame height at confidence 80 — is a hallucination on a **hair curve** in a
+frame with no text at all. No threshold on any height, width or position scalar separates the
+sets. Two corrections came out of that work, both recorded in full in **`doc/BLOCKERS.md` B-28**:
+a re-eyeball found **three of five suspect labels were wrong** (including one frame written off
+as an "uncatchable leak" that is simply clean), and single-token peak height was retired.
+
+**The chosen rule is a union of two features, either of which can reject a frame:**
+
+- **Coherence** — not one big glyph but a *group* of them: boxes of similar height sharing a
+  baseline, weighted by confidence and by how many agree. This catches title text the OCR engine
+  genuinely **read**, including short CJK names that blind spot A made invisible.
+- **Large-box count** — how many text regions exceed 0.28 of frame height, deliberately with
+  **no confidence floor**. A stylised logo is confidently *misread*, not confidently read: the
+  worst leak in the set tops out at confidence 59 and scores zero on every confidence-weighted
+  measure. This is a *segmentation* signal, and it closes blind spot B.
+
+A frame is rejected when `max(coherence / 0.21, large_boxes / 3) >= 1.0`. A precondition for
+either feature to work is **de-duplicating detections across OCR passes** — the same box found
+by both the original and 2× pass is one observation, not two, and counting it twice made the
+worst false positive the highest-scoring frame in the set.
+
+The large-box threshold is **3, not 4**, for a mechanical reason worth preserving: the leak it
+targets has four large boxes, but one is a degenerate full-frame detection — an artifact, not a
+glyph. A threshold of 4 would catch that leak *only by counting the artifact*, and would miss it
+if an engine update stopped emitting it. Three catches it either way.
+
+Measured against the corrected labels: **4 of 4 known-bad frames caught, 0 missed, 0 known-bad
+frames promoted into the ship set**, at a cost of 5 clean frames — with every theme still able to
+yield its 3 stills (worst theme retains 33 candidates). **This rule is priced but not yet
+shipped**: it is not implemented in the pipeline, and 7 frames it newly promotes have not been
+eyeballed. B-28 stays open until both are done. `jpn_vert` was dropped along the way because
+across all 647 frames it produced no high-confidence word while costing a pass per frame.
 
 One cost worth recording: raising `ocr_min_conf` to 70 cost 3 of 12 themes their poster,
 which fell back to `fallback-clean-unused` (§5.2 step 10).
@@ -698,10 +725,20 @@ title with `nc:true, subbed:false`. Leaks are not positional either — one sat 
 
 #### 5.2.3 Spread — best frame from each third
 
-Split the surviving candidates into three equal spans by timestamp and take the
-highest-detail survivor from each. This guarantees the three stills come from different
-moments, so the progressive reveal adds genuinely new information rather than three near
-duplicates of one shot.
+Split the surviving candidates into three equal spans **by count** over their sample order and
+take one from each. This guarantees the three stills come from different moments, so the
+progressive reveal adds genuinely new information rather than three near duplicates of one shot.
+With fewer than three survivors it falls back to two spans, and with fewer than two it yields
+nothing.
+
+Within a span the winner is the **largest encoded JPEG**, used as a cheap proxy for visual
+detail — not a re-measured detail score, which the earlier wording implied. Byte size is a proxy
+worth naming honestly, because it is the reason a *planned* change is pending: once the text
+filter produces a continuous risk score per frame (§5.2.2) the selector should prefer the
+**lowest-risk** survivor in each span and use bytes only to break ties, so that removing a leak
+cannot promote the next-most-suspicious frame in its place. That regression is invisible to a
+keep/drop count and is the reason the calibration harness simulates the whole ship set rather
+than counting rejections.
 
 Perceptual hashing to deduplicate is deliberately **not** used: thirds already enforce
 temporal distance, and a hash threshold would be one more tuned constant with no measured

@@ -22,14 +22,18 @@ headings therefore overstates how much is outstanding. The real split:
 So the honest count is **four actionable items**, and as of 2026-08-23 **none of them is waiting on the user**: B-21 was resolved on 2026-08-22 once the dashboard showed 0% egress, and B-25 was decided on 2026-08-23 (three progressive stills, audio optional per room, no video anywhere). B-27 was opened and resolved the same day.
 
 **B-28 is now the single riskiest open item**, and it moved from "unverified premise" through
-*partially measured* to **measured insufficient**. The threshold is fixed on real data and the
-second OCR engine has since been proven in CI — it earned 14 of 14 new rejections in run
-`32617226964` — yet 2 of 36 shipped stills still leak text, and 5 of the 6 known-bad frames are
-still classified `CLEAN`. The cause is now understood to be *structural*, not mis-tuning: two
-blind spots (short CJK names, and Latin title typography segmented glyph-by-glyph) that no
-threshold on the currently recorded scalars can close. Per-token geometry is now instrumented
-so the next rule can be calibrated offline. **B-29** was opened and closed the same day (poster
-key derivable from the still keys a player already holds — migration 0011).
+*partially measured* and **measured insufficient** to **rule chosen, not yet shipped**. Two
+things changed on 2026-08-23. First, a re-eyeball of the suspect pool found **three of five
+labels were wrong** — including one frame previously written off as an "uncatchable leak" that
+is simply clean — so the ground truth is **4 positives, 37 clean**, and the rule that was one
+step from production had been fitted to bad labels. Second, with corrected labels the
+**glyph-size hypothesis is falsified**: the tallest token in 16,038 is a hallucination on a hair
+curve in a clean frame. The replacement is a **two-feature union** — typographic coherence plus a
+confidence-free count of large boxes — measured at **4 of 4 known-bad caught, 0 missed, 0
+promoted, 5 clean frames lost, yield intact at 3 stills per theme**. It is not yet implemented in
+the pipeline, and runs 3/4 still ship 2 confirmed leaks, so B-28 stays open; what remains is a
+code change plus eyeballing the 7 frames the new rule promotes. **B-29** was opened and closed
+the same day (poster key derivable from the still keys a player already holds — migration 0011).
 
 The single hardest blocker remains **B-11 item 2** — the hand-built seed list of titles.
 It gates the entire curation pipeline, no amount of engineering removes it, and it is the
@@ -899,13 +903,121 @@ Writing the tests found one real bug: the `RAPIDOCR_ENABLE=false` opt-out still 
 `[]` after the widening, which would have broken the documented fallback ladder below the first
 time anyone used it.
 
-**Closes when** a CI run rejects both leak frames in the table above while keeping
+**Closes when** ~~a CI run rejects both leak frames in the table above while keeping
 `AoNoExorcist-OP1` ts=37.6, *and* all 36 shipped stills survive an eyeball, *and* yield stays
-at 3 stills for every theme. Attribution and runtime are no longer at issue.
+at 3 stills for every theme.~~ **Superseded by the calibration below** — the label audit found
+*four* positives, not two, so "both leak frames" no longer names the ground truth. Attribution
+and runtime are no longer at issue.
 
-**Order of operations from here:** run the instrumented pipeline on the same 12 themes → prove
+**Order of operations from here:** ~~run the instrumented pipeline on the same 12 themes → prove
 the shipped set is identical → choose the height threshold offline against the labelled 36 →
-only then spend a run on a behaviour-changing rule.
+only then spend a run on a behaviour-changing rule.~~ **Done — all three steps completed**; see
+below for what the offline calibration actually found.
+
+#### Calibrated 2026-08-23 — the height axis is falsified, the replacement is a two-feature union
+
+Run `32620787219` shipped a set **bit-identical** to run `32617226964` (per-frame diffs 0,
+`VERDICT: IDENTICAL`, with a negative control firing 3557 diffs to prove the comparator
+discriminates). That made the eyeballed stills usable as labelled ground truth, and the
+threshold was then chosen offline in `.tmp/tokens.py` against 621 frames / 16,038 tokens.
+
+**1. The ground truth was wrong, and checking it first saved the design.** Before fitting
+anything, all five run-2 pool frames were re-eyeballed. **Three of the five were mislabelled.**
+
+| frame | old label | verified reality |
+| --- | --- | --- |
+| `AngelBeats-OP1` ts=39.1 | suspected | **real leak** |
+| `AnsatsuKyoushitsu-OP1` ts=79.5 | suspected | **real leak** |
+| `AnsatsuKyoushitsu-OP1` ts=43.6 | suspected | clean |
+| `AnsatsuKyoushitsu-ED1` ts=65.2 | suspected | clean |
+| `BlackClover-OP1` ts=46.5 | "uncatchable leak" | clean |
+
+Corrected ground truth: **4 positives, 37 clean.** The discarded "uncatchable leak" had been
+about to justify loosening the rule; a rule fitted to the old labels was one step from
+production. *Verify a label before designing around it.*
+
+**2. Single-token peak height is falsified.** The tallest token in all 16,038 — `と` at
+**0.6865** of frame height, conf 79.7 — is a hallucination on a **hair curve** in a frame that
+is clean. Sweeping `h_px` on corrected labels returns `NOT SEPARABLE`: tallest clean 0.6687
+sits above the shortest leak, and 79.5's peak is **0.0000**. The same holds for `hrot_px`,
+`w_px` and `top_px` at every confidence floor. The glyph-size hypothesis recorded above is
+therefore **retired**, and its sweep is deliberately kept in the harness, labelled, so the next
+reader cannot re-derive the same broken threshold.
+
+**3. Cross-pass duplicates are not corroboration.** The same physical box found by both the
+`orig` and `up2x` passes is *one* observation. `dedupe()` normalises each box by its own row's
+`img_w`/`img_h`, **never merges two boxes from the same pass**, and keeps the highest-confidence
+member. This single change is what made a coherence feature viable: frame 43.6 fell from
+**0.9918 — the highest-scoring frame of all 41, and clean** — to 0.0000, while leak 45.1's
+winning cluster re-centred onto the *real* title band (median height 0.1083 → 0.1396).
+
+**4. Two features, neither sufficient alone.** Each was swept independently and each correctly
+**refused to emit a threshold**:
+
+| feature | what it measures | catches | blind to |
+| --- | --- | --- | --- |
+| `coh` | typographic coherence: `median_h × √n × median((conf/100)²)`, ×1.5 when box tops are tight | titles the engine **read** (45.1, 39.1) | stylised logos |
+| `bigbox` | count of deduped boxes ≥ 0.28 of frame height, **no confidence floor** | logos the engine **misread** (78.0, 79.5) | small confident text |
+
+They fail on *different* frames, which is the entire reason the union works.
+
+**5. Why `bigbox` deliberately has no confidence floor.** A stylised logo is confidently
+**misread**, not confidently read: frame 79.5 tops out at conf **58.6** and scores 0.0000 on
+every confidence-weighted feature. `bigbox` is a *segmentation* signal, not a reading.
+Confidence enters `coh` as a continuous weight `(conf/100)^k`, never as a second hard floor —
+the exact-70.0 cliff already showed what a hard floor costs.
+
+**6. The shipping rule.** Expressed as one normalised scalar so `sweep`, `yield_check` and
+`simulate` consume it unchanged:
+
+```
+reject when   max( coh / 0.21 ,  bigbox / 3 )  >=  1.0
+```
+
+**7. Why `bigbox >= 3` and not 4 — the reason is mechanical, not margin-chasing.** Frame 79.5
+has four large boxes, but one is a degenerate full-frame **1.0 × 1.0** box at conf 28.1 — a
+detector artifact, not a glyph. Its three *real* boxes are 0.876 / 0.568 / 0.378. So a
+threshold of 4 catches that confirmed leak **only by counting the artifact**, and would miss it
+the moment an engine version or upscale change stopped emitting it. A threshold of 3 catches it
+either way, which makes the rule **independent of the artifact question**. Measured price: 5
+clean frames lost instead of 3.
+
+**8. Measured result** (`conf>=70`, `coh_t=0.21`, `big_t=3`):
+
+- **4 of 4 known-bad frames caught, 0 missed**, 5 clean frames lost.
+- **0 known-bad frames promoted** into the ship set — the regression a keep/drop count cannot
+  see, because removing a leak lets `spread()` promote a different frame.
+- **Every theme still yields 3 stills**; worst-theme survivor count 33 (`AnsatsuKyoushitsu-OP1`).
+- Both previously-shipped leaks (45.1, 78.0) no longer ship.
+
+**9. The union is not separable either, and that is not a bug to tune away.** Three clean
+frames carry ≥4 large boxes; one clean frame sits at coherence 0.1747 against a leak at 0.2573.
+Once a feature set is provably non-separable, the question stops being *"is it separable"* and
+becomes *"what does it cost"* — which is what the yield and ship simulation answer.
+
+**10. A lookup miss must never render as "clean".** The audit table initially scored all 41
+frames 0.0000: the label lists hold **float** timestamps while the frame index is keyed by
+`"%.1f"` **strings**, so `.get(key, [])` missed every row and its empty-list default read as
+innocent. It now raises `RuntimeError` instead. This is the one failure mode a leak filter
+cannot be allowed to have, and it was caught only by cross-checking against known scores.
+
+**11. Rejected by measurement — cluster-size relaxation for large type.** Advice to relax the
+minimum cluster size to 2 when median glyph height is large was implemented, measured, and
+**deleted**: it readmitted the 43.6 hair-curve pair and made that clean frame the top-scoring
+frame in the set. The reason is recorded inline in the harness so it is not retried.
+
+**Still unverified — 10 frames the new rule promotes that no one has looked at.** Three were
+recovered from run-2 artifacts and eyeballed **clean**: `AngelBeats-ED1` 20.6 (characters at
+sunset, no text), `AngelBeats-OP1` 88.1 (night cityscape — also the source of this theme's
+hallucinated glyph tokens: grids of city lights), `AoNoExorcist-ED1` 86.6 (glowing blade, no
+legible text). **Seven have no JPEG on disk** and are the real cost of shipping this rule:
+`AngelBeats-ED1` 67.9, `AngelBeats-OP1` 37.6, `AnsatsuKyoushitsu-OP1` 66.5, `AoNoExorcist-ED2`
+54.9, `AoNoExorcist-OP1` 57.0, `AoNoExorcist-OP2` 47.5, `BlackClover-OP1` 57.9.
+
+**Closes when** the rule is implemented in `tools/pipeline/curate_theme.py`, a CI run with
+uploads confirms `simulate()`'s predicted ship set frame-for-frame, and **all seven** unverified
+picks survive an eyeball — with yield still at 3 stills per theme. Until then B-28 stays open:
+runs 3 and 4 ship two confirmed leaks.
 
 **Fallback if OCR still proves unreliable:** stills-only rooms lose their safety margin, so
 the fallback is not "ship it anyway". Options, in order of preference: bias selection to
