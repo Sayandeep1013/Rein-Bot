@@ -83,12 +83,31 @@ on:
         type: boolean
         required: true
         default: false
+      auto_continue:
+        description: "On success, dispatch the next slice automatically until the pool is exhausted"
+        type: boolean
+        required: true
+        default: false
 
 # Two concurrent runs would race the same question_bank pre-check and waste
 # minutes. Queue them.
+#
+# BUT QUEUEING DOES NOT SCALE PAST ONE WAITING RUN, which is worth knowing before you
+# try to load the whole pool by firing several dispatches at once. A concurrency group
+# holds at most one running plus one pending run: a third arrival CANCELS the pending
+# one. Dispatching four slices back-to-back produced one running, one pending and two
+# `cancelled` — silently, since a cancelled run is not a failed run.
+#
+# That is what `auto_continue` is for: a successful run dispatches its own successor,
+# so the pool loads end to end with exactly one run in flight at any moment.
 concurrency:
   group: curate
   cancel-in-progress: false
+
+# actions: write is what lets a run dispatch its successor for auto_continue.
+permissions:
+  contents: read
+  actions: write
 
 jobs:
   curate:
@@ -431,3 +450,41 @@ jobs:
             jobs.jsonl
           if-no-files-found: warn
           retention-days: 14
+
+      # Self-chaining. See the note on the concurrency block: firing several
+      # dispatches at once does not queue them, it cancels all but one. A run that
+      # succeeds therefore launches its own successor, which keeps exactly one run in
+      # flight and walks the pool end to end without supervision.
+      #
+      # Only on success, and only for real runs: a dry run chaining itself would burn
+      # the whole pool's CI minutes producing nothing. The chain also stops on failure,
+      # which is the point -- a broken slice should halt the load, not be papered over
+      # by the next one starting.
+      - name: Dispatch the next slice
+        if: success() && inputs.auto_continue && !inputs.dry_run
+        env:
+          GH_TOKEN: ${{ github.token }}
+          START: ${{ inputs.start }}
+          COUNT: ${{ inputs.count }}
+        run: |
+          set -euo pipefail
+          next=$(( START + COUNT ))
+          pool=$(wc -l < pool.jsonl)
+          if [ "$next" -ge "$pool" ]; then
+            echo "pool exhausted at $pool themes; nothing left to dispatch"
+            echo "### Content load complete -- $pool themes walked" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          echo "dispatching next slice: start=$next count=$COUNT (pool $pool)"
+          gh workflow run curate.yml --ref "${GITHUB_REF_NAME}" \
+            -f start="$next" \
+            -f count="$COUNT" \
+            -f dry_run=false \
+            -f theme_types='${{ inputs.theme_types }}' \
+            -f detail_pct='${{ inputs.detail_pct }}' \
+            -f ocr_min_word='${{ inputs.ocr_min_word }}' \
+            -f ocr_min_conf='${{ inputs.ocr_min_conf }}' \
+            -f ocr_psm='${{ inputs.ocr_psm }}' \
+            -f ocr_dump=false \
+            -f auto_continue=true
+          echo "### Next slice dispatched: start=$next" >> "$GITHUB_STEP_SUMMARY"
