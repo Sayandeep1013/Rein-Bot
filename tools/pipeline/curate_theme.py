@@ -49,10 +49,46 @@ from pathlib import Path
 CANDIDATES = int(os.environ.get("CANDIDATES", "60"))
 EDGE_SKIP = float(os.environ.get("EDGE_SKIP", "2"))        # seconds trimmed off each end
 DETAIL_PCT = float(os.environ.get("DETAIL_PCT", "45"))     # % of per-theme median JPEG bytes
-OCR_MIN_CHARS = int(os.environ.get("OCR_MIN_CHARS", "1"))  # >= this many chars rejects a frame
-OCR_MIN_CONF = float(os.environ.get("OCR_MIN_CONF", "0"))  # ignore words below this confidence
+# The rejection rule is the LONGEST SINGLE WORD at or above OCR_MIN_CONF, not a
+# character sum. Measured over 647 candidate frames from 12 themes at floor 70:
+# junk word fragments from texture and motion peak at 3 characters (p50=2,
+# p95=3), while every frame carrying real title text reached 5 or more --
+# ASSASSINATION(92), ASSASSINATION(95), BLACK(94) CLOVER(96), gelBeals(90),
+# Musamit(86). Exactly 18 of 647 frames (2.8%) clear 5, and all 18 are genuine.
+#
+# A character SUM cannot separate the two because it adds junk fragments from
+# across the whole frame: chars_70 reached 34 on noise (p90=9, p99=19). That is
+# why the earlier `chars_70 >= 4` rule skipped 8 of 10 themes on the first
+# measured run while still passing text-bearing frames -- it was simultaneously
+# too strict and too weak, because it was measuring the wrong thing.
+OCR_MIN_WORD = int(os.environ.get("OCR_MIN_WORD", "5"))     # longest word that rejects a frame
+OCR_MIN_CONF = float(os.environ.get("OCR_MIN_CONF", "70"))  # ignore words below this confidence
 OCR_PSM = os.environ.get("OCR_PSM", "11")
-OCR_LANGS = os.environ.get("OCR_LANGS", "eng+jpn+jpn_vert")
+# jpn_vert dropped: across those same 647 frames it never produced a single
+# high-confidence word, contributing only junk fragments and runtime. Horizontal
+# jpn is kept for the cases it may still catch.
+OCR_LANGS = os.environ.get("OCR_LANGS", "eng+jpn")
+# Second OCR engine. tesseract is measurably blind to stylised anime display
+# typography, not merely mistuned: of the 36 stills shipped by measurement run
+# 32605150598, three carried plainly legible overlaid text -- a large-Latin
+# "KOROSENSEI teacher.", plus two credit-name cards -- for which tesseract
+# returned no high-confidence word at all. Its longest word at conf>=70 on
+# those frames was 1-2 characters, so no threshold on tesseract output could
+# ever have rejected them. rapidocr is detector-first and is strong exactly
+# where tesseract fails, so it runs as a second pass and the two are merged
+# worst-case.
+#
+# Pinned to <2 deliberately (see .github/workflows/curate.yml): the 1.x
+# rapidocr-onnxruntime wheels ship the .onnx weights inside the package,
+# whereas the 2.x line (renamed to "rapidocr") downloads them on first use.
+# Bundled weights mean no network call at inference time and nothing to
+# pre-warm before the frame loop.
+RAPIDOCR_ENABLE = os.environ.get("RAPIDOCR_ENABLE", "true").lower() == "true"
+# Both engines are gated on the same OCR_MIN_CONF floor. Their scores are not
+# calibrated against each other, so this is an assumption, not a measurement --
+# but adding a second threshold would double the tuning surface with no data to
+# justify a different value. The dump's culprit column records which engine
+# fired, which is what would justify splitting them later.
 # Write out/ocr-<stem>.tsv: one row per (frame, OCR pass, word) with its
 # confidence. This exists because the first real run showed the text filter
 # rejecting 44-58 of ~55 frames per theme, and inspecting the images proved the
@@ -284,8 +320,69 @@ def ocr_words(path):
     return words
 
 
+_RAPID = []      # one-element cache; [] means "not built yet"
+
+
+def rapid_words(path):
+    """Second OCR engine, returning the same [(confidence, alnum_text), ...].
+
+    Confidences are rescaled to tesseract's 0-100 so both passes can be gated
+    on one OCR_MIN_CONF floor.
+
+    rapidocr returns whole text *lines*, not words. Those lines are split on
+    whitespace here so that "longest word" means the same thing for both
+    engines -- otherwise a single detected line would count as one enormous
+    word and the shared threshold would be far more trigger-happy on this pass
+    than on tesseract's. CJK has no spaces, so a Japanese run stays a single
+    token; that is correct rather than a flaw, because a six-character CJK run
+    at high confidence carries far more of a title than six Latin letters do.
+
+    The engine is built once per process and cached. Construction loads the
+    ONNX models, so doing it per frame would dominate the runtime of a
+    60-frame theme.
+    """
+    if not RAPIDOCR_ENABLE:
+        return []
+    if not _RAPID:
+        try:
+            from rapidocr_onnxruntime import RapidOCR
+        except ImportError as exc:
+            # Deliberately fatal. This pass exists because tesseract provably
+            # cannot read some title cards, so quietly degrading to
+            # tesseract-only would restore the exact blindness it was added to
+            # remove -- and would do it invisibly, in a run that still reports
+            # success. Set RAPIDOCR_ENABLE=false to opt out explicitly.
+            raise RuntimeError(
+                "rapidocr-onnxruntime is not installed (%s). Install it, or set "
+                "RAPIDOCR_ENABLE=false to run with tesseract only and accept "
+                "that stylised title text will not be detected." % exc
+            )
+        _RAPID.append(RapidOCR())
+    # Default thresholds: this pass wants recall, and the discriminating is
+    # done afterwards by OCR_MIN_CONF plus the longest-word rule. Passing
+    # guessed threshold kwargs would risk a TypeError 20 CI-minutes in.
+    out = _RAPID[0](str(path))
+    # v1.x returns (detections, timings); no detections is None, not [].
+    dets = out[0] if isinstance(out, tuple) else out
+    words = []
+    for det in dets or []:
+        # Each detection is [box, text, score] with score in 0..1.
+        if len(det) < 3:
+            continue
+        text, score = det[1], det[2]
+        try:
+            conf = float(score) * 100.0
+        except (TypeError, ValueError):
+            continue
+        for tok in str(text).split():
+            alnum = "".join(ch for ch in tok if ch.isalnum())
+            if alnum:
+                words.append((conf, alnum))
+    return words
+
+
 def ocr_frame(path, workdir):
-    """Both OCR passes for one frame, merged into one measurement.
+    """Every OCR pass for one frame, merged into one measurement.
 
     The second pass on a 2x lanczos upscale is kept because small or thin title
     text can be unreadable at 854px and readable at 1708px. Passes are merged by
@@ -308,6 +405,11 @@ def ocr_frame(path, workdir):
         if p.returncode == 0:
             passes.append(("up%dx" % OCR_UPSCALE, ocr_words(big)))
             big.unlink(missing_ok=True)
+    if RAPIDOCR_ENABLE:
+        # Detector-first second engine, on the original frame only: rapidocr
+        # rescales internally as part of detection, so feeding it the 2x
+        # upscale mostly buys runtime.
+        passes.append(("rapid", rapid_words(path)))
 
     m = {"passes": passes}
     for floor in (0, 50, 60, 70, 80, 90):
@@ -335,48 +437,62 @@ def ocr_frame(path, workdir):
 def text_filter(cands, workdir, outdir, stem):
     """Split candidates into (clean, text-positive).
 
-    The rejection rule is `chars at or above OCR_MIN_CONF >= OCR_MIN_CHARS`.
-    Both halves are configurable from the workflow because B-28's fallback
-    ladder is operated through them, and because the first measured run proved
-    the original rule (any single character at any confidence) rejected
-    essentially every frame.
+    The rejection rule is `longest single word at or above OCR_MIN_CONF >=
+    OCR_MIN_WORD`, evaluated as the worst case across every OCR pass. See the
+    OCR_MIN_WORD comment at the top of this file for the 647-frame measurement
+    that chose a longest-word rule over a character sum.
+
+    Both halves stay configurable from the workflow because B-28's fallback
+    ladder is operated through them.
     """
     clean, texty = [], []
     rows = []
     for c in cands:
         m = ocr_frame(c["path"], workdir)
         chars = 0
-        for _, words in m["passes"]:
-            chars = max(chars, sum(len(t) for conf, t in words
-                                   if conf >= OCR_MIN_CONF))
+        longest = 0
+        culprit = ""
+        for name, words in m["passes"]:
+            kept = [(conf, t) for conf, t in words if conf >= OCR_MIN_CONF]
+            chars = max(chars, sum(len(t) for _, t in kept))
+            for conf, t in kept:
+                if len(t) > longest:
+                    longest = len(t)
+                    # Which engine and which word triggered it. Without this,
+                    # a run cannot answer "is the second engine earning its
+                    # runtime, or is tesseract catching everything anyway?"
+                    culprit = "%s:%s(%d)" % (name, t, int(conf))
         c["ocr_chars"] = chars
+        c["ocr_longest"] = longest
+        c["ocr_culprit"] = culprit
         c["ocr_max_conf"] = round(m["max_conf"], 1)
         c["ocr_sample"] = m["sample"]
         c["ocr_metrics"] = m
-        (texty if chars >= OCR_MIN_CHARS else clean).append(c)
-        rows.append((c, m, chars))
+        (texty if longest >= OCR_MIN_WORD else clean).append(c)
+        rows.append((c, m, chars, longest, culprit))
 
     if OCR_DUMP:
         dump = outdir / ("ocr-" + stem + ".tsv")
         with io.open(dump, "w", encoding="utf-8", newline="\n") as f:
-            cols = ["index", "ts", "bytes", "verdict", "chars_at_min_conf",
-                    "max_conf", "words"]
+            cols = ["index", "ts", "bytes", "verdict", "longest_at_min_conf",
+                    "chars_at_min_conf", "culprit", "max_conf", "words"]
             cols += ["chars_%d" % n for n in (0, 50, 60, 70, 80, 90)]
             cols += ["longest_%d" % n for n in (0, 50, 60, 70, 80, 90)]
             cols += ["top_words"]
             f.write("\t".join(cols) + "\n")
-            for c, m, chars in rows:
+            for c, m, chars, longest, culprit in rows:
                 vals = [c["index"], "%.1f" % c["ts"], c["bytes"],
-                        "TEXTY" if chars >= OCR_MIN_CHARS else "CLEAN",
-                        chars, "%.1f" % m["max_conf"], m["words"]]
+                        "TEXTY" if longest >= OCR_MIN_WORD else "CLEAN",
+                        longest, chars, culprit or "-",
+                        "%.1f" % m["max_conf"], m["words"]]
                 vals += [m["chars_%d" % n] for n in (0, 50, 60, 70, 80, 90)]
                 vals += [m["longest_%d" % n] for n in (0, 50, 60, 70, 80, 90)]
                 vals += [m["sample"].replace("\t", " ")]
-                f.write("\t".join(str(v) for v in vals) + "\n")
+                f.write("\t".join(str(v).replace("\t", " ") for v in vals) + "\n")
         log("  ocr dump: %s" % dump.name)
 
-    log("  ocr: clean=%d text-positive=%d (>=%d chars at conf>=%g, psm=%s, langs=%s)"
-        % (len(clean), len(texty), OCR_MIN_CHARS, OCR_MIN_CONF,
+    log("  ocr: clean=%d text-positive=%d (word>=%d at conf>=%g, psm=%s, langs=%s)"
+        % (len(clean), len(texty), OCR_MIN_WORD, OCR_MIN_CONF,
            OCR_PSM, OCR_LANGS))
     return clean, texty
 
@@ -525,7 +641,9 @@ def process(job, result):
     for sub in ("stills", "posters", "audio", "rejected"):
         (out_dir / sub).mkdir(parents=True, exist_ok=True)
 
-    slug = result["asset_slug"]
+    still_slug = result["asset_slug"]
+    poster_slug = result["poster_slug"]
+    audio_slug = result["audio_slug"]
 
     src = work / "src.webm"
     src_bytes = download(link, src)
@@ -567,9 +685,9 @@ def process(job, result):
     result["poster_source"] = poster_src
 
     # Deliverables. Named readably on disk so a human inspecting the artifact
-    # can tell which anime a leaked title belongs to; the BUCKET keys are the
-    # unguessable slug form and are built only from question_asset_keys'
-    # convention.
+    # can tell which anime a leaked title belongs to; the BUCKET keys use the
+    # unguessable per-class slug form built from question_asset_keys'
+    # convention, and share no common substring with each other.
     still_paths, still_bytes = [], []
     for n, c in enumerate(chosen, start=1):
         dest = out_dir / "stills" / ("%s-still%d.jpg" % (stem, n))
@@ -588,8 +706,8 @@ def process(job, result):
     for c in texty[:12]:
         shutil.copyfile(
             c["path"],
-            out_dir / "rejected" / ("%s-t%03d-%dch.jpg"
-                                    % (stem, c["index"], c["ocr_chars"])),
+            out_dir / "rejected" / ("%s-t%03d-w%02d.jpg"
+                                    % (stem, c["index"], c["ocr_longest"])),
         )
 
     bytes_total = audio_bytes + sum(still_bytes) + poster_bytes
@@ -603,6 +721,8 @@ def process(job, result):
         "still_ts": [round(c["ts"], 1) for c in chosen],
         "poster_ts": round(poster["ts"], 1),
         "poster_ocr_chars": poster.get("ocr_chars", 0),
+        "poster_ocr_longest": poster.get("ocr_longest", 0),
+        "poster_ocr_culprit": poster.get("ocr_culprit", ""),
     })
     log("  chosen: %d stills at %s s, poster at %.1fs (%s), total %.1f KB"
         % (len(chosen), result["still_ts"], poster["ts"], poster_src,
@@ -618,17 +738,22 @@ def process(job, result):
 
     # Objects first, always. A row pointing at bytes that never arrived is
     # worse than an orphaned upload, and with five objects that window is five
-    # times wider. Keys follow question_asset_keys(asset_slug, still_count):
-    #   audio/{slug}.webm  stills/{slug}-{n}.jpg  posters/{slug}.jpg
+    # times wider. Keys follow question_asset_keys(still, poster, audio, count):
+    #   stills/{still_slug}-{n}.jpg  posters/{poster_slug}.jpg
+    #   audio/{audio_slug}.webm
+    # Three unrelated roots: no key here can be edited into any other key, so
+    # holding a still reveals nothing about where the poster or audio lives.
     uploaded = 0
-    uploaded += upload("audio/%s.webm" % slug, audio_out, "audio/webm")
+    uploaded += upload("audio/%s.webm" % audio_slug, audio_out, "audio/webm")
     for n, path in enumerate(still_paths, start=1):
-        uploaded += upload("stills/%s-%d.jpg" % (slug, n), path, "image/jpeg")
-    uploaded += upload("posters/%s.jpg" % slug, poster_path, "image/jpeg")
+        uploaded += upload("stills/%s-%d.jpg" % (still_slug, n), path, "image/jpeg")
+    uploaded += upload("posters/%s.jpg" % poster_slug, poster_path, "image/jpeg")
     log("  uploaded %d objects, %.1f KB" % (2 + len(still_paths), uploaded / 1024.0))
 
     payload = {
-        "asset_slug": slug,
+        "asset_slug": still_slug,
+        "poster_slug": poster_slug,
+        "audio_slug": audio_slug,
         "still_count": len(chosen),
         "audio_seconds": int(round(audio_seconds)),
         "bytes_total": bytes_total,
@@ -654,9 +779,12 @@ def process(job, result):
         "nsfw": job["nsfw"],
     }
     row_id = ingest(payload)
-    # id and asset_slug are two different uuids ON PURPOSE (migration 0010):
-    # id is client-readable via rounds.question_id, asset_slug is not. They are
-    # not meant to agree, so this is logged, never compared.
+    # id and the three asset slugs are four different uuids ON PURPOSE
+    # (migrations 0010, 0011): id is client-readable via rounds.question_id --
+    # create_room pre-inserts every round, so every room member can read every
+    # question_id in the room from the first second. The slugs are not readable
+    # that way. They are not meant to agree with id or with each other, so this
+    # is logged, never compared.
     result["question_id"] = row_id
     result["status"] = "OK"
     log("  ingested row %s" % row_id)
@@ -667,15 +795,30 @@ def main():
     basename = job.get("basename") or "?"
     stem = basename[:-5] if basename.endswith(".webm") else basename
 
-    # A fresh random slug, never derived from anything public. basename IS
-    # public AnimeThemes data, so a derived slug (md5(basename), as the old
-    # video pipeline did for its id) could be recomputed for every title in the
-    # pool -- and the bucket is public-read, so a player could prefetch all
-    # content and reverse-image-match whatever still appears. Idempotency
-    # across retries comes from the workflow skipping themes already present in
-    # question_bank, not from making the slug predictable.
+    # THREE independent random slugs, one per asset class -- never derived from
+    # anything public and never derived from each other (migration 0011).
+    #
+    # Not derived from public data: basename IS public AnimeThemes data, so a
+    # derived slug (md5(basename), as the old video pipeline did for its id)
+    # could be recomputed for every title in the pool -- and the bucket is
+    # public-read, so a player could prefetch all content and reverse-image
+    # match whatever still appears.
+    #
+    # Not derived from each other: under the single-slug layout of 0010, a
+    # player holding stills/{slug}-1.jpg could edit that one string into
+    # posters/{slug}.jpg, and the poster is deliberately the title card -- the
+    # answer. Reads on a public bucket are by key and bypass RLS entirely
+    # (measured: dropping the storage policy left GETs returning 200 and only
+    # stopped listing), so key unguessability is the whole protection. Three
+    # unrelated 122-bit roots make each asset class its own separate secret.
+    #
+    # Idempotency across retries comes from the workflow skipping themes already
+    # present in question_bank, not from making any slug predictable.
     result = {
-        "basename": basename, "stem": stem, "asset_slug": str(uuid.uuid4()),
+        "basename": basename, "stem": stem,
+        "asset_slug": str(uuid.uuid4()),
+        "poster_slug": str(uuid.uuid4()),
+        "audio_slug": str(uuid.uuid4()),
         "status": "FAIL", "note": "", "still_count": 0,
         "audio_seconds": 0, "bytes_total": 0,
     }
