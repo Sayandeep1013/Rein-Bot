@@ -1561,3 +1561,45 @@ stale, but a combination that was never tested. This happened during the session
 was verifiably live on the server, confirmed by curling the file, while the browser kept
 executing the previous one. The deploy now stamps the commit sha onto each asset URL, so
 every deploy is a fresh URL and the three files cannot disagree.
+
+### Retheme to modernised 90s desktop — 2026-08-24
+
+The user supplied a reference: a Corridor Crew thumbnail of an iMac G3 showing a Sad Mac
+on a saturated magenta screen, with chunky black-outlined title chrome. The dark
+glass-and-neon theme built earlier that day was simply the wrong direction, so this was a
+retheme rather than a revision.
+
+What carries the look: every panel is a **window** with a pinstriped title bar, a close
+box and a lowercase bitmap label. Borders are 3px solid black, shadows are solid offsets
+with no blur, and buttons physically translate onto their own shadow when pressed. The
+ground is the classic 50% desktop stipple under page-wide CRT scanlines. Anything showing
+a picture — play frames, reveal poster — sits *inside the tube*: black, scanlined. The
+landing page has a CRT drawn entirely in CSS, and the setup-error screen has a Sad Mac.
+
+**The "modernised" half is where the judgement is.** Bitmap type is used for chrome,
+labels and numbers only; everything you actually have to read is Space Grotesk at a
+comfortable size. Layout is fluid rather than 640x480, motion is smooth rather than
+stepped, and hit targets are modern. Period-accurate would have been a worse game.
+
+### A CSS trap worth remembering: `animation: ... both`
+
+While screenshotting, an injected debugging stylesheet paused all animations and **every
+screen went blank** — while `getBoundingClientRect` reported correct geometry,
+`display: block`, and the content present.
+
+The cause was `animation: snap .18s ease both` on `.screen.active`. The `both` fill mode
+makes an element take the keyframe's `from` state — `opacity: 0` — whenever the animation
+is *not actively running*. Pausing animations therefore does not freeze the UI, it
+**erases** it.
+
+That is not merely a debugging inconvenience. A browser extension, an OS-level
+reduce-motion setting more aggressive than the media query, or any future instrumentation
+would reproduce it, and the symptom (blank page, healthy DOM) points nowhere near the
+cause. Removed from all four uses. Without `both`, the element's normal visible styles
+apply outside the animation and motion is purely additive, which is what it should have
+been.
+
+Worth noting how it was found: the instinct was "the create screen is broken". The DOM
+said otherwise, and the DOM was right. Measuring before believing the symptom is the same
+habit that produced the `question_id` false positive earlier — an audit query that is not
+itself audited is just a rumour with a `select` in front of it.
