@@ -145,37 +145,32 @@ heading is kept only so a reader who remembers the old list knows it moved.
   both the Storage API and SQL.
 - The publishable key is committed in `app/config.js` and serving.
 
-**Blocked on the user, and only this one:**
+- **Anonymous sign-in is ON**, and a full game has been played end to end against the
+  live project from a real client session: sign-in, create room, start, wrong guess,
+  correct guess (188 points, exact tier, CJK title), scoreboard, reveal with poster,
+  and `ROUND_NOT_ACTIVE` inside the reveal gap. Both security properties were
+  re-checked *from that session*, which is the only test that counts:
+  `question_bank` 403, `rounds.question_id` 403, `rounds.ordinal` 200.
 
-**Anonymous sign-in is OFF.** Measured twice, from two sources:
-`GET /v1/projects/{ref}/config/auth` returns `"external_anonymous_users_enabled": false`,
-and the auth service's own `GET /auth/v1/settings` returns
-`external.anonymous_users: false`. A live signup attempt returns
-`422 anonymous_provider_disabled`. Every RPC begins
-`if auth.uid() is null then raise AUTH_REQUIRED`, so nothing works until it is on.
+  It did not persist on the first attempt. Enabling it raises an RLS warning that must
+  be **accepted** before the save completes; dismissing the warning silently reverts
+  the toggle. Do not trust the toggle's appearance - verify:
 
-Dashboard: **Authentication -> Sign In / Providers**, the *User Signups* card, toggle
-**Allow anonymous sign-ins**, then **Save**. Enabling it pops a warning about RLS and
-anonymous users; that warning must be accepted for the save to complete, and it is
-expected here - anonymous users ARE this game's players, every policy is
-membership-scoped through `is_room_member`, and the answer-bearing tables have no client
-grant at all.
+  ```bash
+  curl -s https://mxkqivivqultfuattuin.supabase.co/auth/v1/settings \
+    -H "apikey: <publishable key>" | grep -o '"anonymous_users":[a-z]*'
+  ```
 
-Verify with, and do not trust the dashboard alone:
-
-```bash
-curl -s https://mxkqivivqultfuattuin.supabase.co/auth/v1/settings \
-  -H "apikey: <publishable key>" | grep -o '"anonymous_users":[a-z]*'
-```
-
-The client detects this condition at boot and renders the fix, so the deployed site
-explains itself rather than failing blankly.
+**Nothing is blocked on the user. The game is playable.**
 
 **Still not done:**
 
 - The retry/backoff ladder has still never been triggered.
 - Real Supabase egress has still never been measured.
-- No browser has ever played a round. `app/` has never run against a live game.
+- No BROWSER has played a round yet. The full RPC path is verified from a script
+  session, so what remains untested is the DOM: progressive still timing, audio
+  autoplay policy on mobile Safari, and whether a 1.5 s poll feels responsive at a
+  round boundary.
 - `ingest_question` still uses `search_path = public, pg_temp` rather than `''` - the
   only function in the schema that does, and the highest-privileged one. Left alone
   while content was loading; safe to fix now that the load is finished.

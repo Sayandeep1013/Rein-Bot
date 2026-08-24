@@ -1355,3 +1355,55 @@ Two further findings were reviewed and deliberately not acted on. The game RPCs 
 and each re-checks membership rather than trusting its caller. And
 `question_bank`/`question_titles` report "RLS enabled, no policies" — which, combined
 with zero grants, is the strongest posture available rather than an oversight.
+
+### Verified end to end, same day — a real game ran
+
+Anonymous sign-in was enabled by the user (it silently failed to persist the first time:
+the dashboard raises an RLS warning that has to be accepted before the save completes,
+and the toggle reverts if it is dismissed). With that on, the whole path was exercised
+against the live project from a real client session, not reasoned about:
+
+| Step | Result |
+| --- | --- |
+| Anonymous sign-in | HTTP 200, JWT carries `role: authenticated` |
+| `create_room` | HTTP 200 |
+| `get_room_state` in lobby | state `lobby`, 1 player, `is_host: true` |
+| `start_game` | HTTP 204 |
+| Round 1 assets | 3 stills, audio present, **poster absent** |
+| Still fetched from the public bucket by key | HTTP 200, `image/jpeg`, 54 KB |
+| Audio fetched by key | HTTP 200, `audio/webm`, 161 KB |
+| Wrong guess | `incorrect`, 0 points |
+| Correct guess | `exact`, **188 points**, `is_first_correct: true` |
+| Scoreboard | updated to 188 |
+| Reveal after `ends_at` | title, winner **and** poster present |
+| Poster fetched at reveal | HTTP 200, `image/jpeg`, 90 KB |
+| Guess during the reveal gap | `ROUND_NOT_ACTIVE` |
+
+**The two security properties were re-checked from a real client session**, which is the
+only test that counts — an audit query runs as an admin and proves nothing about what a
+player can reach:
+
+| Attempt | Result |
+| --- | --- |
+| `GET /rest/v1/question_bank?select=*` | **HTTP 403** |
+| `GET /rest/v1/rounds?select=question_id` | **HTTP 403** |
+| `GET /rest/v1/rounds?select=ordinal,ends_at` | HTTP 200, 3 rows |
+
+The third row matters as much as the first two: the column-level grant withholds
+`question_id` specifically rather than making `rounds` unreadable, so it is a real
+restriction and not a blunt denial that happens to look like one.
+
+A CJK title matched exactly on the first run (`東京喰種 トーキョーグール`), which
+incidentally exercises the `[[:alnum:]]` Unicode fix from `normalise_title` that
+GAME-DESIGN §4.2 records as "Bug 2".
+
+**One false alarm worth recording, because it demonstrates the gate working.** The first
+attempt reported an empty reveal. The cause was the test, not the code: it forced
+`rooms.deadline` into the past to skip the 20-second wait, which breaks the invariant
+that `deadline` equals the current round's `ends_at` (`start_game` and `advance_round`
+each write both from a single value). `get_room_state`'s reveal query keys off
+`rounds.ends_at`, so it correctly reported that no round had finished — the round really
+had not. Waiting the round out produced the full reveal. The lesson is that the reveal is
+gated on elapsed time and not on round number, which is exactly the property wanted.
+
+Test rooms were deleted afterwards; `rooms`, `players` and `guesses` are all back to 0.
