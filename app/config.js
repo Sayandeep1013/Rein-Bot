@@ -10,5 +10,8 @@ window.REIN_CONFIG = {
   SUPABASE_URL: "https://mxkqivivqultfuattuin.supabase.co",
 
   // Supabase dashboard -> Settings -> API Keys -> the `anon` / `publishable` key.
-  SUPABASE_ANON_KEY: "PASTE_PUBLISHABLE_KEY_HERE",
+  // This is the newer `sb_publishable_` format. The legacy `anon` JWT for this project
+  // also works; the publishable key is used because it is the format Supabase is
+  // moving to and it is not a JWT, so it cannot be mistaken for a session token.
+  SUPABASE_ANON_KEY: "sb_publishable_Y1pzH2bR7iLP5pwGH36BYQ_7OABNQy8",
 };

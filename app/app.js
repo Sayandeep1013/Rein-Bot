@@ -62,11 +62,15 @@
   // ---------------------------------------------------------------- http
   function req(path, opts) {
     opts = opts || {};
+    // apikey identifies the project; Authorization carries the SESSION, and is sent
+    // only when there is one. The obvious-looking fallback of putting the publishable
+    // key in Authorization is wrong for the `sb_publishable_` format, which is not a
+    // JWT -- and it is unnecessary in either format, because the pre-auth role has no
+    // grant on anything here. The only call made before sign-in is /auth/v1/signup,
+    // which authenticates on apikey alone.
     var headers = { apikey: ANON, "Content-Type": "application/json" };
     if (opts.auth !== false && session && session.access_token) {
       headers.Authorization = "Bearer " + session.access_token;
-    } else {
-      headers.Authorization = "Bearer " + ANON;
     }
     return fetch(URL_BASE + path, {
       method: opts.method || "POST",

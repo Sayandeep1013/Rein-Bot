@@ -218,3 +218,27 @@ comment on function public.get_room_state(uuid) is
 revoke all on function public.get_room_state(uuid) from public;
 revoke all on function public.get_room_state(uuid) from anon;
 grant execute on function public.get_room_state(uuid) to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Addendum, from the Supabase security advisor (applied 2026-08-23)
+-- ---------------------------------------------------------------------------
+-- The advisor flagged is_room_member and is_own_player as SECURITY DEFINER functions
+-- executable by `anon` via /rest/v1/rpc/<name>. Both are internal helpers used inside
+-- RLS policy expressions; neither is part of the client API. Exploitability is nil
+-- today -- both resolve identity from auth.uid(), NULL for role anon, so both return
+-- false for every input -- but "returns false today" is exactly the reasoning 0012 was
+-- written to stop relying on. The grant has no purpose, so it goes.
+--
+-- Deliberately NOT revoked from `authenticated`: a policy expression's function calls
+-- are permission-checked against the querying role, so revoking there would break the
+-- policies that call them.
+--
+-- Two other advisor findings are intentional and are NOT acted on:
+--   * The game RPCs are SECURITY DEFINER and callable by `authenticated`. They ARE the
+--     client API. Each re-checks membership itself rather than trusting the caller.
+--   * question_bank and question_titles report "RLS enabled, no policies". That is the
+--     strongest posture available, not an oversight: RLS on with zero policies plus
+--     zero grants denies every client read outright (doc/DATA-MODEL.md 7.1).
+
+revoke execute on function public.is_room_member(uuid) from anon;
+revoke execute on function public.is_own_player(uuid)  from anon;
