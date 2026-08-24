@@ -1,73 +1,99 @@
-/* ReIN Bot -- client.
+/* ReIN Bot — client.
  *
- * No framework, no build step, no bundler, and deliberately no supabase-js: the
- * transport is one polled RPC plus plain REST, which fetch() covers, so the page has
- * zero third-party runtime dependencies and nothing to break when a CDN does.
+ * No framework, no build step, no bundler, and no supabase-js: the transport is one
+ * polled RPC plus plain REST, which fetch() covers. The only third-party request the
+ * page makes is a stylesheet from Google Fonts, and every font stack falls back to
+ * system faces, so the game is fully playable without it.
  *
  * TRUST MODEL, in one paragraph, because it explains most of the odd choices below.
- * This client is not trusted with anything. It never sees an answer -- grade_guess
+ * This client is not trusted with anything. It never sees an answer — grade_guess
  * returns a verdict, get_room_state returns the reveal only for rounds whose ends_at
- * has already passed, and the poster (which is the title card by design) is withheld
- * during play. It is not trusted with the clock either: every deadline is server-side
- * and the countdown runs off an offset measured against server_now, because a browser
- * clock can be minutes out. It is not trusted with scoring: points are summed inside
- * the database. If this file were rewritten by a player, the worst they could do is
- * make their own UI lie to them.
+ * has already passed, and the poster (the title card, by design) is withheld during
+ * play. It is not trusted with the clock: every deadline is server-side and the
+ * countdown runs off an offset measured against server_now, because a browser clock can
+ * be minutes out. It is not trusted with scoring: points are summed inside the
+ * database. If a player rewrote this file, the worst they could do is make their own UI
+ * lie to them.
+ *
+ * STATE MODEL. There is exactly one source of truth — the last get_room_state payload —
+ * and one function, route(), that decides which screen it implies. Nothing else calls
+ * show(). Every "we're in the reveal now" style transition is derived from timestamps
+ * rather than remembered, which is why a refresh mid-round lands exactly where it left.
  */
 (function () {
   "use strict";
 
-  // ---------------------------------------------------------------- config
+  // ════════════════════════════ config ════════════════════════════
   var CFG = window.REIN_CONFIG || {};
   var URL_BASE = (CFG.SUPABASE_URL || "").replace(/\/+$/, "");
   var ANON = CFG.SUPABASE_ANON_KEY || "";
+
   var POLL_MS = 1500;
+  var TICK_MS = 100;
+  var OVER_REVEAL_MS = 6000;   // how long the last answer holds before final scores
+  var CODE_ALPHABET = /^[0-9ABCDEFGHJKMNPQRSTVWXYZ]{4}$/;  // Crockford, no I L O U
+
   var LS_TOKEN = "rein.session";
   var LS_ROOM = "rein.room";
   var LS_NAME = "rein.name";
 
-  // ---------------------------------------------------------------- dom
+  // ════════════════════════════ dom helpers ════════════════════════════
   function $(id) { return document.getElementById(id); }
+  function on(el, ev, fn) { if (el) el.addEventListener(ev, fn); }
+  function text(el, s) { if (el) el.textContent = s == null ? "" : String(s); }
+  function cls(el, c) { if (el) el.className = c; }
+
+  var currentScreen = null;
   function show(id) {
+    if (currentScreen === id) return;
+    currentScreen = id;
     var all = document.querySelectorAll(".screen");
-    for (var i = 0; i < all.length; i++) all[i].classList.remove("active");
-    $(id).classList.add("active");
-  }
-  function text(el, s) { el.textContent = s == null ? "" : String(s); }
-  function on(el, ev, fn) { el.addEventListener(ev, fn); }
-
-  function fatal(msg, helpHtml) {
-    text($("fatal-msg"), msg);
-    $("fatal-help").innerHTML = helpHtml || "";
-    show("scr-fatal");
-    stopPolling();
+    for (var i = 0; i < all.length; i++) all[i].classList.toggle("active", all[i].id === id);
+    window.scrollTo(0, 0);
   }
 
-  // ---------------------------------------------------------------- state
-  var session = null;      // { access_token, refresh_token, expires_at }
-  var clockSkew = 0;       // serverNow - clientNow, in ms
+  function toast(msg, kind) {
+    var host = $("toasts");
+    var el = document.createElement("div");
+    el.className = "toast" + (kind ? " " + kind : "");
+    el.textContent = msg;
+    host.appendChild(el);
+    setTimeout(function () { el.remove(); }, 3200);
+  }
+
+  function banner(el, msg) {
+    if (!el) return;
+    if (!msg) { el.classList.add("hidden"); return; }
+    text(el, msg);
+    el.classList.remove("hidden");
+  }
+
+  // ════════════════════════════ state ════════════════════════════
+  var session = null;       // { access_token, refresh_token, expires_at }
+  var clockSkew = 0;        // serverNow - clientNow, ms
   var roomId = null;
-  var last = null;         // last get_room_state payload
-  var pollTimer = null;
-  var tickTimer = null;
-  var advancedFor = null;  // deadline value we have already tried to advance past
+  var last = null;          // last get_room_state payload — the single source of truth
+  var pollTimer = null, tickTimer = null;
+  var polling = false;      // guard: never overlap two polls on a slow connection
+  var advancedFor = null;   // deadline value already acted on
+  var guessInFlight = false;
   var shownStills = 0;
-  var audioEl = null;
-  var audioKeyPlaying = null;
+  var lastStills = [];      // cached so the reveal can show what you were looking at
+  var audioEl = null, audioKey = null;
   var overSince = 0;
-  var myGuesses = [];
+  var pollFails = 0;
+  var reconnecting = false;
 
   function serverNow() { return Date.now() + clockSkew; }
+  function t(iso) { return iso ? new Date(iso).getTime() : 0; }
 
-  // ---------------------------------------------------------------- http
+  // ════════════════════════════ http ════════════════════════════
   function req(path, opts) {
     opts = opts || {};
-    // apikey identifies the project; Authorization carries the SESSION, and is sent
-    // only when there is one. The obvious-looking fallback of putting the publishable
-    // key in Authorization is wrong for the `sb_publishable_` format, which is not a
-    // JWT -- and it is unnecessary in either format, because the pre-auth role has no
-    // grant on anything here. The only call made before sign-in is /auth/v1/signup,
-    // which authenticates on apikey alone.
+    // apikey identifies the project; Authorization carries the SESSION and is sent only
+    // when there is one. Putting the publishable key in Authorization is wrong for the
+    // sb_publishable_ format (not a JWT) and unnecessary in either: the pre-auth role
+    // has no grant on anything here. The one pre-auth call is /auth/v1/signup.
     var headers = { apikey: ANON, "Content-Type": "application/json" };
     if (opts.auth !== false && session && session.access_token) {
       headers.Authorization = "Bearer " + session.access_token;
@@ -77,14 +103,14 @@
       headers: headers,
       body: opts.body ? JSON.stringify(opts.body) : undefined,
     }).then(function (r) {
-      return r.text().then(function (t) {
+      return r.text().then(function (raw) {
         var j = null;
-        try { j = t ? JSON.parse(t) : null; } catch (e) { j = null; }
+        try { j = raw ? JSON.parse(raw) : null; } catch (e) { j = null; }
         if (!r.ok) {
-          var e2 = new Error((j && (j.message || j.error_description || j.error)) || t || ("HTTP " + r.status));
-          e2.status = r.status;
-          e2.payload = j;
-          throw e2;
+          var err = new Error((j && (j.message || j.error_description || j.error || j.msg))
+                              || raw || ("HTTP " + r.status));
+          err.status = r.status;
+          throw err;
         }
         return j;
       });
@@ -93,107 +119,92 @@
 
   // PostgREST surfaces `raise exception 'ROOM_FULL'` as message "ROOM_FULL". The
   // functions raise bare uppercase codes on purpose so this mapping stays trivial.
-  function rpc(name, args) {
-    return req("/rest/v1/rpc/" + name, { body: args || {} });
-  }
+  function rpc(name, args) { return req("/rest/v1/rpc/" + name, { body: args || {} }); }
 
-  function assetUrl(key) {
-    return URL_BASE + "/storage/v1/object/public/media/" + key;
-  }
+  function assetUrl(key) { return URL_BASE + "/storage/v1/object/public/media/" + key; }
 
-  // ---------------------------------------------------------------- auth
+  // ════════════════════════════ auth ════════════════════════════
   function saveSession(s) {
     session = {
       access_token: s.access_token,
       refresh_token: s.refresh_token,
-      // expires_in is seconds; refresh a minute early.
-      expires_at: Date.now() + (s.expires_in || 3600) * 1000 - 60000,
+      expires_at: Date.now() + (s.expires_in || 3600) * 1000 - 60000,  // refresh a minute early
     };
     try { localStorage.setItem(LS_TOKEN, JSON.stringify(session)); } catch (e) {}
   }
-
   function loadSession() {
-    try {
-      var raw = localStorage.getItem(LS_TOKEN);
-      if (raw) session = JSON.parse(raw);
-    } catch (e) { session = null; }
+    try { var raw = localStorage.getItem(LS_TOKEN); if (raw) session = JSON.parse(raw); }
+    catch (e) { session = null; }
   }
-
-  function signInAnonymously() {
-    return req("/auth/v1/signup", { auth: false, body: {} }).then(saveSession);
+  function signIn() { return req("/auth/v1/signup", { auth: false, body: {} }).then(saveSession); }
+  function refresh() {
+    return req("/auth/v1/token?grant_type=refresh_token",
+               { auth: false, body: { refresh_token: session.refresh_token } }).then(saveSession);
   }
-
-  function refreshSession() {
-    return req("/auth/v1/token?grant_type=refresh_token", {
-      auth: false,
-      body: { refresh_token: session.refresh_token },
-    }).then(saveSession);
-  }
-
   function ensureSession() {
-    if (session && session.access_token && Date.now() < session.expires_at) {
-      return Promise.resolve();
-    }
+    if (session && session.access_token && Date.now() < session.expires_at) return Promise.resolve();
     if (session && session.refresh_token) {
-      return refreshSession().catch(function () {
-        session = null;
-        return signInAnonymously();
-      });
+      return refresh().catch(function () { session = null; return signIn(); });
     }
-    return signInAnonymously();
+    return signIn();
   }
 
-  // ---------------------------------------------------------------- errors
+  // ════════════════════════════ errors ════════════════════════════
   var FRIENDLY = {
-    AUTH_REQUIRED: "Session expired. Reload the page.",
-    BAD_NAME: "Pick a name between 1 and 24 characters.",
+    AUTH_REQUIRED: "Your session expired. Reload the page.",
+    BAD_NAME: "Names need 1 to 24 characters.",
     BAD_ROUND_COUNT: "Rounds must be between 3 and 20.",
-    BAD_DIFFICULTY: "That difficulty range is not valid.",
-    CODE_EXHAUSTED: "Could not allocate a room code. Try again.",
-    ROOM_NOT_FOUND: "No room with that code.",
+    BAD_DIFFICULTY: "That difficulty range isn't valid.",
+    CODE_EXHAUSTED: "Couldn't get a free room code. Try again.",
+    ROOM_NOT_FOUND: "No room with that code. Check it and try again.",
     NOT_IN_LOBBY: "That game has already started.",
-    ROOM_FULL: "That room is full (8 players).",
-    ALREADY_IN_ROOM: "You are already in that room.",
-    NAME_TAKEN: "Someone in that room already has that name.",
-    NOT_A_MEMBER: "You are not in that room.",
+    ROOM_FULL: "That room is full — 8 players is the limit.",
+    ALREADY_IN_ROOM: "You're already in that room.",
+    NAME_TAKEN: "Someone in that room already took that name.",
+    NOT_A_MEMBER: "You're not in that room any more.",
     NOT_HOST: "Only the host can start the game.",
-    ROUND_NOT_ACTIVE: "That round is not accepting guesses.",
+    ROUND_NOT_ACTIVE: "Too late — that round is over.",
     ALREADY_CORRECT: "You already got this one.",
     EMPTY_GUESS: "Type something first.",
-    EMPTY_NORMALISED: "That guess has no letters or digits in it.",
+    EMPTY_NORMALISED: "That guess has no letters or numbers in it.",
     GUESS_TOO_LONG: "That guess is too long.",
   };
 
   function friendly(err) {
     var m = (err && err.message) || "";
-    for (var k in FRIENDLY) {
-      if (m.indexOf(k) === 0) {
-        // INSUFFICIENT_CONTENT carries a count in the message; keep it.
-        return FRIENDLY[k];
-      }
-    }
+    for (var k in FRIENDLY) if (m.indexOf(k) === 0) return FRIENDLY[k];
     if (m.indexOf("INSUFFICIENT_CONTENT") === 0) {
-      return "Not enough anime in the question bank for that many rounds at that " +
-             "difficulty. Try fewer rounds or a wider difficulty range.";
+      return "Not enough different anime for that many rounds at that difficulty. " +
+             "Try fewer rounds, or widen the range.";
     }
-    if (/Anonymous sign-ins are disabled/i.test(m)) {
-      return "Anonymous sign-in is disabled on this Supabase project.";
-    }
+    if (/anonymous/i.test(m)) return "Anonymous sign-in is disabled on this project.";
+    if (/Failed to fetch|NetworkError|Load failed/i.test(m)) return "Network problem. Check your connection.";
     return m || "Something went wrong.";
   }
 
-  function banner(el, msg) {
-    if (!msg) { el.classList.add("hidden"); return; }
-    text(el, msg);
-    el.classList.remove("hidden");
+  // ════════════════════════════ routing ════════════════════════════
+  // Hash routes cover only the pre-room screens. Once you are in a room the screen is
+  // a function of game state, not of the URL — a lobby that jumped back to the landing
+  // page because someone hit Back would be worse than Back doing nothing.
+  var ROUTES = { "": "scr-landing", "/": "scr-landing", "/create": "scr-create", "/join": "scr-join" };
+
+  function go(name) { location.hash = "#/" + name; }
+
+  function applyHash() {
+    if (roomId) return;                       // in a room: game state owns the screen
+    var h = location.hash.replace(/^#/, "");
+    var id = ROUTES[h] || ROUTES[""];
+    show(id);
+    if (id === "scr-create") $("in-name-c").focus();
+    if (id === "scr-join" && !$("in-code").value) $("in-code").focus();
   }
 
-  // ---------------------------------------------------------------- polling
+  // ════════════════════════════ polling ════════════════════════════
   function startPolling() {
     stopPolling();
     poll();
     pollTimer = setInterval(poll, POLL_MS);
-    tickTimer = setInterval(tick, 200);
+    tickTimer = setInterval(tick, TICK_MS);
   }
   function stopPolling() {
     if (pollTimer) clearInterval(pollTimer);
@@ -202,70 +213,93 @@
   }
 
   function poll() {
-    if (!roomId) return Promise.resolve();
+    if (!roomId || polling) return Promise.resolve();
+    polling = true;
     return ensureSession()
       .then(function () { return rpc("get_room_state", { p_room_id: roomId }); })
       .then(function (s) {
-        if (!s) return;
-        clockSkew = new Date(s.server_now).getTime() - Date.now();
+        if (!s || !roomId) return;
+        clockSkew = t(s.server_now) - Date.now();
         last = s;
-        render();
+        if (reconnecting) { reconnecting = false; toast("Reconnected", "good"); }
+        pollFails = 0;
+        route();
         maybeAdvance();
       })
       .catch(function (err) {
-        // A dropped poll is normal on mobile. Only a hard membership/room failure
-        // should tear the session down.
         var m = (err && err.message) || "";
+        // A membership or room failure is terminal; anything else is probably the
+        // network and deserves patience rather than ejection.
         if (m.indexOf("NOT_A_MEMBER") === 0 || m.indexOf("ROOM_NOT_FOUND") === 0) {
+          toast(friendly(err), "bad");
           leaveRoom();
+          return;
         }
-      });
+        pollFails++;
+        if (pollFails === 3 && !reconnecting) { reconnecting = true; toast("Reconnecting…"); }
+      })
+      .then(function () { polling = false; });
   }
 
-  // Round progression has no server-side scheduler: any member may attempt the
-  // idempotent advance once the deadline has passed. The guard in advance_round
-  // tests a column the same UPDATE writes, so eight simultaneous callers advance
-  // exactly once (see B-17). advancedFor stops THIS client retrying every 1.5 s
-  // while the request is in flight.
+  // Round progression has no server-side scheduler for the normal case: any member may
+  // attempt the idempotent advance once the deadline has passed. advance_round's guard
+  // tests a column its own UPDATE writes, so eight simultaneous callers advance exactly
+  // once. advancedFor stops THIS client retrying while a request is in flight. A
+  // pg_cron job (migration 0014) ends rooms everyone has abandoned.
   function maybeAdvance() {
     if (!last || last.state !== "playing" || !last.deadline) return;
-    var dl = new Date(last.deadline).getTime();
-    if (serverNow() < dl) return;
+    if (serverNow() < t(last.deadline)) return;
     if (advancedFor === last.deadline) return;
     advancedFor = last.deadline;
-    rpc("advance_round", { p_room_id: roomId })
-      .then(poll)
-      .catch(function () { /* another client won the race; the next poll shows it */ });
+    rpc("advance_round", { p_room_id: roomId }).then(poll).catch(function () {
+      /* another client won the race; the next poll shows the result */
+    });
   }
 
-  // ---------------------------------------------------------------- render
-  function render() {
+  // ════════════════════════════ the one router ════════════════════════════
+  function route() {
     if (!last) return;
 
     if (last.state === "lobby") { renderLobby(); return; }
 
     if (last.state === "over") {
       if (!overSince) overSince = serverNow();
-      // Show the final round's reveal before the scoreboard, so the last answer is
-      // not swallowed by game over -- which is exactly what advance_round used to do.
-      if (last.reveal && serverNow() - overSince < 8000) { renderReveal(true); return; }
+      // Hold the last answer on screen before the final table, so the closing round is
+      // not swallowed by game over — which is exactly what advance_round used to do.
+      if (last.reveal && serverNow() - overSince < OVER_REVEAL_MS) { renderReveal(true); return; }
       renderOver();
       return;
     }
 
     if (last.state === "playing") {
       var r = last.round;
-      // The gap before starts_at IS the reveal phase (migration 0012). grade_guess
-      // rejects guesses inside it, so the UI must not offer the input.
-      if (r && serverNow() < new Date(r.starts_at).getTime() && last.reveal) {
-        renderReveal(false);
-        return;
-      }
+      if (!r) { renderPlay(); return; }
+      var now = serverNow();
+      // Two different situations, one screen:
+      //   now >= ends_at  — the round is finished. Either it timed out, or somebody
+      //                     won and migration 0015 pulled ends_at back to that moment.
+      //   now <  starts_at — we are in the reveal gap before the next round.
+      // Both mean "show the answer", and both are derived from timestamps rather than
+      // remembered, so a refresh lands in the right place.
+      if (last.reveal && (now >= t(r.ends_at) || now < t(r.starts_at))) { renderReveal(false); return; }
       renderPlay();
       return;
     }
   }
 
+  // ════════════════════════════ avatars ════════════════════════════
+  var AV = ["#ff2d75", "#22d3ee", "#a855f7", "#a3e635", "#fbbf24", "#fb7185", "#38bdf8", "#f472b6"];
+  function avatarFor(name) {
+    var h = 0;
+    for (var i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+    var el = document.createElement("span");
+    el.className = "avatar";
+    el.style.background = AV[h % AV.length];
+    el.textContent = (name.trim()[0] || "?").toUpperCase();
+    return el;
+  }
+
+  // ════════════════════════════ lobby ════════════════════════════
   function renderLobby() {
     show("scr-lobby");
     text($("lobby-code"), last.code);
@@ -276,31 +310,35 @@
     ul.innerHTML = "";
     ps.forEach(function (p) {
       var li = document.createElement("li");
+      li.appendChild(avatarFor(p.name));
       var n = document.createElement("span");
       n.textContent = p.name;
       if (p.is_me) n.className = "you";
       li.appendChild(n);
       if (p.is_host) {
-        var h = document.createElement("span");
-        h.className = "host";
-        h.textContent = "HOST";
-        li.appendChild(h);
+        var tag = document.createElement("span");
+        tag.className = "tag";
+        tag.textContent = "host";
+        li.appendChild(tag);
       }
       ul.appendChild(li);
     });
 
+    var start = $("btn-start");
     if (last.is_host) {
-      $("btn-start").classList.remove("hidden");
-      $("btn-start").disabled = ps.length < 2;
+      start.classList.remove("hidden");
+      start.disabled = ps.length < 2;
       text($("lobby-hint"), ps.length < 2
-        ? "Waiting for at least one more player."
-        : last.round_count + " rounds, audio " + (last.audio_enabled ? "on" : "off") + ".");
+        ? "Waiting for at least one more player…"
+        : last.round_count + " rounds · difficulty " + last.difficulty_min + "–" + last.difficulty_max +
+          " · audio " + (last.audio_enabled ? "on" : "off"));
     } else {
-      $("btn-start").classList.add("hidden");
-      text($("lobby-hint"), "Waiting for the host to start.");
+      start.classList.add("hidden");
+      text($("lobby-hint"), "Waiting for the host to start…");
     }
   }
 
+  // ════════════════════════════ play ════════════════════════════
   function renderPlay() {
     show("scr-play");
     var r = last.round;
@@ -308,81 +346,104 @@
 
     text($("play-round"), "Round " + r.ordinal + "/" + last.round_count);
 
-    // Stills appear progressively across the round, evenly spaced.
     var keys = (r.assets && r.assets.stills) || [];
-    var startMs = new Date(r.starts_at).getTime();
-    var endMs = new Date(r.ends_at).getTime();
+    var startMs = t(r.starts_at), endMs = t(r.ends_at);
     var dur = Math.max(endMs - startMs, 1);
     var elapsed = serverNow() - startMs;
+
+    // Stills appear evenly across the round: 3 over 20s lands at 0 / 6.7 / 13.3s.
     var due = 0;
-    for (var i = 0; i < keys.length; i++) {
-      if (elapsed >= i * (dur / keys.length)) due = i + 1;
-    }
+    for (var i = 0; i < keys.length; i++) if (elapsed >= i * (dur / keys.length)) due = i + 1;
 
     var box = $("play-stills");
-    if (shownStills !== due || box.dataset.round !== String(r.ordinal)) {
-      if (box.dataset.round !== String(r.ordinal)) {
-        // New round: everything round-scoped resets here. Without this the previous
-        // round's "Correct -- +161 points!" banner and the chips for guesses made two
-        // rounds ago stay on screen, which reads as though they belong to the round
-        // now being played. Seen live in the first two-browser test.
-        box.innerHTML = "";
-        shownStills = 0;
-        $("play-feedback").className = "feedback";
-        text($("play-feedback"), "");
-        $("play-mine").innerHTML = "";
-        $("in-guess").value = "";
-      }
+    var isNewRound = box.dataset.round !== String(r.ordinal);
+    if (isNewRound) {
+      // Everything round-scoped resets here. Without it the previous round's feedback
+      // banner and guess chips stay on screen, reading as though they belong to the
+      // round now being played — seen in the first two-browser test.
+      box.innerHTML = "";
+      shownStills = 0;
+      lastStills = keys.slice();
+      cls($("play-feedback"), "feedback");
+      text($("play-feedback"), "");
+      $("play-mine").innerHTML = "";
+      $("in-guess").value = "";
       box.dataset.round = String(r.ordinal);
+    }
+    box.dataset.n = String(keys.length);
+
+    if (shownStills !== due) {
       for (var j = shownStills; j < due; j++) {
         var img = document.createElement("img");
         img.src = assetUrl(keys[j]);
-        img.alt = "Frame " + (j + 1) + " of the opening";
-        img.loading = "eager";
+        img.alt = "Frame " + (j + 1) + " from the opening";
+        img.decoding = "async";
+        img.onerror = function () { this.style.visibility = "hidden"; };
         box.appendChild(img);
       }
-      if (due === 0 && !box.firstChild) {
-        var ph = document.createElement("div");
-        ph.className = "placeholder";
-        ph.textContent = "Starting…";
-        box.appendChild(ph);
-      }
       shownStills = due;
+    }
+    if (due === 0 && !box.firstChild) {
+      var ph = document.createElement("div");
+      ph.className = "ghost-frame";
+      ph.textContent = "Starting…";
+      box.appendChild(ph);
     }
 
     playAudio(r.assets && r.assets.audio);
 
-    // Input is closed once you have already answered correctly: the server enforces
-    // this too (ALREADY_CORRECT), this just stops a pointless round trip.
-    $("in-guess").disabled = !!r.answered;
-    if (r.answered) $("in-guess").placeholder = "You got it.";
-    else $("in-guess").placeholder = "Name the anime…";
+    // The server enforces this too (ALREADY_CORRECT); disabling just saves a round trip.
+    var gi = $("in-guess");
+    gi.disabled = !!r.answered;
+    gi.placeholder = r.answered ? "You got it — sit tight." : "Name the anime…";
+    $("btn-guess").disabled = !!r.answered;
 
     renderScores($("play-scores"), false);
   }
 
+  // ════════════════════════════ reveal ════════════════════════════
   function renderReveal(isFinal) {
     show("scr-reveal");
-    var rv = last.reveal || {};
-    var t = rv.titles || {};
-    var title = t.english || t.romaji || t.native || "?";
+    stopAudio();
 
-    text($("rev-ordinal"), "Round " + (rv.ordinal || "") + " answer");
+    var rv = last.reveal || {};
+    var ti = rv.titles || {};
+    var title = ti.english || ti.romaji || ti.native || "?";
+
+    text($("rev-ordinal"), "Round " + (rv.ordinal || "") + " · the answer was");
     text($("rev-title"), title);
 
     var sub = [];
-    if (t.romaji && t.romaji !== title) sub.push(t.romaji);
+    if (ti.romaji && ti.romaji !== title) sub.push(ti.romaji);
+    if (ti.native && ti.native !== title) sub.push(ti.native);
     if (rv.theme) sub.push(rv.theme);
     if (rv.year) sub.push(String(rv.year));
-    text($("rev-sub"), sub.join(" · "));
+    text($("rev-sub"), sub.join("  ·  "));
 
     var img = $("rev-poster");
-    if (rv.poster) { img.src = assetUrl(rv.poster); img.style.display = ""; }
-    else { img.removeAttribute("src"); img.style.display = "none"; }
+    if (rv.poster) {
+      var url = assetUrl(rv.poster);
+      if (img.getAttribute("src") !== url) img.src = url;
+      img.style.display = "";
+    } else { img.removeAttribute("src"); img.style.display = "none"; }
+
+    // The frames you were just looking at, kept alongside the poster.
+    var strip = $("rev-strip");
+    if (strip.dataset.round !== String(rv.ordinal)) {
+      strip.innerHTML = "";
+      lastStills.forEach(function (k) {
+        var s = document.createElement("img");
+        s.src = assetUrl(k);
+        s.alt = "";
+        s.onerror = function () { this.remove(); };
+        strip.appendChild(s);
+      });
+      strip.dataset.round = String(rv.ordinal);
+    }
 
     var w = $("rev-winner");
     if (rv.winner && rv.winner.name) {
-      w.className = "winner";
+      w.className = "winner hit";
       w.innerHTML = "";
       var b = document.createElement("b");
       b.textContent = rv.winner.name;
@@ -390,27 +451,37 @@
       w.appendChild(document.createTextNode(" got it first — " + rv.winner.points + " points"));
     } else {
       w.className = "winner none";
-      text(w, "Nobody got this one.");
+      text(w, "Nobody got that one.");
     }
+
+    renderScores($("rev-scores"), false);
 
     var a = $("rev-src");
     if (rv.source_url) { a.href = rv.source_url; a.style.display = ""; }
     else { a.style.display = "none"; }
 
-    text($("rev-next"), isFinal ? "Final scores coming up…" : "Next round starting…");
-    stopAudio();
+    text($("rev-next"), isFinal ? "Final scores" : "Next round");
   }
 
+  // ════════════════════════════ game over ════════════════════════════
   function renderOver() {
     show("scr-over");
-    renderScores($("over-scores"), true);
     stopAudio();
+    var ps = last.players || [];
+    var top = ps[0];
+    var me = ps.filter(function (p) { return p.is_me; })[0];
+    if (top && me) {
+      text($("over-eyebrow"), top.is_me ? "You won" : top.name + " wins");
+      text($("over-title"), top.is_me ? "Nicely done." : "Final scores");
+    }
+    renderScores($("over-scores"), true);
   }
 
   function renderScores(ul, big) {
-    var ps = (last.players || []).slice();
+    if (!ul) return;
+    var ps = last.players || [];
     ul.innerHTML = "";
-    ul.className = "scores" + (big ? " big" : "");
+    ul.className = "scores" + (big ? " big" : (ul.id === "rev-scores" ? " tight" : ""));
     ps.forEach(function (p, i) {
       var li = document.createElement("li");
       var rank = document.createElement("span");
@@ -422,63 +493,82 @@
       var pts = document.createElement("span");
       pts.className = "pts";
       pts.textContent = p.score;
-      li.appendChild(rank);
-      li.appendChild(name);
-      li.appendChild(pts);
+      li.appendChild(rank); li.appendChild(name); li.appendChild(pts);
       ul.appendChild(li);
     });
   }
 
-  // The countdown runs on its own faster timer so the clock is smooth between polls.
+  // ════════════════════════════ tick ════════════════════════════
+  // Runs faster than the poll so the clock and the countdown are smooth between them.
   function tick() {
-    if (!last || last.state !== "playing" || !last.round) return;
+    if (!last) return;
+
+    if (currentScreen === "scr-reveal") {
+      var r0 = last.round;
+      var ring = $("rev-ring"), cnt = $("rev-count");
+      var C = 119.4;  // 2*pi*19, matching the SVG radius
+      if (r0 && serverNow() < t(r0.starts_at)) {
+        var msLeft = t(r0.starts_at) - serverNow();
+        text(cnt, Math.max(1, Math.ceil(msLeft / 1000)));
+        // The ring empties over the room's own reveal_duration, not an assumed 8s --
+        // rooms.reveal_duration is a per-room column and 8 is only its default.
+        var span = Math.max((last.reveal_seconds || 8) * 1000, 1);
+        ring.style.strokeDashoffset = String(C * (1 - Math.min(msLeft / span, 1)));
+      } else {
+        // Round is over but the advance has not landed yet (or the game has ended).
+        text(cnt, "·");
+        ring.style.strokeDashoffset = "0";
+      }
+      return;
+    }
+
+    if (currentScreen !== "scr-play" || last.state !== "playing" || !last.round) return;
+
     var r = last.round;
-    var startMs = new Date(r.starts_at).getTime();
-    var endMs = new Date(r.ends_at).getTime();
-    if (serverNow() < startMs) return;  // reveal gap
+    var startMs = t(r.starts_at), endMs = t(r.ends_at);
+    if (serverNow() < startMs) return;
 
     var leftMs = Math.max(endMs - serverNow(), 0);
-    var secs = Math.ceil(leftMs / 1000);
+    var s = Math.ceil(leftMs / 1000);
     var clock = $("play-clock");
-    text(clock, secs);
-    clock.className = "clock" + (secs <= 5 ? " low" : "");
+    text(clock, s);
+    clock.className = "clock" + (s <= 5 ? " low" : "");
+    $("play-bar").style.width = (100 * leftMs / Math.max(endMs - startMs, 1)).toFixed(1) + "%";
 
-    var dur = Math.max(endMs - startMs, 1);
-    $("play-bar").style.width = (100 * leftMs / dur).toFixed(1) + "%";
-
-    // Reveal further stills between polls too.
-    if (document.getElementById("scr-play").classList.contains("active")) renderPlay();
+    renderPlay();   // reveal further stills between polls
   }
 
-  // ---------------------------------------------------------------- audio
+  // ════════════════════════════ audio ════════════════════════════
   function playAudio(key) {
     if (!key) { stopAudio(); return; }
-    if (audioKeyPlaying === key) return;
+    if (audioKey === key) return;
     stopAudio();
-    audioKeyPlaying = key;
+    audioKey = key;
     audioEl = new Audio(assetUrl(key));
     audioEl.preload = "auto";
     var p = audioEl.play();
     if (p && p.catch) {
-      // Browsers block autoplay without a gesture. Creating a room or joining one is
-      // a gesture, but a page restored from bfcache may not carry it, so offer a tap.
+      // Autoplay needs a user gesture. Creating or joining a room is one, but a page
+      // restored from bfcache may not carry it, so offer a tap instead of failing mute.
       p.catch(function () { $("btn-sound").classList.remove("hidden"); });
     }
   }
   function stopAudio() {
     if (audioEl) { try { audioEl.pause(); } catch (e) {} }
-    audioEl = null;
-    audioKeyPlaying = null;
+    audioEl = null; audioKey = null;
     $("btn-sound").classList.add("hidden");
   }
 
-  // ---------------------------------------------------------------- actions
+  // ════════════════════════════ room lifecycle ════════════════════════════
   function enterRoom(id) {
     roomId = id;
     advancedFor = null;
     overSince = 0;
-    myGuesses = [];
-    $("play-mine").innerHTML = "";
+    shownStills = 0;
+    lastStills = [];
+    pollFails = 0;
+    $("play-stills").dataset.round = "";
+    $("rev-strip").dataset.round = "";
     try { localStorage.setItem(LS_ROOM, id); } catch (e) {}
     startPolling();
   }
@@ -488,69 +578,84 @@
     stopAudio();
     roomId = null;
     last = null;
+    currentScreen = null;
     try { localStorage.removeItem(LS_ROOM); } catch (e) {}
-    show("scr-home");
+    if (location.hash !== "#/") location.hash = "#/"; else applyHash();
   }
 
-  function nameValue() {
-    var n = $("in-name").value.trim();
-    try { localStorage.setItem(LS_NAME, n); } catch (e) {}
+  function nameFrom(input) {
+    var n = input.value.trim().replace(/\s+/g, " ");
+    if (n) { try { localStorage.setItem(LS_NAME, n); } catch (e) {} }
     return n;
   }
 
+  // ════════════════════════════ actions ════════════════════════════
   function doCreate() {
-    var n = nameValue();
-    if (!n) { banner($("home-err"), "Enter a name first."); return; }
-    banner($("home-err"), null);
-    $("btn-create").disabled = true;
+    var n = nameFrom($("in-name-c"));
+    if (!n) { banner($("create-err"), "Pick a name first."); $("in-name-c").focus(); return; }
+
+    var btn = $("btn-create");
+    btn.disabled = true;
+    banner($("create-err"), null);
+
     ensureSession()
       .then(function () {
-        return rpc("create_room", {
-          p_settings: {
-            display_name: n,
-            round_count: parseInt($("in-rounds").value, 10),
-            difficulty_min: parseInt($("in-dmin").value, 10),
-            difficulty_max: parseInt($("in-dmax").value, 10),
-            audio_enabled: $("in-audio").checked,
-          },
-        });
+        return rpc("create_room", { p_settings: {
+          display_name: n,
+          round_count: parseInt($("in-rounds").value, 10),
+          difficulty_min: parseInt($("in-dmin").value, 10),
+          difficulty_max: parseInt($("in-dmax").value, 10),
+          audio_enabled: $("in-audio").checked,
+        }});
       })
       .then(function (res) { enterRoom(res.room_id); })
-      .catch(function (e) { banner($("home-err"), friendly(e)); })
-      .then(function () { $("btn-create").disabled = false; });
+      .catch(function (e) { banner($("create-err"), friendly(e)); })
+      .then(function () { btn.disabled = false; });
   }
 
   function doJoin() {
-    var n = nameValue();
+    var n = nameFrom($("in-name-j"));
     var code = $("in-code").value.trim().toUpperCase();
-    if (!n) { banner($("home-err"), "Enter a name first."); return; }
-    if (code.length !== 4) { banner($("home-err"), "Room codes are 4 characters."); return; }
-    banner($("home-err"), null);
-    $("btn-join").disabled = true;
+    if (!n) { banner($("join-err"), "Pick a name first."); $("in-name-j").focus(); return; }
+    if (!CODE_ALPHABET.test(code)) {
+      banner($("join-err"), code.length !== 4
+        ? "Room codes are exactly 4 characters."
+        : "That code has a character we don't use — no I, L, O or U.");
+      $("in-code").focus();
+      return;
+    }
+
+    var btn = $("btn-join");
+    btn.disabled = true;
+    banner($("join-err"), null);
+
     ensureSession()
       .then(function () { return rpc("join_room", { p_code: code, p_display_name: n }); })
       .then(function (res) { enterRoom(res.room_id); })
-      .catch(function (e) { banner($("home-err"), friendly(e)); })
-      .then(function () { $("btn-join").disabled = false; });
+      .catch(function (e) { banner($("join-err"), friendly(e)); })
+      .then(function () { btn.disabled = false; });
   }
 
   function doStart() {
-    $("btn-start").disabled = true;
+    var b = $("btn-start");
+    b.disabled = true;
     banner($("lobby-err"), null);
     rpc("start_game", { p_room_id: roomId })
       .then(poll)
-      .catch(function (e) { banner($("lobby-err"), friendly(e)); })
-      .then(function () { $("btn-start").disabled = false; });
+      .catch(function (e) { banner($("lobby-err"), friendly(e)); b.disabled = false; });
   }
 
   function doGuess(ev) {
     ev.preventDefault();
+    if (guessInFlight) return;
     var input = $("in-guess");
     var g = input.value.trim();
     if (!g || !last || !last.round) return;
-    input.value = "";
 
+    guessInFlight = true;
+    input.value = "";
     var fb = $("play-feedback");
+
     rpc("grade_guess", { p_round_id: last.round.round_id, p_guess: g })
       .then(function (res) {
         var li = document.createElement("li");
@@ -558,45 +663,47 @@
         if (res.verdict === "correct") {
           li.className = "good";
           if (res.is_first_correct) {
-            fb.className = "feedback good";
+            cls(fb, "feedback good");
             text(fb, "Correct — +" + res.points + " points!");
           } else {
-            // Winner-takes-all: correct but second scores 0, and since 0012 the
-            // server says so honestly instead of reporting the winner's points.
-            fb.className = "feedback warn";
+            // Winner-takes-all: correct but second scores 0, and since migration 0012
+            // the server says so honestly instead of returning the winner's points.
+            cls(fb, "feedback warn");
             text(fb, "Correct — but someone beat you to it.");
           }
         } else {
-          fb.className = "feedback bad";
+          cls(fb, "feedback bad");
           text(fb, "Not it.");
         }
         $("play-mine").appendChild(li);
         poll();
       })
-      .catch(function (e) {
-        fb.className = "feedback bad";
-        text(fb, friendly(e));
-      });
+      .catch(function (e) { cls(fb, "feedback bad"); text(fb, friendly(e)); })
+      .then(function () { guessInFlight = false; });
   }
 
-  // ---------------------------------------------------------------- wiring
+  // ════════════════════════════ wiring ════════════════════════════
   function wire() {
-    var tabs = document.querySelectorAll(".tab");
-    for (var i = 0; i < tabs.length; i++) {
-      on(tabs[i], "click", function (e) {
-        var which = e.currentTarget.dataset.tab;
-        for (var k = 0; k < tabs.length; k++) tabs[k].classList.toggle("active", tabs[k] === e.currentTarget);
-        $("pane-join").classList.toggle("active", which === "join");
-        $("pane-create").classList.toggle("active", which === "create");
-      });
+    var navs = document.querySelectorAll("[data-nav]");
+    for (var i = 0; i < navs.length; i++) {
+      on(navs[i], "click", function (e) { go(e.currentTarget.dataset.nav); });
     }
 
-    on($("in-rounds"), "input", function () { text($("lbl-rounds"), $("in-rounds").value); });
+    var rounds = $("in-rounds");
+    on(rounds, "input", function () {
+      var n = parseInt(rounds.value, 10);
+      text($("lbl-rounds"), n);
+      var mins = Math.round(n * 28 / 60);
+      text($("hint-rounds"), "About " + (mins < 1 ? "a minute" : mins + " minutes"));
+    });
 
+    var DIFF_WORDS = ["", "household names", "well known", "popular", "for regulars", "deep cuts"];
     function syncDiff() {
       var a = parseInt($("in-dmin").value, 10), b = parseInt($("in-dmax").value, 10);
       if (a > b) { $("in-dmax").value = a; b = a; }
       text($("lbl-diff"), a + " – " + b);
+      text($("hint-diff"), a === b ? "Only " + DIFF_WORDS[a]
+                                   : DIFF_WORDS[a] + " through to " + DIFF_WORDS[b]);
     }
     on($("in-dmin"), "input", syncDiff);
     on($("in-dmax"), "input", syncDiff);
@@ -605,9 +712,19 @@
     on($("btn-join"), "click", doJoin);
     on($("btn-start"), "click", doStart);
     on($("btn-leave"), "click", leaveRoom);
-    on($("btn-again"), "click", leaveRoom);
+    on($("btn-again"), "click", function () { leaveRoom(); go("create"); });
     on($("frm-guess"), "submit", doGuess);
+
+    on($("in-name-c"), "keydown", function (e) { if (e.key === "Enter") doCreate(); });
+    on($("in-name-j"), "keydown", function (e) { if (e.key === "Enter") $("in-code").focus(); });
     on($("in-code"), "keydown", function (e) { if (e.key === "Enter") doJoin(); });
+    on($("in-code"), "input", function () {
+      // Uppercase as you type, and drop anything outside the Crockford alphabet so an
+      // impossible code cannot be submitted in the first place.
+      var v = $("in-code").value.toUpperCase().replace(/[^0-9ABCDEFGHJKMNPQRSTVWXYZ]/g, "");
+      if (v !== $("in-code").value) $("in-code").value = v;
+      banner($("join-err"), null);
+    });
 
     on($("btn-sound"), "click", function () {
       $("btn-sound").classList.add("hidden");
@@ -616,65 +733,81 @@
 
     on($("btn-copy"), "click", function () {
       var link = location.origin + location.pathname + "?r=" + (last ? last.code : "");
-      var done = function () { text($("btn-copy"), "Copied!"); setTimeout(function () { text($("btn-copy"), "Copy invite link"); }, 1500); };
-      if (navigator.clipboard) navigator.clipboard.writeText(link).then(done, done);
-      else done();
+      var done = function () { toast("Invite link copied", "good"); };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(link).then(done, function () { prompt("Copy this link:", link); });
+      } else { prompt("Copy this link:", link); }
     });
 
-    // Poll immediately when a backgrounded tab comes back, rather than waiting.
+    on(window, "hashchange", applyHash);
+    // A backgrounded tab throttles timers; poll the moment it comes back rather than
+    // waiting out the interval and showing a stale round.
     on(document, "visibilitychange", function () { if (!document.hidden) poll(); });
   }
 
-  // ---------------------------------------------------------------- boot
+  // ════════════════════════════ boot ════════════════════════════
+  function setupScreen(title, bodyHtml) {
+    text($("setup-title"), title);
+    $("setup-body").innerHTML = bodyHtml;
+    show("scr-setup");
+    stopPolling();
+  }
+
   function boot() {
     wire();
 
     if (!URL_BASE || !ANON || ANON.indexOf("PASTE_") === 0) {
-      fatal("This deployment is not configured yet.",
-        "<p>Someone needs to finish two setup steps:</p><ol>" +
+      setupScreen("This deployment isn't configured yet.",
+        "<p>Two setup steps are outstanding:</p><ol>" +
         "<li>Put the project's <b>publishable key</b> in <code>app/config.js</code> " +
         "(Supabase dashboard → Settings → API Keys).</li>" +
-        "<li>Turn on <b>Anonymous sign-ins</b> (Supabase dashboard → Authentication " +
-        "→ Sign In / Providers).</li></ol>");
+        "<li>Turn on <b>anonymous sign-ins</b> (Authentication → Sign In / Providers).</li>" +
+        "</ol>");
       return;
     }
 
-    try { $("in-name").value = localStorage.getItem(LS_NAME) || ""; } catch (e) {}
+    var savedName = "";
+    try { savedName = localStorage.getItem(LS_NAME) || ""; } catch (e) {}
+    $("in-name-c").value = savedName;
+    $("in-name-j").value = savedName;
 
-    var params = new URLSearchParams(location.search);
-    var invite = (params.get("r") || "").toUpperCase();
-    if (invite) $("in-code").value = invite;
+    // ?r=CODE deep link: prefill the code and open the join screen.
+    var invite = (new URLSearchParams(location.search).get("r") || "").toUpperCase();
+    if (CODE_ALPHABET.test(invite)) {
+      $("in-code").value = invite;
+      if (!location.hash || location.hash === "#/") location.hash = "#/join";
+    }
 
     loadSession();
     ensureSession()
       .then(function () {
         var saved = null;
         try { saved = localStorage.getItem(LS_ROOM); } catch (e) {}
-        if (saved) {
-          // Rejoin whatever we were in before a refresh. get_room_state raises
-          // NOT_A_MEMBER if this browser is not actually in it, which poll() handles.
-          roomId = saved;
-          return poll().then(function () {
-            if (!last) { leaveRoom(); return; }
-            enterRoom(saved);
-          });
-        }
-        show("scr-home");
+        if (!saved) { applyHash(); return; }
+        // Rejoin whatever room this browser was in before a refresh. get_room_state
+        // raises NOT_A_MEMBER if it is not actually in it, which poll() handles by
+        // clearing the saved room and dropping back to the landing page.
+        roomId = saved;
+        return poll().then(function () {
+          if (!last) { leaveRoom(); return; }
+          enterRoom(saved);
+        });
       })
       .catch(function (e) {
         var m = (e && e.message) || "";
-        if (/Anonymous sign-ins are disabled/i.test(m) || e.status === 422) {
-          fatal("Anonymous sign-in is turned off for this project.",
-            "<p>The game has no accounts, so every player needs an anonymous session. " +
-            "Enable it here:</p><ol>" +
-            "<li>Supabase dashboard → <b>Authentication</b> → " +
-            "<b>Sign In / Providers</b></li>" +
-            "<li>Turn on <b>Anonymous sign-ins</b>, and save.</li></ol>");
+        if (/anonymous/i.test(m) || e.status === 422) {
+          setupScreen("Anonymous sign-in is turned off.",
+            "<p>The game has no accounts, so every player needs an anonymous session.</p><ol>" +
+            "<li>Supabase dashboard → <b>Authentication</b> → <b>Sign In / Providers</b></li>" +
+            "<li>Enable <b>Allow anonymous sign-ins</b>. A warning about RLS appears — " +
+            "<b>accept it</b>, or the toggle silently reverts.</li>" +
+            "<li>Save, then reload this page.</li></ol>");
         } else if (e.status === 401) {
-          fatal("The publishable key in app/config.js is not valid for this project.",
-            "<p>Copy it again from Supabase dashboard → Settings → API Keys.</p>");
+          setupScreen("That publishable key isn't valid for this project.",
+            "<p>Copy it again from the Supabase dashboard → Settings → API Keys, into " +
+            "<code>app/config.js</code>.</p>");
         } else {
-          fatal("Could not reach the server: " + friendly(e), "");
+          setupScreen("Couldn't reach the server.", "<p>" + friendly(e) + "</p>");
         }
       });
   }
