@@ -1469,3 +1469,95 @@ already detects an ordinal change.
 
 None of these are reachable from a script harness. The RPC-level smoke tests passed every
 one of these rounds without complaint, because they never rendered anything.
+
+## 2026-08-24 — Rounds that end when won, the backend gaps closed, and a client rebuilt
+
+### The two gaps that were still open
+
+**`pg_cron` existed in three documents and nowhere else.** It was named as the mechanism
+behind the sweep for when every client disconnects (`ARCHITECTURE` §12), 24-hour
+retention (`DATA-MODEL` §8.2), and the inactivity-pause mitigation (B-16), while no
+migration installed the extension and no job was ever scheduled. The partial index
+`rooms_reapable`, added back in 0004, served a query nobody had written. The observable
+consequence: a room whose players all closed their tabs stayed `state='playing'`
+**forever**, holding its code.
+
+Migration 0014 installs pg_cron 1.6.4 and schedules `rein_reap_rooms` (every minute) and
+`rein_purge_rooms` (hourly). It deliberately does **not** have cron call `advance_round`:
+that function requires a member — 0012 removed the NULL-uid bypass on purpose — and
+stepping an abandoned game forward one round a minute for ten minutes serves nobody. A
+room nobody has polled for two minutes past its deadline is not mid-round, it is
+abandoned, so it is simply ended. Tested against three rooms (abandoned, just-due,
+in-lobby); only the abandoned one moved.
+
+**B-16 is still not closed, and the entry now says why.** The pause is measured on API
+requests; pg_cron is internal database activity and may not register at all.
+
+**`ingest_question` now pins `search_path = ''`** — the last SECURITY DEFINER function
+without it, and the highest-privileged one in the schema. Safe because every identifier
+in its body was already schema-qualified, which was *checked* rather than assumed. All 12
+SECURITY DEFINER functions now report `search_path=""`.
+
+### The game rule: a round ends the moment it is won
+
+Migration 0015. Under winner-takes-all every second after the first correct guess is dead
+air — the round is decided, nobody else can score, and everyone watches a clock run down
+on a question already answered. `grade_guess` now pulls `rounds.ends_at` and
+`rooms.deadline` back to `now()` on a first-correct guess.
+
+**This adds no mechanism.** The existing client-driven `now() >= deadline` advance simply
+becomes true, so the round advances exactly as a natural timeout would; there is no second
+code path. B-17's double-advance protection is untouched — it works because
+`advance_round`'s `WHERE` tests a column its own `UPDATE` writes, and pulling `deadline`
+backwards from elsewhere does not weaken that. And `get_room_state`'s reveal gate stays a
+fact about elapsed time rather than becoming a fact about round number.
+
+Measured end to end: clock remaining after the winning guess **−0.58 s**, reveal published
+in the same instant with winner and poster, a later guess correctly refused with
+`ROUND_NOT_ACTIVE`, and a 7.8 s gap before the next round for the countdown to run in.
+
+Migration 0016 adds `difficulty_min`, `difficulty_max` and `reveal_seconds` to
+`get_room_state`. The last one matters: the client draws the inter-round countdown against
+the room's own `reveal_duration`, and without it was hardcoding the 8-second default,
+which is only a default.
+
+### The client, rebuilt rather than patched
+
+A real landing page — hero, marquee, how-a-round-works, content stats, attribution — and a
+theme that commits to something: near-black ground, three slow-drifting colour orbs,
+frosted glass panels, film grain, one very loud accent, Archivo Black over Outfit. Fonts
+are a progressive enhancement; every stack falls back to system faces and the game is
+fully playable if Google Fonts is blocked.
+
+The whole page is used now. Play is a two-column stage on desktop — frames left, guess and
+scores in a sticky sidebar — collapsing to one column on narrow screens, with stills
+height-capped in `svh` so a round always fits without scrolling. The reveal shows the
+poster, the title, who got it and for how much, the frames you were just looking at, live
+scores, and a ring counting into the next round so nobody wonders whether it has hung.
+
+Hash routing with a working Back button, `?r=CODE` deep links, toasts, and per-player
+avatars.
+
+**Edge cases now handled explicitly**, rather than discovered later: empty and
+whitespace-only names; codes filtered to the Crockford alphabet as you type (no I, L, O or
+U) and checked for length and charset before submit; every named RPC error mapped to a
+sentence a player can act on; poll failures retried with a *reconnecting* toast instead of
+ejecting the player; terminal `NOT_A_MEMBER` / `ROOM_NOT_FOUND` handled by leaving
+cleanly; overlapping polls guarded on slow links; double-submitted guesses guarded;
+refresh-mid-game rejoin; backgrounded tabs polled on `visibilitychange`; autoplay blocks
+offering a tap; broken images hidden rather than showing a torn icon; and both setup
+failures rendering the exact fix.
+
+### Two problems the rebuild itself surfaced
+
+**A finished game was restored into.** `localStorage` kept the room id after game over, so
+every later visit reopened the last game's final scoreboard instead of the landing page —
+and rooms live 24 hours, so that could be a full day of never seeing the front of the
+site. Caught on the very first load of the new client.
+
+**GitHub Pages caches assets for ten minutes and offers no way to change it**, so after
+every deploy a returning player can run new `index.html` against old `app.js` — not merely
+stale, but a combination that was never tested. This happened during the session: a fix
+was verifiably live on the server, confirmed by curling the file, while the browser kept
+executing the previous one. The deploy now stamps the commit sha onto each asset URL, so
+every deploy is a fresh URL and the three files cannot disagree.

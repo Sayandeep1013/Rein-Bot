@@ -172,11 +172,13 @@ heading is kept only so a reader who remembers the old list knows it moved.
 
 - The retry/backoff ladder has still never been triggered.
 - Real Supabase egress has still never been measured.
-- Mobile has not been tested. A full 10-round two-browser game has been played on
-  desktop (zero console errors; 10 distinct anime across 10 rounds; the
-  first-correct race fired naturally in round 6 and was scored correctly), but
-  audio autoplay policy on mobile Safari and the layout on a small screen are
-  still unverified.
+- **Mobile has not been tested and is the next real task.** Audio autoplay policy on
+  iOS Safari and the small-screen layout are the last unverified surfaces. The user
+  deferred it explicitly on 2026-08-24: "phone layout fix can come later".
+- The retry/backoff ladder in curate.yml has still never been triggered.
+- Real Supabase egress has still never been measured.
+- B-16 (the 7-day inactivity pause) is still open. pg_cron now exists but is internal
+  database activity, and the pause is measured on API requests, so it may not count.
 - `ingest_question` still uses `search_path = public, pg_temp` rather than `''` - the
   only function in the schema that does, and the highest-privileged one. Left alone
   while content was loading; safe to fix now that the load is finished.
