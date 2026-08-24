@@ -790,6 +790,13 @@
         roomId = saved;
         return poll().then(function () {
           if (!last) { leaveRoom(); return; }
+          // A finished game is not somewhere to be restored INTO. Without this, every
+          // later visit reopens the last game's final scoreboard instead of the
+          // landing page -- and since rooms live 24 hours, that could be a day of
+          // never seeing the front of your own site. Staying on the over screen
+          // through a refresh moments after finishing is still fine: that path runs
+          // through route(), not through here.
+          if (last.state === "over") { leaveRoom(); return; }
           enterRoom(saved);
         });
       })
