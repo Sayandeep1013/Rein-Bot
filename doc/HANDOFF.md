@@ -6,9 +6,12 @@ Read this top to bottom before touching anything. It is written for an agent wit
 memory of prior sessions.
 
 **If you read only one thing, read section 3a**, which supersedes the "not done at all"
-list that used to be the headline here. The short version: the game is deployed and
-live, both answer leaks found by a supervisory audit are closed, and exactly two things
-block a playable game - and both are dashboard clicks only the user can make.
+list that used to be the headline here. The short version: **the game is deployed, the
+content bank is full, and a real game has been played end to end against the live
+project.** Both answer leaks found by a supervisory audit are closed and re-verified
+from an actual client session. Nothing is blocked on the user.
+
+The next real task is a two-browser test - the RPC path is proven, the DOM is not.
 
 **The most useful thing this project has learned about itself**, and the reason the
 audit found what it found: *a comment asserting that something is safe stops the next
