@@ -217,6 +217,31 @@ frontend is on GitHub Pages, whose bandwidth limit is soft (B-15). Historically,
   provable empirically.
 - **Impact:** Low but non-zero. Failure mode is recoverable (restore preserves
   data), just disruptive.
+- **Update 2026-08-24 — `pg_cron` now exists, and it is NOT the fix for this.**
+  Migration 0014 installed `pg_cron` 1.6.4 and scheduled two jobs (`rein_reap_rooms`
+  every minute, `rein_purge_rooms` hourly). That closes the liveness and retention
+  gaps this project had been *citing* pg_cron for — see below — but the pause is
+  measured on **API requests**, and pg_cron is internal database activity. It may or
+  may not register. **Do not mark this mitigated until a project has been watched
+  through seven quiet days.** The keepalive-from-Actions idea above is still the
+  mechanism most likely to actually work, and it is still unbuilt.
+
+#### Related, and now closed: pg_cron was cited by three documents and did not exist
+
+Until 2026-08-24, `pg_cron` was named as the mechanism behind three separate
+guarantees — `doc/ARCHITECTURE.md` §12 (the sweep for when every client disconnects),
+`doc/DATA-MODEL.md` §8.2 (24-hour retention), and this entry — while no migration
+installed the extension and no job was ever scheduled. The partial index
+`rooms_reapable on rooms (created_at) where state <> 'over'`, added back in migration
+0004, existed to serve a query nobody had written. The observable consequence was that
+a room whose players all closed their tabs stayed `state='playing'` **forever**.
+
+Migration 0014 fixes the first two. Note it deliberately does **not** have cron call
+`advance_round`: that function requires a member (0012 removed the NULL-uid bypass on
+purpose), and stepping an abandoned game forward one round per minute for ten minutes
+serves nobody. A room nobody has polled for two minutes past its deadline is not
+mid-round, it is abandoned, so `reap_abandoned_rooms()` simply ends it. Tested against
+three cases — abandoned, just-due, and in-lobby — and only the abandoned one moved.
 
 ### B-20 — AnimeThemes `nc` does NOT mean spoiler-free — ANSWERED 2026-08-22, and the answer is bad
 - **ANSWERED 2026-08-22 by looking at real output.** Ran `curate` as a dry run over the
