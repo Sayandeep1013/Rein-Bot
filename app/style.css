@@ -51,7 +51,14 @@ html {
   /* Always reserve the scrollbar track. Without it a tall screen (landing, 1258px)
      shows a scrollbar and a short one (create, 730px) does not, so clientWidth swings
      1521 <-> 1536 and every centred layout jumps 7.5px sideways on navigation.
-     Measured, not guessed. */
+     Measured, not guessed.
+
+     BOTH declarations are needed and scrollbar-gutter alone is NOT enough: it applies
+     only to scroll containers, and with overflow-y computing to `visible` the root is
+     not one, so it silently does nothing. Verified — the 15px swing survived it
+     untouched. overflow-y: scroll is what actually reserves the track; the gutter
+     property is kept because it is the better-behaved one wherever it does apply. */
+  overflow-y: scroll;
   scrollbar-gutter: stable;
   /* `clip`, never `hidden`. On body, overflow-x:hidden forces the used value of
      overflow-y to `auto`, which makes body a SECOND scroll container nested inside
