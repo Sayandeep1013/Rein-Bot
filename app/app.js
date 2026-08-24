@@ -321,7 +321,18 @@
 
     var box = $("play-stills");
     if (shownStills !== due || box.dataset.round !== String(r.ordinal)) {
-      if (box.dataset.round !== String(r.ordinal)) { box.innerHTML = ""; shownStills = 0; }
+      if (box.dataset.round !== String(r.ordinal)) {
+        // New round: everything round-scoped resets here. Without this the previous
+        // round's "Correct -- +161 points!" banner and the chips for guesses made two
+        // rounds ago stay on screen, which reads as though they belong to the round
+        // now being played. Seen live in the first two-browser test.
+        box.innerHTML = "";
+        shownStills = 0;
+        $("play-feedback").className = "feedback";
+        text($("play-feedback"), "");
+        $("play-mine").innerHTML = "";
+        $("in-guess").value = "";
+      }
       box.dataset.round = String(r.ordinal);
       for (var j = shownStills; j < due; j++) {
         var img = document.createElement("img");

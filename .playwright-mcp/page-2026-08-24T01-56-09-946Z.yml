@@ -1,0 +1,14 @@
+- generic [ref=e40]:
+  - paragraph [ref=e41]: Room code
+  - generic [ref=e42]: F3DR
+  - button "Copy invite link" [ref=e43] [cursor=pointer]
+  - heading "Players 1/8" [level=2] [ref=e44]:
+    - text: Players
+    - generic [ref=e45]: 1/8
+  - list [ref=e46]:
+    - listitem [ref=e47]:
+      - generic [ref=e48]: Claude
+      - generic [ref=e49]: HOST
+  - paragraph [ref=e50]: Waiting for at least one more player.
+  - button "Start game" [disabled] [ref=e51]
+  - button "Leave" [ref=e52] [cursor=pointer]

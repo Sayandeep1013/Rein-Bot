@@ -1,0 +1,34 @@
+- generic [ref=e7]:
+  - generic [ref=e8]:
+    - heading "ReINBot" [level=1] [ref=e9]
+    - paragraph [ref=e10]: Guess the anime from its opening.
+    - generic [ref=e11]:
+      - generic [ref=e12]: Your name
+      - textbox "Your name" [ref=e13]:
+        - /placeholder: e.g. Sayan
+        - text: Claude
+    - tablist [ref=e14]:
+      - tab "Join a room" [ref=e15] [cursor=pointer]
+      - tab "Create a room" [active] [ref=e16] [cursor=pointer]
+    - generic [ref=e24]:
+      - generic [ref=e25]:
+        - generic [ref=e26]:
+          - text: Rounds
+          - generic [ref=e27]: "10"
+        - slider "Rounds 10" [ref=e28]: "10"
+      - generic [ref=e29]:
+        - generic [ref=e30]:
+          - text: Difficulty
+          - generic [ref=e31]: 1 – 5
+        - generic [ref=e32]:
+          - slider "Difficulty 1 – 5 5" [ref=e33]: "1"
+          - slider [ref=e34]: "5"
+      - generic [ref=e35]:
+        - checkbox "Play the opening's audio" [checked] [ref=e36]
+        - generic [ref=e37]: Play the opening's audio
+      - button "Create" [ref=e38] [cursor=pointer]
+  - paragraph [ref=e22]:
+    - text: Clips from
+    - link "AnimeThemes.moe" [ref=e23] [cursor=pointer]:
+      - /url: https://animethemes.moe
+    - text: . No accounts, no tracking.

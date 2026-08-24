@@ -274,19 +274,30 @@ button:not(:disabled):hover { filter: brightness(1.12); }
   transition: width .25s linear;
 }
 
+/* Three 16:9 stills stacked in a 30rem column are ~810px tall, which pushed the guess
+   input below the fold on a laptop -- found in the first two-browser test, where you
+   could see the frames or the input but never both. Each still is therefore capped in
+   viewport units so the whole round fits regardless of screen height, and the input is
+   pinned (below) so it is reachable even if a short window still scrolls. */
 .stills {
   display: grid;
   gap: .5rem;
   margin-bottom: 1rem;
-  min-height: 180px;
+  min-height: 120px;
 }
 .stills img {
-  width: 100%;
   display: block;
+  /* max-WIDTH plus max-HEIGHT with a fixed aspect-ratio scales the frame down whole.
+     Capping height alone would have kept the box full-width and let object-fit crop
+     the top and bottom off -- throwing away exactly the picture the player is trying
+     to identify. */
+  margin: 0 auto;
+  max-width: 100%;
+  max-height: 26vh;
+  aspect-ratio: 16 / 9;
   border-radius: 10px;
   border: 1px solid var(--line);
   background: var(--bg-3);
-  aspect-ratio: 16 / 9;
   object-fit: cover;
   animation: pop .3s ease-out;
 }
@@ -302,7 +313,16 @@ button:not(:disabled):hover { filter: brightness(1.12); }
   font-size: .85rem;
 }
 
-.guessbox { margin-bottom: 1rem; }
+/* Pinned to the bottom of the viewport during play. The guess box is the one control
+   that must never require a scroll to reach, and a round is 20 seconds. */
+.guessbox {
+  margin-bottom: 1rem;
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  padding: .5rem 0 .25rem;
+  background: linear-gradient(180deg, transparent, var(--bg) 22%);
+}
 #frm-guess { display: flex; gap: .5rem; }
 #frm-guess input { flex: 1; }
 #frm-guess .primary { width: auto; padding: .8rem 1.1rem; }

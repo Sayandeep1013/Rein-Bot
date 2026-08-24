@@ -1,0 +1,19 @@
+- generic [ref=e62]:
+  - generic [ref=e63]:
+    - generic [ref=e64]: Round 1/10
+    - generic [ref=e65]: "19"
+  - img "Frame 1 of the opening" [ref=e69]
+  - generic [ref=e70]:
+    - generic [ref=e72]:
+      - textbox "Name the anime…" [ref=e73]
+      - button "Guess" [ref=e74] [cursor=pointer]
+    - list
+  - list [ref=e75]:
+    - listitem [ref=e76]:
+      - generic [ref=e77]: "1"
+      - generic [ref=e78]: Claude
+      - generic [ref=e79]: "0"
+    - listitem [ref=e80]:
+      - generic [ref=e81]: "2"
+      - generic [ref=e82]: Rein
+      - generic [ref=e83]: "0"
