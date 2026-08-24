@@ -75,7 +75,14 @@ body {
 
 /* ═════════════════════════ screens ═════════════════════════ */
 .screen { display: none; }
-.screen.active { display: block; animation: snap .18s var(--ease) both; }
+/* Deliberately NO `both` fill mode. With it, the element takes the keyframe's `from`
+   state -- opacity 0 -- whenever the animation is not actively running, so anything
+   that pauses or disables animations renders the whole app invisible while the DOM
+   insists it is fine. Found exactly that way: a debugging stylesheet that paused
+   animations turned every screen blank, and the geometry still measured correct.
+   Without `both`, the element's normal (visible) styles apply outside the animation,
+   so motion is purely additive. */
+.screen.active { display: block; animation: snap .18s var(--ease); }
 @keyframes snap { from { opacity: 0; transform: translateY(6px); } }
 .hidden { display: none !important; }
 
@@ -368,7 +375,7 @@ input[type=range] { width: 100%; accent-color: var(--hot); cursor: pointer; }
   border: var(--bw) solid var(--line);
   border-radius: 8px; box-shadow: var(--shadow);
   padding: .6rem .85rem; font-size: .87rem; text-align: center;
-  animation: snap .2s var(--ease) both;
+  animation: snap .2s var(--ease);
 }
 .toast.bad { background: #ffe1e7; border-color: var(--bad); }
 .toast.good { background: #dcfce7; border-color: var(--good); }
@@ -406,7 +413,7 @@ input[type=range] { width: 100%; accent-color: var(--hot); cursor: pointer; }
   background: var(--desk);
   border: 2px solid var(--line);
   border-radius: 8px;
-  animation: snap .2s var(--ease) both;
+  animation: snap .2s var(--ease);
 }
 .avatar {
   flex: none; width: 26px; height: 26px; border-radius: 6px;
@@ -438,7 +445,7 @@ input[type=range] { width: 100%; accent-color: var(--hot); cursor: pointer; }
   display: block; width: 100%;
   max-height: 30svh; aspect-ratio: 16/9; object-fit: cover;
   border: 2px solid rgba(255,255,255,.28); border-radius: 4px;
-  animation: pop .3s var(--ease) both;
+  animation: pop .3s var(--ease);
 }
 @keyframes pop { from { opacity: 0; transform: scale(.97); } }
 .stills .ghost-frame { aspect-ratio: 16/9; max-height: 30svh; border: 2px dashed rgba(255,255,255,.3); border-radius: 4px; display: grid; place-items: center; font-family: var(--pixel); font-size: .74rem; color: rgba(255,255,255,.6); }
@@ -468,7 +475,7 @@ input[type=range] { width: 100%; accent-color: var(--hot); cursor: pointer; }
 /* ═════════════════════════ reveal ═════════════════════════ */
 .reveal-grid { display: grid; gap: 1.1rem; }
 @media (min-width: 52rem) { .reveal-grid { grid-template-columns: 1.1fr .9fr; align-items: start; } }
-.poster { width: 100%; display: block; aspect-ratio: 16/9; object-fit: cover; border-bottom: var(--bw) solid var(--line); animation: pop .35s var(--ease) both; }
+.poster { width: 100%; display: block; aspect-ratio: 16/9; object-fit: cover; border-bottom: var(--bw) solid var(--line); animation: pop .35s var(--ease); }
 .reveal-strip { display: grid; grid-auto-flow: column; gap: .4rem; padding: .4rem; }
 .reveal-strip img { width: 100%; display: block; aspect-ratio: 16/9; object-fit: cover; border: 2px solid rgba(255,255,255,.3); border-radius: 3px; opacity: .8; }
 

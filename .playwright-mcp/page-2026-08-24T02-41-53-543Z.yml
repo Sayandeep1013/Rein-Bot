@@ -1,0 +1,30 @@
+- generic [ref=f4e96]:
+  - generic [ref=f4e97]: new_room.cfg
+  - generic [ref=f4e100]:
+    - button "◂ Back" [ref=f4e101] [cursor=pointer]
+    - generic [ref=f4e102]:
+      - generic [ref=f4e103]: Your name
+      - textbox "Your name" [active] [ref=f4e104]:
+        - /placeholder: What should we call you?
+        - text: Claude
+    - generic [ref=f4e105]:
+      - generic [ref=f4e106]:
+        - text: Rounds
+        - generic [ref=f4e107]: "10"
+      - slider "Rounds 10 About 5 minutes" [ref=f4e108] [cursor=pointer]: "10"
+      - generic [ref=f4e109]: About 5 minutes
+    - generic [ref=f4e110]:
+      - generic [ref=f4e111]:
+        - text: Difficulty
+        - generic [ref=f4e112]: 1 – 5
+      - generic [ref=f4e113]:
+        - slider "Minimum difficulty" [ref=f4e114] [cursor=pointer]: "1"
+        - slider "Maximum difficulty" [ref=f4e115] [cursor=pointer]: "5"
+      - generic [ref=f4e116]: Everything, from household names to deep cuts
+    - generic [ref=f4e117] [cursor=pointer]:
+      - checkbox "✓ Play the opening Off means frames only — quieter, and lighter on data" [checked]
+      - generic [ref=f4e118]: ✓
+      - generic [ref=f4e119]:
+        - generic [ref=f4e120]: Play the opening
+        - emphasis [ref=f4e121]: Off means frames only — quieter, and lighter on data
+    - button "Create room" [ref=f4e122] [cursor=pointer]

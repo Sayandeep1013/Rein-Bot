@@ -1,0 +1,84 @@
+- generic [ref=f4e2]:
+  - generic [ref=f4e3]:
+    - generic [ref=f4e4]:
+      - generic [ref=f4e5]: ◉
+      - generic [ref=f4e6]: File
+      - generic [ref=f4e7]: Edit
+      - generic [ref=f4e8]: View
+      - generic [ref=f4e9]: Special
+      - generic [ref=f4e10]: 134 questions loaded
+    - generic [ref=f4e11]:
+      - generic [ref=f4e12]:
+        - paragraph [ref=f4e13]: ◆ 46 series · 134 openings · free forever
+        - heading "ReINBot" [level=1] [ref=f4e14]
+        - paragraph [ref=f4e17]: アニメ当て / GUESS THE ANIME
+        - paragraph [ref=f4e18]: Three frames. Twenty seconds. Name the anime before your friends do.
+        - generic [ref=f4e19]:
+          - button "Create a room ▸" [ref=f4e20] [cursor=pointer]
+          - button "Join with a code" [ref=f4e21] [cursor=pointer]
+        - paragraph [ref=f4e22]: no sign-up · no app · just a four-letter code
+      - generic [ref=f4e24]:
+        - generic [ref=f4e25]:
+          - generic [ref=f4e26]: ROUND 01
+          - generic [ref=f4e31]: GUESS_▊
+        - generic [ref=f4e32]: ReIN Bot
+    - generic [ref=f4e36]:
+      - generic [ref=f4e37]: 20 SECONDS
+      - generic [ref=f4e38]: ◆
+      - generic [ref=f4e39]: 2–8 PLAYERS
+      - generic [ref=f4e40]: ◆
+      - generic [ref=f4e41]: NO SPOILERS
+      - generic [ref=f4e42]: ◆
+      - generic [ref=f4e43]: OPENINGS & ENDINGS
+      - generic [ref=f4e44]: ◆
+      - generic [ref=f4e45]: WINNER TAKES ALL
+      - generic [ref=f4e46]: ◆
+      - generic [ref=f4e47]: 20 SECONDS
+      - generic [ref=f4e48]: ◆
+      - generic [ref=f4e49]: 2–8 PLAYERS
+      - generic [ref=f4e50]: ◆
+      - generic [ref=f4e51]: NO SPOILERS
+      - generic [ref=f4e52]: ◆
+      - generic [ref=f4e53]: OPENINGS & ENDINGS
+      - generic [ref=f4e54]: ◆
+      - generic [ref=f4e55]: WINNER TAKES ALL
+      - generic [ref=f4e56]: ◆
+    - generic [ref=f4e57]:
+      - heading "How a round works" [level=2] [ref=f4e58]
+      - list [ref=f4e59]:
+        - listitem [ref=f4e60]:
+          - generic [ref=f4e61]: 01_frame
+          - generic [ref=f4e64]:
+            - heading "A frame appears" [level=3] [ref=f4e65]
+            - paragraph [ref=f4e66]: One still from the opening. A second at seven seconds, a third at fourteen. Every frame is OCR-checked first, so the show never spells out its own name.
+        - listitem [ref=f4e67]:
+          - generic [ref=f4e68]: 02_type
+          - generic [ref=f4e71]:
+            - heading "Everybody types" [level=3] [ref=f4e72]
+            - paragraph [ref=f4e73]: Free text, not multiple choice. Typos, romaji, English, Japanese, fan abbreviations — the matcher takes all of them.
+        - listitem [ref=f4e74]:
+          - generic [ref=f4e75]: 03_win
+          - generic [ref=f4e78]:
+            - heading "First one wins" [level=3] [ref=f4e79]
+            - paragraph [ref=f4e80]: Fastest correct answer takes the round and the clock stops dead. 200 points for an instant call, 100 if you scrape in at the buzzer.
+    - generic [ref=f4e81]:
+      - generic [ref=f4e82]:
+        - generic [ref=f4e83]: "134"
+        - text: openings & endings
+      - generic [ref=f4e84]:
+        - generic [ref=f4e85]: "46"
+        - text: series in rotation
+      - generic [ref=f4e86]:
+        - generic [ref=f4e87]: 2–8
+        - text: players a room
+      - generic [ref=f4e88]:
+        - generic [ref=f4e89]: 3–20
+        - text: rounds a game
+    - generic [ref=f4e90]:
+      - paragraph [ref=f4e91]:
+        - text: Clips derived from
+        - link "AnimeThemes.moe" [ref=f4e92] [cursor=pointer]:
+          - /url: https://animethemes.moe
+        - text: ", a community project cataloguing anime themes. Only credit-free versions are used and every reveal links back to the source. No ownership is claimed over the music or footage."
+      - paragraph [ref=f4e93]: no accounts · no tracking · no cookies beyond your own seat in a room
+  - text: ✓
