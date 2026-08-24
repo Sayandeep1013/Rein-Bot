@@ -48,6 +48,11 @@ html, body { margin: 0; padding: 0; min-height: 100%; }
 /* scroll-behavior on the ROOT, which is the scrolling element here. */
 html {
   scroll-behavior: smooth;
+  /* Always reserve the scrollbar track. Without it a tall screen (landing, 1258px)
+     shows a scrollbar and a short one (create, 730px) does not, so clientWidth swings
+     1521 <-> 1536 and every centred layout jumps 7.5px sideways on navigation.
+     Measured, not guessed. */
+  scrollbar-gutter: stable;
   /* `clip`, never `hidden`. On body, overflow-x:hidden forces the used value of
      overflow-y to `auto`, which makes body a SECOND scroll container nested inside
      html -- and scrolling then sticks between the two, most visibly when reversing
@@ -108,6 +113,7 @@ body {
 /* ═════════════════════════ windows ═════════════════════════ */
 .win {
   background: var(--paper);
+  box-shadow: var(--shadow);
   border: var(--bw) solid var(--line);
   border-radius: 10px;
 }
@@ -167,35 +173,6 @@ body {
 }
 
 
-/* ═════════════════ offset outline, not a filled shadow ═════════════════ */
-/* Every raised surface casts an OUTLINE rather than a solid block: the same 3px stroke
-   as the border, translated down-right and drawn behind, so only the far edges show as
-   a second line. Solid fills read heavy at this border weight and turn the page into a
-   field of black wedges; the line version keeps the drawing open.
-   ::before, not ::after -- .toggle .tick and .tube already use ::after. */
-.win, .btn, .badge, .toast, .sadmac-screen, .crt, .toggle .tick,
-.scores.big li:first-child { position: relative; }
-
-.win::before, .btn::before, .badge::before, .toast::before,
-.sadmac-screen::before, .crt::before, .toggle .tick::before,
-.scores.big li:first-child::before {
-  content: "";
-  position: absolute;
-  inset: calc(-1 * var(--bw));
-  border: var(--bw) solid var(--line);
-  border-radius: inherit;
-  transform: translate(var(--off, 6px), var(--off, 6px));
-  z-index: -1;
-  pointer-events: none;
-}
-.btn::before, .badge::before, .toggle .tick::before,
-.scores.big li:first-child::before { --off: 4px; }
-.crt::before { --off: 9px; }
-
-/* Pressing moves the face onto its outline, which then has nowhere to be. */
-.btn:not(:disabled):active::before { transform: translate(0, 0); opacity: 0; }
-.btn:disabled::before { --off: 2px; opacity: .5; }
-
 /* ═════════════════════════ type ═════════════════════════ */
 .h1, .h2, .h3 { font-family: var(--display); font-weight: 400; line-height: 1.08; letter-spacing: -.02em; margin: 0 0 .5rem; }
 .h1 { font-size: clamp(1.6rem, 4.6vw, 2.3rem); }
@@ -213,6 +190,7 @@ a { color: var(--grape); font-weight: 500; }
 
 .badge {
   display: inline-block;
+  box-shadow: 3px 3px 0 var(--line);
   font-family: var(--pixel); font-size: .7rem;
   background: var(--lime);
   border: var(--bw) solid var(--line);
@@ -270,6 +248,7 @@ a { color: var(--grape); font-weight: 500; }
 .crt-wrap { display: grid; justify-items: center; }
 .crt {
   width: min(100%, 22rem);
+  box-shadow: var(--shadow-lg);
   background: linear-gradient(#f6f4ee, #ded8ca);
   border: var(--bw) solid var(--line);
   border-radius: 20px 20px 12px 12px;
@@ -338,6 +317,7 @@ a { color: var(--grape); font-weight: 500; }
 /* ═════════════════════════ buttons ═════════════════════════ */
 .btn {
   font-family: var(--body); font-weight: 700; font-size: .95rem;
+  box-shadow: 4px 4px 0 var(--line);
   display: inline-flex; align-items: center; justify-content: center; gap: .4rem;
   padding: .62rem 1.1rem;
   color: var(--ink);
@@ -349,7 +329,7 @@ a { color: var(--grape); font-weight: 500; }
 }
 .btn:not(:disabled):hover { background: var(--desk); }
 /* Physical press: the button moves onto its own shadow. */
-.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn:disabled { opacity: .45; cursor: not-allowed; box-shadow: 2px 2px 0 var(--line); }
 .btn.primary { background: var(--hot); color: #fff; }
 .btn.primary:not(:disabled):hover { background: #ff3d70; }
 .btn.lg { padding: .82rem 1.4rem; font-size: 1rem; }
@@ -385,6 +365,7 @@ input[type=range] { width: 100%; accent-color: var(--hot); cursor: pointer; }
 .toggle input { position: absolute; opacity: 0; width: 0; height: 0; }
 .toggle .tick {
   flex: none; width: 24px; height: 24px; margin-top: .1rem;
+  box-shadow: 3px 3px 0 var(--line);
   background: var(--paper);
   border: var(--bw) solid var(--line);
   border-radius: 5px;
@@ -411,6 +392,7 @@ input[type=range] { width: 100%; accent-color: var(--hot); cursor: pointer; }
 #toasts { position: fixed; left: 50%; bottom: 1.2rem; transform: translateX(-50%); z-index: 60; display: grid; gap: .5rem; width: min(24rem, calc(100vw - 2rem)); }
 .toast {
   background: var(--paper);
+  box-shadow: var(--shadow);
   border: var(--bw) solid var(--line);
   border-radius: 8px;
   padding: .6rem .85rem; font-size: .87rem; text-align: center;
@@ -423,6 +405,7 @@ input[type=range] { width: 100%; accent-color: var(--hot); cursor: pointer; }
 .sadmac { display: grid; place-items: center; margin: .2rem 0 1rem; }
 .sadmac-screen {
   width: 92px; height: 74px;
+  box-shadow: var(--shadow);
   background: var(--paper);
   border: var(--bw) solid var(--line);
   border-radius: 8px;
@@ -508,7 +491,7 @@ input[type=range] { width: 100%; accent-color: var(--hot); cursor: pointer; }
 .scores .pts { margin-left: auto; font-family: var(--pixel); font-size: .82rem; }
 .scores .you { font-weight: 700; color: var(--hot); }
 .scores.big li { font-size: 1.02rem; padding: .6rem .7rem; }
-.scores.big li:first-child { background: var(--lime); }
+.scores.big li:first-child { background: var(--lime); box-shadow: 3px 3px 0 var(--line); }
 
 /* ═════════════════════════ reveal ═════════════════════════ */
 .reveal-grid { display: grid; gap: 1.1rem; }
@@ -532,11 +515,18 @@ input[type=range] { width: 100%; accent-color: var(--hot); cursor: pointer; }
 .nextwrap .hint { margin: 0; }
 
 /* ═════════════════════════ loader ═════════════════════════ */
-.loader { display: flex; gap: .35rem; justify-content: center; margin-bottom: .9rem; }
-.loader span { width: 11px; height: 11px; background: var(--hot); border: 2px solid var(--line); animation: step 1s steps(1) infinite; }
-.loader span:nth-child(2) { animation-delay: .16s; background: var(--bondi); }
-.loader span:nth-child(3) { animation-delay: .32s; background: var(--lime); }
-@keyframes step { 0%, 40% { opacity: 1; } 41%, 100% { opacity: .25; } }
+.loader { display: flex; gap: .4rem; justify-content: center; margin-bottom: 1rem; }
+.loader span {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--hot);
+  animation: bounce 1.1s ease-in-out infinite;
+}
+.loader span:nth-child(2) { background: var(--grape); animation-delay: .14s; }
+.loader span:nth-child(3) { background: var(--bondi); animation-delay: .28s; }
+@keyframes bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: .5; }
+  30% { transform: translateY(-9px); opacity: 1; }
+}
 
 /* ═════════════════════════ motion / a11y ═════════════════════════ */
 @media (prefers-reduced-motion: reduce) {
