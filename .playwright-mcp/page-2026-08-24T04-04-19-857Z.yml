@@ -1,0 +1,89 @@
+- generic [ref=f12e2]:
+  - generic [ref=f12e3]:
+    - generic [ref=f12e4]:
+      - generic [ref=f12e5]: ◉
+      - generic [ref=f12e6]: File
+      - generic [ref=f12e7]: Edit
+      - generic [ref=f12e8]: View
+      - generic [ref=f12e9]: Special
+      - generic [ref=f12e10]: 134 questions loaded
+    - generic [ref=f12e11]:
+      - button "New Room" [ref=f12e12] [cursor=pointer]
+      - button "Join Room" [ref=f12e15] [cursor=pointer]
+      - link "How to Play" [ref=f12e18] [cursor=pointer]:
+        - /url: "#how"
+    - generic [ref=f12e21]:
+      - generic [ref=f12e22]:
+        - paragraph [ref=f12e23]: ◆ 46 series · 134 openings · free forever
+        - heading "ReINBot" [level=1] [ref=f12e24]
+        - paragraph [ref=f12e27]: アニメ当て / GUESS THE ANIME
+        - paragraph [ref=f12e28]: Three frames. Twenty seconds. Name the anime before your friends do.
+        - generic [ref=f12e29]:
+          - button "Create a room ▸" [ref=f12e30] [cursor=pointer]
+          - button "Join with a code" [ref=f12e31] [cursor=pointer]
+        - paragraph [ref=f12e32]: no sign-up · no app · just a four-letter code
+      - generic [ref=f12e34]:
+        - generic [ref=f12e35]:
+          - generic [ref=f12e36]: ROUND 01
+          - generic [ref=f12e41]: GUESS_▊
+        - generic [ref=f12e42]: ReIN Bot
+    - generic [ref=f12e46]:
+      - generic [ref=f12e47]: 20 SECONDS
+      - generic [ref=f12e48]: ◆
+      - generic [ref=f12e49]: 2–8 PLAYERS
+      - generic [ref=f12e50]: ◆
+      - generic [ref=f12e51]: NO SPOILERS
+      - generic [ref=f12e52]: ◆
+      - generic [ref=f12e53]: OPENINGS & ENDINGS
+      - generic [ref=f12e54]: ◆
+      - generic [ref=f12e55]: WINNER TAKES ALL
+      - generic [ref=f12e56]: ◆
+      - generic [ref=f12e57]: 20 SECONDS
+      - generic [ref=f12e58]: ◆
+      - generic [ref=f12e59]: 2–8 PLAYERS
+      - generic [ref=f12e60]: ◆
+      - generic [ref=f12e61]: NO SPOILERS
+      - generic [ref=f12e62]: ◆
+      - generic [ref=f12e63]: OPENINGS & ENDINGS
+      - generic [ref=f12e64]: ◆
+      - generic [ref=f12e65]: WINNER TAKES ALL
+      - generic [ref=f12e66]: ◆
+    - generic [ref=f12e67]:
+      - heading "How a round works" [level=2] [ref=f12e68]
+      - list [ref=f12e69]:
+        - listitem [ref=f12e70]:
+          - generic [ref=f12e71]: 01_frame
+          - generic [ref=f12e74]:
+            - heading "A frame appears" [level=3] [ref=f12e75]
+            - paragraph [ref=f12e76]: One still from the opening. A second at seven seconds, a third at fourteen. Every frame is OCR-checked first, so the show never spells out its own name.
+        - listitem [ref=f12e77]:
+          - generic [ref=f12e78]: 02_type
+          - generic [ref=f12e81]:
+            - heading "Everybody types" [level=3] [ref=f12e82]
+            - paragraph [ref=f12e83]: Free text, not multiple choice. Typos, romaji, English, Japanese, fan abbreviations — the matcher takes all of them.
+        - listitem [ref=f12e84]:
+          - generic [ref=f12e85]: 03_win
+          - generic [ref=f12e88]:
+            - heading "First one wins" [level=3] [ref=f12e89]
+            - paragraph [ref=f12e90]: Fastest correct answer takes the round and the clock stops dead. 200 points for an instant call, 100 if you scrape in at the buzzer.
+    - generic [ref=f12e91]:
+      - generic [ref=f12e92]:
+        - generic [ref=f12e93]: "134"
+        - text: openings & endings
+      - generic [ref=f12e94]:
+        - generic [ref=f12e95]: "46"
+        - text: series in rotation
+      - generic [ref=f12e96]:
+        - generic [ref=f12e97]: 2–8
+        - text: players a room
+      - generic [ref=f12e98]:
+        - generic [ref=f12e99]: 3–20
+        - text: rounds a game
+    - generic [ref=f12e100]:
+      - paragraph [ref=f12e101]:
+        - text: Clips derived from
+        - link "AnimeThemes.moe" [ref=f12e102] [cursor=pointer]:
+          - /url: https://animethemes.moe
+        - text: ", a community project cataloguing anime themes. Only credit-free versions are used and every reveal links back to the source. No ownership is claimed over the music or footage."
+      - paragraph [ref=f12e103]: no accounts · no tracking · no cookies beyond your own seat in a room
+  - text: ✓

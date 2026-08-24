@@ -1678,8 +1678,20 @@ never intercept a click or trap a focus ring.
 
 Two of my own calls reverted on the user's preference, which is the right outcome for
 both: **filled drop shadows are back** (the offset outlines read thinner than intended)
-and **the bouncing-dot loader is back** (the stepped squares lost the bounce), remapped
-to the retro palette. The 1-bit cursor stays.
+and **the original rotating-ring loader is back**. The 1-bit cursor stays.
+
+> **Correction, same day.** This entry first recorded the bouncing-dot loader as the one
+> restored. That was wrong, and the mistake is worth keeping: "bring back the old loader"
+> was ambiguous because the project has had **two** loaders before the disliked one —
+> the rotating ring from the first client (`d244b62`) and the bouncing dots from the
+> dark-neon rebuild (`1d35213`, which replaced the ring). I resolved the ambiguity by
+> assuming rather than asking, and picked the wrong one. The ring was meant, and is now
+> what ships: same 28px geometry and `spin .8s linear` timing as the original, with the
+> ring set in the theme's 3px black and one magenta arc turning through it.
+>
+> Worth knowing for whoever changes it next: the loader lives in exactly **one** place,
+> `#scr-boot`, and only while the session is being established — a fraction of a second
+> on a warm browser. It is nearly impossible to see on purpose.
 
 ### The page-shift bug, and why it took three attempts
 
