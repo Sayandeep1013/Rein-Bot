@@ -11,7 +11,9 @@ content bank is full, and a real game has been played end to end against the liv
 project.** Both answer leaks found by a supervisory audit are closed and re-verified
 from an actual client session. Nothing is blocked on the user.
 
-The next real task is a two-browser test - the RPC path is proven, the DOM is not.
+A full 10-round two-browser game has now been played on desktop, zero console errors.
+The next real test is **mobile** - audio autoplay policy and the small-screen layout
+are the last unverified surfaces.
 
 **The most useful thing this project has learned about itself**, and the reason the
 audit found what it found: *a comment asserting that something is safe stops the next
