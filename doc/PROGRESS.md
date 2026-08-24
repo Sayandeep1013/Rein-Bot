@@ -1603,3 +1603,73 @@ Worth noting how it was found: the instinct was "the create screen is broken". T
 said otherwise, and the DOM was right. Measuring before believing the symptom is the same
 habit that produced the `question_id` false positive earlier — an audit query that is not
 itself audited is just a rumour with a `select` in front of it.
+
+### Scroll, shadows, names, room edge cases, and an OS boot — 2026-08-24
+
+**The stuck scroll was real and had a precise cause.** `overflow-x: hidden` on `body`
+forces the *used* value of `overflow-y` to `auto`, which makes body a **second scroll
+container nested inside html**. Scrolling then sticks between the two, most visibly when
+reversing direction. Measured rather than guessed: body reported `["hidden","auto"]`
+while `document.scrollingElement` was still `HTML`. Both axes now use `clip`, which
+suppresses overflow *without* creating a scroll container. `scroll-behavior: smooth` on
+the root, and `overflow-anchor: none` so scroll anchoring stops fighting the marquee.
+
+**Shadows are outlines now.** Every raised surface casts the same 3px stroke as its
+border, translated and drawn behind, so only the far edges show as a second line. Solid
+black fills read heavy at this border weight and turned the page into a field of wedges.
+Pressing a button still moves it onto its outline, which then vanishes.
+
+**Names are randomised on first visit** — "Chrome Prophet", "Neon Ronin" — instead of an
+empty field. A blank name is a small wall: people stall on it or type "a". A saved name
+still wins on later visits.
+
+### Two room edge cases, opened by the user asking what happens on a duplicate name
+
+Worth asking. Both were open:
+
+**Duplicate names differing only by case or spacing all got in.** `unique (room_id,
+display_name)` is byte-exact, so "Rein", "rein", "REIN", "Re in" and "R e i n" were five
+players on one scoreboard — precisely the confusion the constraint exists to prevent.
+Replaced with a functional unique index over `lower(display_name)` with all whitespace
+removed. `display_name` still stores what was typed; only the uniqueness **key** is
+normalised. Accepted cost, stated plainly: "Light Yagami" and "LightYagami" cannot both
+be in one room. In a room of at most eight, telling players apart beats name freedom.
+
+**A host leaving the lobby stranded the room permanently.** "Leave" was a client-side act
+only — it cleared `localStorage` and went home, leaving the `players` row in place.
+`rooms.host_player_id` then pointed at someone who was never coming back, `start_game`
+raised `NOT_HOST` for everyone else, and the room sat in the lobby until the 24-hour
+purge. `leave_room` (0017) deletes the row and passes host to the longest-waiting
+remaining player, or ends the room if nobody remains.
+
+It deliberately **refuses to delete once the game is playing**: `guesses` cascades from
+`players`, so deleting mid-game would erase that player's score from a board the others
+are still reading. Mid-game leaving stays a client-side act, which is the correct
+semantic — you stopped watching, you did not stop having played.
+
+Verified live: all six name variants refused, `ROOM_NOT_FOUND`, `BAD_NAME`,
+`ALREADY_IN_ROOM`, `ROOM_FULL` on the ninth player, host succession by join order,
+leaving twice idempotent, the freed name immediately reusable, and a mid-game leave
+refused with both player rows intact.
+
+**A third thing surfaced while testing: Supabase permits 30 anonymous sign-ins per hour,
+per IP** (`rate_limit_anonymous_users`). The test run exhausted it and every subsequent
+signup returned `429 over_request_rate_limit`. Normal play is well inside it — sessions
+persist in `localStorage`, so a refresh costs nothing — but a whole group on one home
+connection, or anyone testing, can reach it. The client now says something a player can
+act on instead of surfacing "Request rate limit reached". Raising it is a dashboard
+setting if a large group ever hits it.
+
+### Theme, pushed past styling into an operating system
+
+The reference was a 90s Mac, so the site now behaves like one rather than merely
+resembling one: a POST screen on the first visit of each browser session (phosphor
+green, scanlines, memory test, then the tube collapses to a dot), desktop icons for New
+Room / Join Room / How to Play drawn entirely in CSS with no image requests, a 1-bit
+arrow cursor, and real curvature on the tube areas — corner darkening plus a top-left
+sheen, so they read as glass rather than flat black.
+
+The POST screen runs **once per session, not per load** — charming the first time, an
+obstacle the fifth — is skippable with any key, click or touch, is skipped entirely under
+`prefers-reduced-motion`, and is *removed from the DOM* rather than hidden so it can
+never intercept a click or trap a focus ring.
