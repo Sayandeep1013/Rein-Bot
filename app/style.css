@@ -45,6 +45,18 @@
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; min-height: 100%; }
 
+/* scroll-behavior on the ROOT, which is the scrolling element here. */
+html {
+  scroll-behavior: smooth;
+  /* `clip`, never `hidden`. On body, overflow-x:hidden forces the used value of
+     overflow-y to `auto`, which makes body a SECOND scroll container nested inside
+     html -- and scrolling then sticks between the two, most visibly when reversing
+     direction. `clip` suppresses the overflow without creating a scroll container.
+     Measured: body reported ["hidden","auto"] while document.scrollingElement was
+     still HTML. */
+  overflow-x: clip;
+}
+
 body {
   background: var(--desk);
   color: var(--ink);
@@ -52,7 +64,10 @@ body {
   font-size: 16px;
   line-height: 1.55;
   -webkit-font-smoothing: antialiased;
-  overflow-x: hidden;
+  overflow-x: clip;
+  /* The marquee re-lays-out continuously; scroll anchoring tries to compensate and
+     fights the user. */
+  overflow-anchor: none;
 }
 
 /* ═════════════════════════ desktop ═════════════════════════ */
@@ -95,7 +110,6 @@ body {
   background: var(--paper);
   border: var(--bw) solid var(--line);
   border-radius: 10px;
-  box-shadow: var(--shadow);
 }
 .w-sm { max-width: 22rem; }
 .w-md { max-width: 30rem; }
@@ -152,6 +166,36 @@ body {
   border-radius: inherit;
 }
 
+
+/* ═════════════════ offset outline, not a filled shadow ═════════════════ */
+/* Every raised surface casts an OUTLINE rather than a solid block: the same 3px stroke
+   as the border, translated down-right and drawn behind, so only the far edges show as
+   a second line. Solid fills read heavy at this border weight and turn the page into a
+   field of black wedges; the line version keeps the drawing open.
+   ::before, not ::after -- .toggle .tick and .tube already use ::after. */
+.win, .btn, .badge, .toast, .sadmac-screen, .crt, .toggle .tick,
+.scores.big li:first-child { position: relative; }
+
+.win::before, .btn::before, .badge::before, .toast::before,
+.sadmac-screen::before, .crt::before, .toggle .tick::before,
+.scores.big li:first-child::before {
+  content: "";
+  position: absolute;
+  inset: calc(-1 * var(--bw));
+  border: var(--bw) solid var(--line);
+  border-radius: inherit;
+  transform: translate(var(--off, 6px), var(--off, 6px));
+  z-index: -1;
+  pointer-events: none;
+}
+.btn::before, .badge::before, .toggle .tick::before,
+.scores.big li:first-child::before { --off: 4px; }
+.crt::before { --off: 9px; }
+
+/* Pressing moves the face onto its outline, which then has nowhere to be. */
+.btn:not(:disabled):active::before { transform: translate(0, 0); opacity: 0; }
+.btn:disabled::before { --off: 2px; opacity: .5; }
+
 /* ═════════════════════════ type ═════════════════════════ */
 .h1, .h2, .h3 { font-family: var(--display); font-weight: 400; line-height: 1.08; letter-spacing: -.02em; margin: 0 0 .5rem; }
 .h1 { font-size: clamp(1.6rem, 4.6vw, 2.3rem); }
@@ -174,7 +218,6 @@ a { color: var(--grape); font-weight: 500; }
   border: var(--bw) solid var(--line);
   border-radius: 999px;
   padding: .28rem .8rem;
-  box-shadow: 3px 3px 0 var(--line);
   margin: 0 0 1.4rem;
 }
 
@@ -231,7 +274,6 @@ a { color: var(--grape); font-weight: 500; }
   border: var(--bw) solid var(--line);
   border-radius: 20px 20px 12px 12px;
   padding: 1rem 1rem .5rem;
-  box-shadow: var(--shadow-lg);
   animation: hover 6s ease-in-out infinite;
 }
 @keyframes hover { 50% { transform: translateY(-7px); } }
@@ -302,14 +344,12 @@ a { color: var(--grape); font-weight: 500; }
   background: var(--paper);
   border: var(--bw) solid var(--line);
   border-radius: 8px;
-  box-shadow: 4px 4px 0 var(--line);
   cursor: pointer; text-decoration: none;
   transition: transform .1s var(--ease), box-shadow .1s var(--ease), background .14s;
 }
 .btn:not(:disabled):hover { background: var(--desk); }
 /* Physical press: the button moves onto its own shadow. */
-.btn:not(:disabled):active { transform: translate(4px, 4px); box-shadow: 0 0 0 var(--line); }
-.btn:disabled { opacity: .45; cursor: not-allowed; box-shadow: 2px 2px 0 var(--line); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
 .btn.primary { background: var(--hot); color: #fff; }
 .btn.primary:not(:disabled):hover { background: #ff3d70; }
 .btn.lg { padding: .82rem 1.4rem; font-size: 1rem; }
@@ -325,12 +365,12 @@ a { color: var(--grape); font-weight: 500; }
 
 input[type=text] {
   width: 100%; padding: .72rem .8rem;
+  box-shadow: inset 2px 2px 0 rgba(20,18,26,.07);
   font: inherit; color: var(--ink);
   background: var(--paper);
   border: var(--bw) solid var(--line);
   border-radius: 8px;
   outline: none;
-  box-shadow: inset 2px 2px 0 rgba(20,18,26,.07);
 }
 input[type=text]::placeholder { color: var(--ink-3); }
 input[type=text]:focus { border-color: var(--hot); box-shadow: inset 2px 2px 0 rgba(255,31,90,.12); }
@@ -348,7 +388,6 @@ input[type=range] { width: 100%; accent-color: var(--hot); cursor: pointer; }
   background: var(--paper);
   border: var(--bw) solid var(--line);
   border-radius: 5px;
-  box-shadow: 3px 3px 0 var(--line);
   position: relative;
 }
 .toggle input:checked + .tick { background: var(--lime); }
@@ -373,7 +412,7 @@ input[type=range] { width: 100%; accent-color: var(--hot); cursor: pointer; }
 .toast {
   background: var(--paper);
   border: var(--bw) solid var(--line);
-  border-radius: 8px; box-shadow: var(--shadow);
+  border-radius: 8px;
   padding: .6rem .85rem; font-size: .87rem; text-align: center;
   animation: snap .2s var(--ease);
 }
@@ -389,7 +428,6 @@ input[type=range] { width: 100%; accent-color: var(--hot); cursor: pointer; }
   border-radius: 8px;
   display: grid; place-content: center; gap: .35rem;
   font-family: var(--pixel); font-size: .95rem;
-  box-shadow: var(--shadow);
 }
 .sadmac-screen .mouth { display: block; width: 30px; height: 10px; margin: 0 auto; border: 3px solid var(--line); border-top: none; border-radius: 0 0 30px 30px; transform: rotate(180deg); }
 
@@ -470,7 +508,7 @@ input[type=range] { width: 100%; accent-color: var(--hot); cursor: pointer; }
 .scores .pts { margin-left: auto; font-family: var(--pixel); font-size: .82rem; }
 .scores .you { font-weight: 700; color: var(--hot); }
 .scores.big li { font-size: 1.02rem; padding: .6rem .7rem; }
-.scores.big li:first-child { background: var(--lime); box-shadow: 3px 3px 0 var(--line); }
+.scores.big li:first-child { background: var(--lime); }
 
 /* ═════════════════════════ reveal ═════════════════════════ */
 .reveal-grid { display: grid; gap: 1.1rem; }
@@ -505,3 +543,81 @@ input[type=range] { width: 100%; accent-color: var(--hot); cursor: pointer; }
   *, *::before, *::after { animation-duration: .001s !important; animation-iteration-count: 1 !important; transition-duration: .001s !important; }
 }
 :focus-visible { outline: 3px solid var(--grape); outline-offset: 2px; }
+
+/* ═════════════════════════ boot / POST ═════════════════════════ */
+/* Once per browser session. Not on every load: charming the first time, an obstacle
+   the fifth. Removed from the DOM afterwards rather than hidden, so it can never
+   intercept a click or a focus ring. */
+.boot {
+  position: fixed; inset: 0; z-index: 100;
+  background: #05060a;
+  color: #b8ffb8;                       /* P1 phosphor */
+  font-family: var(--pixel);
+  font-size: .8rem; line-height: 1.75;
+  padding: clamp(1rem, 5vw, 3rem);
+  overflow: hidden;
+}
+.boot::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background:
+    repeating-linear-gradient(to bottom, rgba(0,0,0,.35) 0 1px, transparent 1px 3px),
+    radial-gradient(120% 100% at 50% 50%, transparent 55%, rgba(0,0,0,.75) 100%);
+}
+.boot-text { margin: 0; white-space: pre-wrap; text-shadow: 0 0 8px rgba(120,255,120,.45); }
+.boot-skip {
+  position: absolute; bottom: 1.2rem; right: 1.4rem;
+  font-size: .68rem; color: #3f7a3f; margin: 0;
+}
+.boot.done { animation: crt-off .32s steps(6) forwards; }
+/* The classic tube collapse: squash to a line, then a dot, then nothing. */
+@keyframes crt-off {
+  40%  { transform: scaleY(.06); filter: brightness(3); }
+  70%  { transform: scaleY(.06) scaleX(.35); filter: brightness(4); }
+  100% { transform: scaleY(.01) scaleX(0);  filter: brightness(6); opacity: 0; }
+}
+
+/* ═════════════════════════ desktop icons ═════════════════════════ */
+.icons {
+  position: absolute; top: 3.2rem; left: 1rem; z-index: 4;
+  display: grid; gap: 1.1rem; justify-items: center;
+}
+@media (max-width: 74rem) { .icons { display: none; } }   /* the CTAs already cover this */
+.icon {
+  width: 5rem; padding: .35rem;
+  background: none; border: 2px solid transparent; border-radius: 6px;
+  display: grid; gap: .3rem; justify-items: center;
+  cursor: pointer; text-decoration: none; color: inherit;
+}
+.icon:hover, .icon:focus-visible { border-color: var(--line); background: rgba(255,255,255,.45); }
+.icon-label { font-family: var(--pixel); font-size: .6rem; text-align: center; line-height: 1.35; }
+.icon-art { width: 38px; height: 38px; border: 2px solid var(--line); border-radius: 3px; position: relative; }
+/* Three 1-bit-ish icons drawn in pure CSS — no image requests. */
+.floppy { background: var(--bondi); }
+.floppy::before { content: ""; position: absolute; top: 3px; left: 9px; width: 16px; height: 12px; background: var(--paper); border: 2px solid var(--line); }
+.floppy::after  { content: ""; position: absolute; bottom: 2px; left: 6px; width: 22px; height: 12px; background: var(--paper); border: 2px solid var(--line); border-radius: 1px; }
+.net { background: var(--grape); }
+.net::before { content: ""; position: absolute; inset: 7px; border: 2px solid var(--paper); border-radius: 50%; }
+.net::after  { content: ""; position: absolute; top: 16px; left: 3px; right: 3px; height: 2px; background: var(--paper); }
+.folder { background: var(--amber); border-top-width: 8px; }
+.folder::before { content: ""; position: absolute; top: -8px; left: 2px; width: 14px; height: 4px; background: var(--line); border-radius: 2px 2px 0 0; }
+
+/* ═════════════════════════ CRT curvature ═════════════════════════ */
+/* Corner darkening plus a soft top-left sheen, so the "tube" areas read as glass with
+   a curve rather than a flat black rectangle. */
+.tube::before {
+  content: ""; position: absolute; inset: 0; z-index: 2; pointer-events: none;
+  border-radius: inherit;
+  background:
+    radial-gradient(120% 130% at 50% 50%, transparent 58%, rgba(0,0,0,.55) 100%),
+    linear-gradient(150deg, rgba(255,255,255,.10) 0%, transparent 32%);
+}
+.crt-screen { border-radius: 14px / 18px; }   /* very slightly barrelled */
+
+/* ═════════════════════════ pointer ═════════════════════════ */
+/* The 1-bit arrow, as an inline SVG data URI so it costs no request. Hotspot at 0,0.
+   A pointer cursor still wins on anything clickable — retro should not cost usability. */
+body {
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 12 12'%3E%3Cpath d='M1 0v9l2.2-2.2L5 10.8l1.8-.8-1.8-3.6H8z' fill='%23fff' stroke='%23000' stroke-width='1'/%3E%3C/svg%3E") 0 0, default;
+}
+button, a, input[type=range], .icon, label.toggle { cursor: pointer; }
+input[type=text] { cursor: text; }

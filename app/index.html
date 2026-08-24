@@ -26,6 +26,14 @@
 </head>
 <body>
 
+<!-- POST screen. Shown once per browser session, skippable with any key or click.
+     It is aria-hidden and removed from the DOM when done, so it never sits in front of
+     the app for a screen reader or a keyboard user. -->
+<div id="boot" class="boot" aria-hidden="true">
+  <pre id="boot-text" class="boot-text"></pre>
+  <p class="boot-skip">press any key to skip</p>
+</div>
+
 <div class="desktop" aria-hidden="true"><span class="crt-lines"></span></div>
 
 <div id="app">
@@ -67,6 +75,21 @@
     <span class="mb-logo">◉</span>
     <span>File</span><span>Edit</span><span>View</span><span>Special</span>
     <span class="mb-right">134 questions loaded</span>
+  </div>
+
+  <div class="icons">
+    <button class="icon" data-nav="create">
+      <span class="icon-art floppy" aria-hidden="true"></span>
+      <span class="icon-label">New&nbsp;Room</span>
+    </button>
+    <button class="icon" data-nav="join">
+      <span class="icon-art net" aria-hidden="true"></span>
+      <span class="icon-label">Join&nbsp;Room</span>
+    </button>
+    <a class="icon" href="#how">
+      <span class="icon-art folder" aria-hidden="true"></span>
+      <span class="icon-label">How&nbsp;to&nbsp;Play</span>
+    </a>
   </div>
 
   <header class="hero">
@@ -116,7 +139,7 @@
     </div>
   </div>
 
-  <section class="how">
+  <section class="how" id="how">
     <h2 class="h3">How a round works</h2>
     <ol class="steps">
       <li class="win">

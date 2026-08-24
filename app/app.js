@@ -178,6 +178,13 @@
              "Try fewer rounds, or widen the range.";
     }
     if (/anonymous/i.test(m)) return "Anonymous sign-in is disabled on this project.";
+    // Supabase allows 30 anonymous sign-ins an hour PER IP. A whole group on one home
+    // connection can reach that, and the generic message ("Request rate limit reached")
+    // tells a player nothing they can act on.
+    if (/rate limit/i.test(m) || err.status === 429) {
+      return "Too many new sessions from this network in the last hour. " +
+             "Wait a few minutes, or have someone on a different connection host.";
+    }
     if (/Failed to fetch|NetworkError|Load failed/i.test(m)) return "Network problem. Check your connection.";
     return m || "Something went wrong.";
   }
@@ -232,7 +239,7 @@
         // network and deserves patience rather than ejection.
         if (m.indexOf("NOT_A_MEMBER") === 0 || m.indexOf("ROOM_NOT_FOUND") === 0) {
           toast(friendly(err), "bad");
-          leaveRoom();
+          leaveRoom(false);
           return;
         }
         pollFails++;
@@ -575,7 +582,16 @@
     startPolling();
   }
 
-  function leaveRoom() {
+  // Tell the server first when we can. Leaving used to be purely local, which stranded
+  // a room whose HOST left: their players row stayed, host_player_id pointed at someone
+  // never coming back, and start_game raised NOT_HOST for everyone else forever.
+  // leave_room (0017) deletes the row in the lobby and passes the host role on; once
+  // the game is playing it deliberately refuses, because guesses cascades from players
+  // and deleting would wipe the leaver's score off everyone else's scoreboard.
+  function leaveRoom(announce) {
+    if (announce !== false && roomId && session) {
+      rpc("leave_room", { p_room_id: roomId }).catch(function () {});
+    }
     stopPolling();
     stopAudio();
     roomId = null;
@@ -583,6 +599,23 @@
     currentScreen = null;
     try { localStorage.removeItem(LS_ROOM); } catch (e) {}
     if (location.hash !== "#/") location.hash = "#/"; else applyHash();
+  }
+
+  // A blank name field is a small wall: people stall on it, or type "a". Everyone gets
+  // a usable handle on arrival and can overwrite it. Two words so collisions are rare
+  // inside a room of eight -- and since 0017 a collision is refused case- and
+  // whitespace-insensitively, so "Neon Ronin" and "neonronin" cannot both join.
+  var NAME_A = ["Neon", "Copper", "Velvet", "Midnight", "Paper", "Static", "Crimson",
+                "Glass", "Feral", "Quiet", "Hollow", "Chrome", "Bitter", "Solar",
+                "Wired", "Astral", "Rusted", "Gentle", "Vivid", "Zero"];
+  var NAME_B = ["Ronin", "Senpai", "Kitsune", "Samurai", "Oracle", "Phantom", "Sensei",
+                "Wanderer", "Bandit", "Prophet", "Rival", "Nomad", "Kouhai", "Shogun",
+                "Drifter", "Alchemist", "Gunslinger", "Detective", "Pilot", "Rookie"];
+
+  function randomName() {
+    var a = NAME_A[Math.floor(Math.random() * NAME_A.length)];
+    var b = NAME_B[Math.floor(Math.random() * NAME_B.length)];
+    return a + " " + b;
   }
 
   function nameFrom(input) {
@@ -713,8 +746,8 @@
     on($("btn-create"), "click", doCreate);
     on($("btn-join"), "click", doJoin);
     on($("btn-start"), "click", doStart);
-    on($("btn-leave"), "click", leaveRoom);
-    on($("btn-again"), "click", function () { leaveRoom(); go("create"); });
+    on($("btn-leave"), "click", function () { leaveRoom(true); });
+    on($("btn-again"), "click", function () { leaveRoom(false); go("create"); });
     on($("frm-guess"), "submit", doGuess);
 
     on($("in-name-c"), "keydown", function (e) { if (e.key === "Enter") doCreate(); });
@@ -747,6 +780,59 @@
     on(document, "visibilitychange", function () { if (!document.hidden) poll(); });
   }
 
+  // ════════════════════════════ POST screen ════════════════════════════
+  // Once per browser SESSION, not per load: charming the first time, an obstacle the
+  // fifth. Skippable with any key, click or touch, and removed from the DOM when done
+  // rather than hidden, so it can never intercept a click or trap a focus ring.
+  // Honours prefers-reduced-motion by not running at all.
+  var BOOT_LINES = [
+    "ReIN BIOS v1.34  (c) 2026",
+    "",
+    "Memory test ................ 640K OK",
+    "Detecting media ............ 134 questions",
+    "Series in rotation ......... 46",
+    "OCR spoiler filter ......... ARMED",
+    "Answer bank ................ SEALED",
+    "Clock source ............... server",
+    "",
+    "Starting ReIN Bot...",
+  ];
+
+  function runBoot(done) {
+    var el = $("boot"), out = $("boot-text");
+    var seen = false;
+    try { seen = sessionStorage.getItem("rein.booted") === "1"; } catch (e) {}
+    var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    if (!el) { done(); return; }
+    if (seen || reduced) { el.remove(); done(); return; }
+    try { sessionStorage.setItem("rein.booted", "1"); } catch (e) {}
+
+    var i = 0, timer = null, finished = false;
+
+    function finish() {
+      if (finished) return;
+      finished = true;
+      clearTimeout(timer);
+      document.removeEventListener("keydown", finish);
+      document.removeEventListener("pointerdown", finish);
+      el.classList.add("done");
+      // Match the crt-off animation, then take it out of the document entirely.
+      setTimeout(function () { el.remove(); }, 340);
+      done();
+    }
+
+    function step() {
+      if (i >= BOOT_LINES.length) { timer = setTimeout(finish, 420); return; }
+      out.textContent += BOOT_LINES[i++] + String.fromCharCode(10);
+      timer = setTimeout(step, 105);
+    }
+
+    document.addEventListener("keydown", finish);
+    document.addEventListener("pointerdown", finish);
+    step();
+  }
+
   // ════════════════════════════ boot ════════════════════════════
   function setupScreen(title, bodyHtml) {
     text($("setup-title"), title);
@@ -770,6 +856,7 @@
 
     var savedName = "";
     try { savedName = localStorage.getItem(LS_NAME) || ""; } catch (e) {}
+    if (!savedName) savedName = randomName();
     $("in-name-c").value = savedName;
     $("in-name-j").value = savedName;
 
@@ -791,14 +878,14 @@
         // clearing the saved room and dropping back to the landing page.
         roomId = saved;
         return poll().then(function () {
-          if (!last) { leaveRoom(); return; }
+          if (!last) { leaveRoom(false); return; }
           // A finished game is not somewhere to be restored INTO. Without this, every
           // later visit reopens the last game's final scoreboard instead of the
           // landing page -- and since rooms live 24 hours, that could be a day of
           // never seeing the front of your own site. Staying on the over screen
           // through a refresh moments after finishing is still fine: that path runs
           // through route(), not through here.
-          if (last.state === "over") { leaveRoom(); return; }
+          if (last.state === "over") { leaveRoom(false); return; }
           enterRoom(saved);
         });
       })
@@ -821,6 +908,8 @@
       });
   }
 
-  if (document.readyState === "loading") on(document, "DOMContentLoaded", boot);
-  else boot();
+  function start() { runBoot(function () {}); boot(); }
+
+  if (document.readyState === "loading") on(document, "DOMContentLoaded", start);
+  else start();
 })();
