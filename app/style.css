@@ -53,20 +53,21 @@ html {
      1521 <-> 1536 and every centred layout jumps 7.5px sideways on navigation.
      Measured, not guessed.
 
-     BOTH declarations are needed and scrollbar-gutter alone is NOT enough: it applies
-     only to scroll containers, and with overflow-y computing to `visible` the root is
-     not one, so it silently does nothing. Verified — the 15px swing survived it
-     untouched. overflow-y: scroll is what actually reserves the track; the gutter
-     property is kept because it is the better-behaved one wherever it does apply. */
+     scrollbar-gutter alone is NOT enough: it applies only to scroll containers, and
+     with overflow-y computing to `visible` the root is not one, so it silently does
+     nothing. overflow-y: scroll is what actually reserves the track; the gutter
+     property is kept because it is better-behaved wherever it does apply.
+
+     AND THE ROOT MUST NOT ALSO SET overflow-x. `overflow-x: clip` with
+     `overflow-y: scroll` is not a legal pair: the browser keeps `clip` and DISCARDS
+     the `scroll`, computing ["clip","visible"] — so the declaration reads correctly in
+     the file and does nothing at all. Measured three ways in the live page:
+       clip + scroll             -> computed ["clip","visible"],  shift 15px
+       overflow-y: scroll alone  -> computed ["auto","scroll"],   shift 0
+     Horizontal overflow is suppressed on `body` instead, which is where it was needed
+     anyway. */
   overflow-y: scroll;
   scrollbar-gutter: stable;
-  /* `clip`, never `hidden`. On body, overflow-x:hidden forces the used value of
-     overflow-y to `auto`, which makes body a SECOND scroll container nested inside
-     html -- and scrolling then sticks between the two, most visibly when reversing
-     direction. `clip` suppresses the overflow without creating a scroll container.
-     Measured: body reported ["hidden","auto"] while document.scrollingElement was
-     still HTML. */
-  overflow-x: clip;
 }
 
 body {

@@ -1,0 +1,89 @@
+- generic [ref=f9e2]:
+  - generic [ref=f9e3]:
+    - generic [ref=f9e4]:
+      - generic [ref=f9e5]: ◉
+      - generic [ref=f9e6]: File
+      - generic [ref=f9e7]: Edit
+      - generic [ref=f9e8]: View
+      - generic [ref=f9e9]: Special
+      - generic [ref=f9e10]: 134 questions loaded
+    - generic [ref=f9e11]:
+      - button "New Room" [ref=f9e12] [cursor=pointer]
+      - button "Join Room" [ref=f9e15] [cursor=pointer]
+      - link "How to Play" [ref=f9e18] [cursor=pointer]:
+        - /url: "#how"
+    - generic [ref=f9e21]:
+      - generic [ref=f9e22]:
+        - paragraph [ref=f9e23]: ◆ 46 series · 134 openings · free forever
+        - heading "ReINBot" [level=1] [ref=f9e24]
+        - paragraph [ref=f9e27]: アニメ当て / GUESS THE ANIME
+        - paragraph [ref=f9e28]: Three frames. Twenty seconds. Name the anime before your friends do.
+        - generic [ref=f9e29]:
+          - button "Create a room ▸" [ref=f9e30] [cursor=pointer]
+          - button "Join with a code" [ref=f9e31] [cursor=pointer]
+        - paragraph [ref=f9e32]: no sign-up · no app · just a four-letter code
+      - generic [ref=f9e34]:
+        - generic [ref=f9e35]:
+          - generic [ref=f9e36]: ROUND 01
+          - generic [ref=f9e41]: GUESS_▊
+        - generic [ref=f9e42]: ReIN Bot
+    - generic [ref=f9e46]:
+      - generic [ref=f9e47]: 20 SECONDS
+      - generic [ref=f9e48]: ◆
+      - generic [ref=f9e49]: 2–8 PLAYERS
+      - generic [ref=f9e50]: ◆
+      - generic [ref=f9e51]: NO SPOILERS
+      - generic [ref=f9e52]: ◆
+      - generic [ref=f9e53]: OPENINGS & ENDINGS
+      - generic [ref=f9e54]: ◆
+      - generic [ref=f9e55]: WINNER TAKES ALL
+      - generic [ref=f9e56]: ◆
+      - generic [ref=f9e57]: 20 SECONDS
+      - generic [ref=f9e58]: ◆
+      - generic [ref=f9e59]: 2–8 PLAYERS
+      - generic [ref=f9e60]: ◆
+      - generic [ref=f9e61]: NO SPOILERS
+      - generic [ref=f9e62]: ◆
+      - generic [ref=f9e63]: OPENINGS & ENDINGS
+      - generic [ref=f9e64]: ◆
+      - generic [ref=f9e65]: WINNER TAKES ALL
+      - generic [ref=f9e66]: ◆
+    - generic [ref=f9e67]:
+      - heading "How a round works" [level=2] [ref=f9e68]
+      - list [ref=f9e69]:
+        - listitem [ref=f9e70]:
+          - generic [ref=f9e71]: 01_frame
+          - generic [ref=f9e74]:
+            - heading "A frame appears" [level=3] [ref=f9e75]
+            - paragraph [ref=f9e76]: One still from the opening. A second at seven seconds, a third at fourteen. Every frame is OCR-checked first, so the show never spells out its own name.
+        - listitem [ref=f9e77]:
+          - generic [ref=f9e78]: 02_type
+          - generic [ref=f9e81]:
+            - heading "Everybody types" [level=3] [ref=f9e82]
+            - paragraph [ref=f9e83]: Free text, not multiple choice. Typos, romaji, English, Japanese, fan abbreviations — the matcher takes all of them.
+        - listitem [ref=f9e84]:
+          - generic [ref=f9e85]: 03_win
+          - generic [ref=f9e88]:
+            - heading "First one wins" [level=3] [ref=f9e89]
+            - paragraph [ref=f9e90]: Fastest correct answer takes the round and the clock stops dead. 200 points for an instant call, 100 if you scrape in at the buzzer.
+    - generic [ref=f9e91]:
+      - generic [ref=f9e92]:
+        - generic [ref=f9e93]: "134"
+        - text: openings & endings
+      - generic [ref=f9e94]:
+        - generic [ref=f9e95]: "46"
+        - text: series in rotation
+      - generic [ref=f9e96]:
+        - generic [ref=f9e97]: 2–8
+        - text: players a room
+      - generic [ref=f9e98]:
+        - generic [ref=f9e99]: 3–20
+        - text: rounds a game
+    - generic [ref=f9e100]:
+      - paragraph [ref=f9e101]:
+        - text: Clips derived from
+        - link "AnimeThemes.moe" [ref=f9e102] [cursor=pointer]:
+          - /url: https://animethemes.moe
+        - text: ", a community project cataloguing anime themes. Only credit-free versions are used and every reveal links back to the source. No ownership is claimed over the music or footage."
+      - paragraph [ref=f9e103]: no accounts · no tracking · no cookies beyond your own seat in a room
+  - text: ✓
