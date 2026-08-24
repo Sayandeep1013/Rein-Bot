@@ -5,117 +5,143 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>ReIN Bot — Guess the Anime</title>
 <meta name="description" content="Name the anime from three frames of its opening before your friends do. A free multiplayer party game for 2–8 people.">
-<meta name="theme-color" content="#0a0812">
-<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#e9e4d8">
+<meta name="color-scheme" content="light">
 
 <meta property="og:title" content="ReIN Bot — Guess the Anime">
 <meta property="og:description" content="Three frames. Twenty seconds. Name the anime before your friends do.">
 <meta property="og:type" content="website">
 
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#127917;</text></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#128187;</text></svg>">
 
-<!-- Fonts are a progressive enhancement, not a dependency: every stack below falls
-     back to system faces, and the app is fully playable if fonts.googleapis.com is
-     blocked or slow. Nothing else here loads from a third party. -->
+<!-- Fonts are a progressive enhancement, not a dependency: every stack falls back to
+     system faces and the game is fully playable if fonts.googleapis.com is blocked.
+     Silkscreen is the bitmap face used for chrome and labels; Archivo Black is the
+     heavy display; Space Grotesk carries anything you actually have to read. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Outfit:wght@300;400;500;600;800&family=Space+Mono:wght@700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Silkscreen:wght@400;700&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
 
 <link rel="stylesheet" href="./style.css">
 </head>
 <body>
 
-<!-- Ambient background: three slow-drifting colour orbs plus a grain overlay. Fixed and
-     pointer-events:none so it never interferes with the UI above it. -->
-<div class="bg" aria-hidden="true">
-  <span class="orb orb-a"></span>
-  <span class="orb orb-b"></span>
-  <span class="orb orb-c"></span>
-  <span class="grain"></span>
-  <span class="scan"></span>
-</div>
+<div class="desktop" aria-hidden="true"><span class="crt-lines"></span></div>
 
 <div id="app">
 
-<!-- ══════════════════════════════ boot ══════════════════════════════ -->
+<!-- ══════════════════════════ boot ══════════════════════════ -->
 <section id="scr-boot" class="screen active">
-  <div class="center-stage">
-    <div class="loader"><span></span><span></span><span></span></div>
-    <p class="muted">Waking the projector…</p>
-  </div>
-</section>
-
-<!-- ══════════════════════════════ setup / fatal ══════════════════════════════ -->
-<section id="scr-setup" class="screen">
-  <div class="center-stage">
-    <div class="glass pad-lg narrow">
-      <p class="eyebrow bad">Not ready</p>
-      <h1 class="h2" id="setup-title"></h1>
-      <div id="setup-body" class="prose"></div>
-      <button class="btn ghost" data-nav="landing">Back</button>
+  <div class="stack">
+    <div class="win w-sm">
+      <div class="win-bar"><span class="box"></span><span class="win-title">startup</span></div>
+      <div class="win-body center">
+        <div class="loader"><span></span><span></span><span></span></div>
+        <p class="mono-sm">warming up the tube…</p>
+      </div>
     </div>
   </div>
 </section>
 
-<!-- ══════════════════════════════ landing ══════════════════════════════ -->
+<!-- ══════════════════════════ setup / fatal ══════════════════════════ -->
+<section id="scr-setup" class="screen">
+  <div class="stack">
+    <div class="win w-md">
+      <div class="win-bar alert"><span class="box"></span><span class="win-title">system error</span></div>
+      <div class="win-body">
+        <div class="sadmac" aria-hidden="true">
+          <div class="sadmac-screen"><span>×  ×</span><span class="mouth"></span></div>
+        </div>
+        <h1 class="h2" id="setup-title"></h1>
+        <div id="setup-body" class="prose"></div>
+        <button class="btn full" data-nav="landing">Back</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════ landing ══════════════════════════ -->
 <section id="scr-landing" class="screen">
+
+  <div class="menubar" aria-hidden="true">
+    <span class="mb-logo">◉</span>
+    <span>File</span><span>Edit</span><span>View</span><span>Special</span>
+    <span class="mb-right">134 questions loaded</span>
+  </div>
 
   <header class="hero">
     <div class="hero-inner">
-      <p class="eyebrow"><span class="dot"></span> 134 openings · 46 series · free forever</p>
+      <p class="badge">◆ 46 series · 134 openings · free forever</p>
 
       <h1 class="wordmark">
-        <span class="wm-1">ReIN</span><span class="wm-2">Bot</span>
-        <span class="wm-jp" aria-hidden="true">アニメ当て</span>
+        <span class="wm-shadow" aria-hidden="true">ReIN<i>Bot</i></span>
+        <span class="wm-face">ReIN<i>Bot</i></span>
       </h1>
+      <p class="wm-sub">アニメ当て &nbsp;/&nbsp; GUESS THE ANIME</p>
 
       <p class="hero-tag">
         Three frames. Twenty seconds.<br>
-        <em>Name the anime before your friends do.</em>
+        <b>Name the anime before your friends do.</b>
       </p>
 
       <div class="hero-cta">
-        <button class="btn primary lg" data-nav="create">
-          <span>Create a room</span>
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-        </button>
-        <button class="btn ghost lg" data-nav="join">Join with a code</button>
+        <button class="btn primary lg" data-nav="create">Create a room ▸</button>
+        <button class="btn lg" data-nav="join">Join with a code</button>
       </div>
 
-      <p class="hero-note">No sign-up. No app. Just a four-letter code.</p>
+      <p class="mono-sm dim">no sign-up · no app · just a four-letter code</p>
     </div>
 
-    <div class="hero-strip" aria-hidden="true">
-      <div class="ticker">
-        <span>OPENING 01</span><span>◆</span><span>ED THEME</span><span>◆</span>
-        <span>20 SECONDS</span><span>◆</span><span>2–8 PLAYERS</span><span>◆</span>
-        <span>NO SPOILERS</span><span>◆</span><span>OPENING 01</span><span>◆</span>
-        <span>ED THEME</span><span>◆</span><span>20 SECONDS</span><span>◆</span>
-        <span>2–8 PLAYERS</span><span>◆</span><span>NO SPOILERS</span><span>◆</span>
+    <div class="crt-wrap" aria-hidden="true">
+      <div class="crt">
+        <div class="crt-screen">
+          <div class="crt-title">ROUND 01</div>
+          <div class="crt-frames"><i></i><i></i><i></i></div>
+          <div class="crt-caret">GUESS_<span class="caret">▊</span></div>
+        </div>
+        <div class="crt-chin"><span class="crt-led"></span>ReIN Bot</div>
       </div>
+      <div class="crt-stand"></div>
     </div>
   </header>
 
+  <div class="ticker-rail" aria-hidden="true">
+    <div class="ticker">
+      <span>20 SECONDS</span><span>◆</span><span>2–8 PLAYERS</span><span>◆</span>
+      <span>NO SPOILERS</span><span>◆</span><span>OPENINGS &amp; ENDINGS</span><span>◆</span>
+      <span>WINNER TAKES ALL</span><span>◆</span>
+      <span>20 SECONDS</span><span>◆</span><span>2–8 PLAYERS</span><span>◆</span>
+      <span>NO SPOILERS</span><span>◆</span><span>OPENINGS &amp; ENDINGS</span><span>◆</span>
+      <span>WINNER TAKES ALL</span><span>◆</span>
+    </div>
+  </div>
+
   <section class="how">
-    <h2 class="h3 center">How a round works</h2>
+    <h2 class="h3">How a round works</h2>
     <ol class="steps">
-      <li class="glass step">
-        <span class="step-n">01</span>
-        <h3>A frame appears</h3>
-        <p>One still from an opening. Then a second at seven seconds, a third at fourteen.
-           Every frame is checked by OCR first, so the show never spells out its own name.</p>
+      <li class="win">
+        <div class="win-bar"><span class="box"></span><span class="win-title">01_frame</span></div>
+        <div class="win-body">
+          <h3>A frame appears</h3>
+          <p>One still from the opening. A second at seven seconds, a third at fourteen.
+             Every frame is OCR-checked first, so the show never spells out its own name.</p>
+        </div>
       </li>
-      <li class="glass step">
-        <span class="step-n">02</span>
-        <h3>Everybody types</h3>
-        <p>Free text, not multiple choice. Typos, romaji, English, Japanese, fan
-           abbreviations — the matcher takes all of them.</p>
+      <li class="win">
+        <div class="win-bar"><span class="box"></span><span class="win-title">02_type</span></div>
+        <div class="win-body">
+          <h3>Everybody types</h3>
+          <p>Free text, not multiple choice. Typos, romaji, English, Japanese, fan
+             abbreviations — the matcher takes all of them.</p>
+        </div>
       </li>
-      <li class="glass step">
-        <span class="step-n">03</span>
-        <h3>First one wins</h3>
-        <p>Fastest correct answer takes the round and the clock stops dead. Up to 200
-           points for an instant call, 100 if you scrape in at the buzzer.</p>
+      <li class="win">
+        <div class="win-bar"><span class="box"></span><span class="win-title">03_win</span></div>
+        <div class="win-body">
+          <h3>First one wins</h3>
+          <p>Fastest correct answer takes the round and the clock stops dead. 200 points
+             for an instant call, 100 if you scrape in at the buzzer.</p>
+        </div>
       </li>
     </ol>
   </section>
@@ -128,184 +154,192 @@
   </section>
 
   <footer class="foot">
-    <p>
-      Clips derived from <a href="https://animethemes.moe" target="_blank" rel="noopener">AnimeThemes.moe</a>,
-      a community project cataloguing anime themes. Only credit-free versions are used and
-      every reveal links back to the source. No ownership is claimed over the music or footage.
-    </p>
-    <p class="muted small">No accounts · no tracking · no cookies beyond your own seat in a room</p>
+    <p>Clips derived from <a href="https://animethemes.moe" target="_blank" rel="noopener">AnimeThemes.moe</a>,
+       a community project cataloguing anime themes. Only credit-free versions are used and every
+       reveal links back to the source. No ownership is claimed over the music or footage.</p>
+    <p class="mono-sm dim">no accounts · no tracking · no cookies beyond your own seat in a room</p>
   </footer>
 </section>
 
-<!-- ══════════════════════════════ create ══════════════════════════════ -->
+<!-- ══════════════════════════ create ══════════════════════════ -->
 <section id="scr-create" class="screen">
-  <div class="center-stage">
-    <div class="glass pad-lg narrow">
-      <button class="back" data-nav="landing" aria-label="Back">← Back</button>
-      <p class="eyebrow">New room</p>
-      <h1 class="h2">Set the rules</h1>
+  <div class="stack">
+    <div class="win w-md">
+      <div class="win-bar"><span class="box"></span><span class="win-title">new_room.cfg</span></div>
+      <div class="win-body">
+        <button class="back" data-nav="landing">◂ Back</button>
 
-      <label class="field">
-        <span class="lbl">Your name</span>
-        <input id="in-name-c" type="text" maxlength="24" autocomplete="nickname"
-               placeholder="What should we call you?" spellcheck="false">
-      </label>
+        <label class="field">
+          <span class="lbl">Your name</span>
+          <input id="in-name-c" type="text" maxlength="24" autocomplete="nickname"
+                 placeholder="What should we call you?" spellcheck="false">
+        </label>
 
-      <label class="field">
-        <span class="lbl">Rounds <b id="lbl-rounds">10</b></span>
-        <input id="in-rounds" type="range" min="3" max="20" value="10">
-        <span class="hint" id="hint-rounds">About 5 minutes</span>
-      </label>
+        <label class="field">
+          <span class="lbl">Rounds <b id="lbl-rounds">10</b></span>
+          <input id="in-rounds" type="range" min="3" max="20" value="10">
+          <span class="hint" id="hint-rounds">About 5 minutes</span>
+        </label>
 
-      <div class="field">
-        <span class="lbl">Difficulty <b id="lbl-diff">1 – 5</b></span>
-        <div class="range-stack">
-          <input id="in-dmin" type="range" min="1" max="5" value="1" aria-label="Minimum difficulty">
-          <input id="in-dmax" type="range" min="1" max="5" value="5" aria-label="Maximum difficulty">
+        <div class="field">
+          <span class="lbl">Difficulty <b id="lbl-diff">1 – 5</b></span>
+          <div class="range-stack">
+            <input id="in-dmin" type="range" min="1" max="5" value="1" aria-label="Minimum difficulty">
+            <input id="in-dmax" type="range" min="1" max="5" value="5" aria-label="Maximum difficulty">
+          </div>
+          <span class="hint" id="hint-diff">Everything, from household names to deep cuts</span>
         </div>
-        <span class="hint" id="hint-diff">Everything, from household names to deep cuts</span>
+
+        <label class="toggle">
+          <input id="in-audio" type="checkbox" checked>
+          <span class="tick"></span>
+          <span class="toggle-text">
+            <b>Play the opening</b>
+            <em>Off means frames only — quieter, and lighter on data</em>
+          </span>
+        </label>
+
+        <button id="btn-create" class="btn primary lg full">Create room</button>
+        <div id="create-err" class="banner hidden"></div>
       </div>
-
-      <label class="toggle">
-        <input id="in-audio" type="checkbox" checked>
-        <span class="track"><span class="knob"></span></span>
-        <span class="toggle-text">
-          <b>Play the opening</b>
-          <em>Off means frames only — quieter, and lighter on data</em>
-        </span>
-      </label>
-
-      <button id="btn-create" class="btn primary lg full">Create room</button>
-      <div id="create-err" class="banner bad hidden"></div>
     </div>
   </div>
 </section>
 
-<!-- ══════════════════════════════ join ══════════════════════════════ -->
+<!-- ══════════════════════════ join ══════════════════════════ -->
 <section id="scr-join" class="screen">
-  <div class="center-stage">
-    <div class="glass pad-lg narrow">
-      <button class="back" data-nav="landing" aria-label="Back">← Back</button>
-      <p class="eyebrow">Join a room</p>
-      <h1 class="h2">Got a code?</h1>
+  <div class="stack">
+    <div class="win w-md">
+      <div class="win-bar"><span class="box"></span><span class="win-title">connect…</span></div>
+      <div class="win-body">
+        <button class="back" data-nav="landing">◂ Back</button>
 
-      <label class="field">
-        <span class="lbl">Your name</span>
-        <input id="in-name-j" type="text" maxlength="24" autocomplete="nickname"
-               placeholder="What should we call you?" spellcheck="false">
-      </label>
+        <label class="field">
+          <span class="lbl">Your name</span>
+          <input id="in-name-j" type="text" maxlength="24" autocomplete="nickname"
+                 placeholder="What should we call you?" spellcheck="false">
+        </label>
 
-      <label class="field">
-        <span class="lbl">Room code</span>
-        <input id="in-code" type="text" maxlength="4" placeholder="ABCD"
-               autocomplete="off" spellcheck="false" inputmode="latin"
-               class="code-in" aria-describedby="hint-code">
-        <span class="hint" id="hint-code">Four characters, from whoever made the room</span>
-      </label>
+        <label class="field">
+          <span class="lbl">Room code</span>
+          <input id="in-code" type="text" maxlength="4" placeholder="ABCD"
+                 autocomplete="off" spellcheck="false" class="code-in" aria-describedby="hint-code">
+          <span class="hint" id="hint-code">Four characters, from whoever made the room</span>
+        </label>
 
-      <button id="btn-join" class="btn primary lg full">Join</button>
-      <div id="join-err" class="banner bad hidden"></div>
+        <button id="btn-join" class="btn primary lg full">Join</button>
+        <div id="join-err" class="banner hidden"></div>
+      </div>
     </div>
   </div>
 </section>
 
-<!-- ══════════════════════════════ lobby ══════════════════════════════ -->
+<!-- ══════════════════════════ lobby ══════════════════════════ -->
 <section id="scr-lobby" class="screen">
-  <div class="center-stage wide">
+  <div class="stack wide">
     <div class="lobby-grid">
-
-      <div class="glass pad-lg code-card">
-        <p class="eyebrow">Room code</p>
-        <div class="roomcode" id="lobby-code">····</div>
-        <button id="btn-copy" class="btn ghost full">Copy invite link</button>
-        <p class="hint center" id="copy-hint">Anyone with the link is one tap from joining</p>
-      </div>
-
-      <div class="glass pad-lg">
-        <div class="row-between">
-          <p class="eyebrow">Players <span class="chip" id="lobby-count">0/8</span></p>
-          <span class="live" id="lobby-live"><span class="pulse"></span>live</span>
+      <div class="win">
+        <div class="win-bar"><span class="box"></span><span class="win-title">room_code</span></div>
+        <div class="win-body center">
+          <div class="roomcode" id="lobby-code">····</div>
+          <button id="btn-copy" class="btn full">Copy invite link</button>
+          <p class="hint">Anyone with the link is one tap from joining</p>
         </div>
-        <ul id="lobby-players" class="playerlist"></ul>
-        <p id="lobby-hint" class="hint"></p>
-        <button id="btn-start" class="btn primary lg full hidden">Start game</button>
-        <div id="lobby-err" class="banner bad hidden"></div>
-        <button id="btn-leave" class="btn ghost full">Leave room</button>
       </div>
 
+      <div class="win">
+        <div class="win-bar">
+          <span class="box"></span>
+          <span class="win-title">players</span>
+          <span class="win-badge" id="lobby-count">0/8</span>
+        </div>
+        <div class="win-body">
+          <ul id="lobby-players" class="playerlist"></ul>
+          <p id="lobby-hint" class="hint"></p>
+          <button id="btn-start" class="btn primary lg full hidden">Start game</button>
+          <div id="lobby-err" class="banner hidden"></div>
+          <button id="btn-leave" class="btn full">Leave room</button>
+        </div>
+      </div>
     </div>
   </div>
 </section>
 
-<!-- ══════════════════════════════ play ══════════════════════════════ -->
+<!-- ══════════════════════════ play ══════════════════════════ -->
 <section id="scr-play" class="screen">
   <div class="stage">
 
     <div class="stage-main">
-      <div class="playhead">
-        <span class="chip" id="play-round">Round 1/10</span>
-        <div class="clockwrap">
-          <span class="clock" id="play-clock">20</span>
-          <span class="clock-unit">s</span>
+      <div class="win screen-win">
+        <div class="win-bar">
+          <span class="box"></span>
+          <span class="win-title" id="play-round">Round 1/10</span>
+          <span class="win-clock"><b class="clock" id="play-clock">20</b>s</span>
+        </div>
+        <div class="timerbar"><div id="play-bar"></div></div>
+        <div class="win-body tube">
+          <div class="stills" id="play-stills"></div>
         </div>
       </div>
-      <div class="timerbar"><div id="play-bar"></div></div>
-      <div class="stills" id="play-stills"></div>
     </div>
 
     <aside class="stage-side">
-      <div class="glass pad guess-card">
-        <div id="play-feedback" class="feedback"></div>
-        <form id="frm-guess" autocomplete="off">
-          <input id="in-guess" type="text" maxlength="120" placeholder="Name the anime…"
-                 autocomplete="off" spellcheck="false" enterkeyhint="send">
-          <button type="submit" class="btn primary" id="btn-guess" aria-label="Submit guess">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-          </button>
-        </form>
-        <ul id="play-mine" class="chips"></ul>
-        <button id="btn-sound" class="btn ghost sm hidden">🔊 Tap to enable sound</button>
+      <div class="win">
+        <div class="win-bar"><span class="box"></span><span class="win-title">your guess</span></div>
+        <div class="win-body">
+          <div id="play-feedback" class="feedback"></div>
+          <form id="frm-guess" autocomplete="off">
+            <input id="in-guess" type="text" maxlength="120" placeholder="Name the anime…"
+                   autocomplete="off" spellcheck="false" enterkeyhint="send">
+            <button type="submit" class="btn primary" id="btn-guess">GO</button>
+          </form>
+          <ul id="play-mine" class="chips"></ul>
+          <button id="btn-sound" class="btn full hidden">🔊 Tap to enable sound</button>
+        </div>
       </div>
 
-      <div class="glass pad">
-        <p class="eyebrow">Scores</p>
-        <ul id="play-scores" class="scores"></ul>
+      <div class="win">
+        <div class="win-bar"><span class="box"></span><span class="win-title">scores</span></div>
+        <div class="win-body"><ul id="play-scores" class="scores"></ul></div>
       </div>
     </aside>
 
   </div>
 </section>
 
-<!-- ══════════════════════════════ reveal ══════════════════════════════ -->
+<!-- ══════════════════════════ reveal ══════════════════════════ -->
 <section id="scr-reveal" class="screen">
-  <div class="center-stage wide">
+  <div class="stack wide">
     <div class="reveal-grid">
 
-      <div class="reveal-art">
-        <img id="rev-poster" alt="" class="poster">
-        <div class="reveal-strip" id="rev-strip" aria-label="The frames you were shown"></div>
+      <div class="win">
+        <div class="win-bar"><span class="box"></span><span class="win-title" id="rev-ordinal"></span></div>
+        <div class="win-body tube">
+          <img id="rev-poster" alt="" class="poster">
+          <div class="reveal-strip" id="rev-strip"></div>
+        </div>
       </div>
 
-      <div class="glass pad-lg reveal-info">
-        <p class="eyebrow" id="rev-ordinal"></p>
-        <h2 class="h1" id="rev-title"></h2>
-        <p class="muted" id="rev-sub"></p>
+      <div class="win">
+        <div class="win-bar hi"><span class="box"></span><span class="win-title">the answer</span></div>
+        <div class="win-body">
+          <h2 class="h1" id="rev-title"></h2>
+          <p class="hint" id="rev-sub"></p>
 
-        <div id="rev-winner" class="winner"></div>
+          <div id="rev-winner" class="winner"></div>
+          <ul id="rev-scores" class="scores"></ul>
+          <a id="rev-src" class="btn full" target="_blank" rel="noopener">View on AnimeThemes ↗</a>
 
-        <ul id="rev-scores" class="scores tight"></ul>
-
-        <a id="rev-src" class="btn ghost sm full" target="_blank" rel="noopener">View on AnimeThemes ↗</a>
-
-        <div class="nextwrap">
-          <div class="ring">
-            <svg viewBox="0 0 44 44" aria-hidden="true">
-              <circle class="ring-bg" cx="22" cy="22" r="19"></circle>
-              <circle class="ring-fg" id="rev-ring" cx="22" cy="22" r="19"></circle>
-            </svg>
-            <span id="rev-count">3</span>
+          <div class="nextwrap">
+            <div class="ring">
+              <svg viewBox="0 0 44 44" aria-hidden="true">
+                <circle class="ring-bg" cx="22" cy="22" r="19"></circle>
+                <circle class="ring-fg" id="rev-ring" cx="22" cy="22" r="19"></circle>
+              </svg>
+              <span id="rev-count">3</span>
+            </div>
+            <p class="hint" id="rev-next">Next round</p>
           </div>
-          <p class="hint" id="rev-next">Next round</p>
         </div>
       </div>
 
@@ -313,26 +347,25 @@
   </div>
 </section>
 
-<!-- ══════════════════════════════ game over ══════════════════════════════ -->
+<!-- ══════════════════════════ game over ══════════════════════════ -->
 <section id="scr-over" class="screen">
-  <div class="center-stage">
-    <div class="glass pad-lg narrow">
-      <p class="eyebrow" id="over-eyebrow">Game over</p>
-      <h1 class="h1" id="over-title">Final scores</h1>
-      <ul id="over-scores" class="scores big"></ul>
-      <button id="btn-again" class="btn primary lg full">Play again</button>
-      <button class="btn ghost full" data-nav="landing">Back to start</button>
+  <div class="stack">
+    <div class="win w-md">
+      <div class="win-bar hi"><span class="box"></span><span class="win-title" id="over-eyebrow">game over</span></div>
+      <div class="win-body">
+        <h1 class="h1" id="over-title">Final scores</h1>
+        <ul id="over-scores" class="scores big"></ul>
+        <button id="btn-again" class="btn primary lg full">Play again</button>
+        <button class="btn full" data-nav="landing">Back to start</button>
+      </div>
     </div>
   </div>
 </section>
 
 </div><!-- /#app -->
 
-<!-- Toast host, for transient non-blocking messages (reconnecting, copied, kicked). -->
 <div id="toasts" aria-live="polite"></div>
 
-<!-- charset explicit on both: this project has been bitten by encoding defaults more
-     than once, and app.js carries typographic characters in user-facing strings. -->
 <script src="./config.js" charset="utf-8"></script>
 <script src="./app.js" charset="utf-8"></script>
 </body>

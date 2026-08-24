@@ -288,7 +288,9 @@
   }
 
   // ════════════════════════════ avatars ════════════════════════════
-  var AV = ["#ff2d75", "#22d3ee", "#a855f7", "#a3e635", "#fbbf24", "#fb7185", "#38bdf8", "#f472b6"];
+  // Flat, saturated, and all dark enough to keep the black initial legible on top —
+  // the palette is the stylesheet's, so avatars stay part of the same picture.
+  var AV = ["#ff1f5a", "#17b6c9", "#d9f441", "#7b4fe8", "#ffb020", "#12a150", "#ff7ac6", "#5ad1ff"];
   function avatarFor(name) {
     var h = 0;
     for (var i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
@@ -481,7 +483,7 @@
     if (!ul) return;
     var ps = last.players || [];
     ul.innerHTML = "";
-    ul.className = "scores" + (big ? " big" : (ul.id === "rev-scores" ? " tight" : ""));
+    ul.className = "scores" + (big ? " big" : "");
     ps.forEach(function (p, i) {
       var li = document.createElement("li");
       var rank = document.createElement("span");
