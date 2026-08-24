@@ -1407,3 +1407,65 @@ had not. Waiting the round out produced the full reveal. The lesson is that the 
 gated on elapsed time and not on round number, which is exactly the property wanted.
 
 Test rooms were deleted afterwards; `rooms`, `players` and `guesses` are all back to 0.
+
+### First real two-browser game — 2026-08-24
+
+A full 10-round game, host in a Playwright-driven Chrome and the user in their own
+browser. It completed: `state=over`, final scores 816 to 313. **Zero console errors and
+zero warnings across the entire session.**
+
+**What the database recorded afterwards, and what each row proves:**
+
+| Measure | Value | What it confirms |
+| --- | --- | --- |
+| `rounds_created` / `distinct_ordinals` | 10 / 10, range `1-10` | Dense ordinals in real play. 0012 replaced a `LIMIT` without `ORDER BY` that only *happened* to produce `1..N`; sparse ordinals would have left `start_game`'s `WHERE ordinal = 1` matching nothing. |
+| `distinct_anime` | **10** across 10 rounds | The anime-dedupe added in 0012 works. Before it, roughly half of 10-round games repeated a show. |
+| `correct_but_second` | 1 | See below. |
+
+**The first-correct race fired on its own, in round 6, and was handled correctly.** Both
+players typed `naruto`:
+
+| Player | `submitted_at` | `is_first_correct` | `points` |
+| --- | --- | --- | --- |
+| Rein | 00:47.934 | **true** | 165 |
+| Claude | 00:54.603 | **false** | **0** |
+
+This is exactly the defect migration 0012 fixed. Before it, the second player's client
+was handed the *winner's* return values — `is_first_correct: true, points: 165` — while
+the database stored `(false, 0)`. Two players would both have seen a win banner and the
+scoreboard would have agreed with neither. It took one casual two-player game to trigger
+it, which is a fair measure of how often it would have been hit in normal use.
+
+The near-match tier also earned its place on real content: `haikyu` scored against
+*Haikyuu!!*, and `Ao no Exorcist` revealed as *Blue Exorcist* through the English title.
+
+**The OCR filter held.** Every frame served across ten rounds was clean — Hunter x
+Hunter, Demon Slayer, Re:Zero and the rest, all recognisable, none carrying a title card.
+That is not proof at n=30 stills, but it is the first evidence from frames nobody
+hand-picked.
+
+### Three UX bugs that only live play could find
+
+1. **The guess input was below the fold.** Three 16:9 stills stacked in a 30rem column
+   are about 810 px tall, so on a laptop you could see the frames or the input, never
+   both — in a game where a round lasts twenty seconds. Stills are now capped in
+   viewport units and the guess box is `position: sticky` to the bottom.
+
+   The cap is `max-width` **and** `max-height` against a fixed `aspect-ratio`, not
+   `max-height` alone: capping height while the box stayed full-width would have let
+   `object-fit: cover` crop the top and bottom off the frame — throwing away exactly the
+   picture the player is trying to identify.
+
+2. **The feedback banner persisted across rounds.** "Correct — +161 points!" from round 3
+   was still on screen in round 5, reading as though it belonged to the round being
+   played.
+
+3. **Guess chips accumulated for the whole game** rather than the round, so round 9
+   showed guesses made in rounds 1 through 3.
+
+2 and 3 share a root cause — round-scoped state was reset when *entering a room*, never
+when *entering a round* — and are fixed together, in the branch where the still container
+already detects an ordinal change.
+
+None of these are reachable from a script harness. The RPC-level smoke tests passed every
+one of these rounds without complaint, because they never rendered anything.

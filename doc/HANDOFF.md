@@ -170,10 +170,11 @@ heading is kept only so a reader who remembers the old list knows it moved.
 
 - The retry/backoff ladder has still never been triggered.
 - Real Supabase egress has still never been measured.
-- No BROWSER has played a round yet. The full RPC path is verified from a script
-  session, so what remains untested is the DOM: progressive still timing, audio
-  autoplay policy on mobile Safari, and whether a 1.5 s poll feels responsive at a
-  round boundary.
+- Mobile has not been tested. A full 10-round two-browser game has been played on
+  desktop (zero console errors; 10 distinct anime across 10 rounds; the
+  first-correct race fired naturally in round 6 and was scored correctly), but
+  audio autoplay policy on mobile Safari and the layout on a small screen are
+  still unverified.
 - `ingest_question` still uses `search_path = public, pg_temp` rather than `''` - the
   only function in the schema that does, and the highest-privileged one. Left alone
   while content was loading; safe to fix now that the load is finished.
