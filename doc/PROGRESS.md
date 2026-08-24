@@ -6,6 +6,33 @@ conversation that produced a change is not.
 
 ---
 
+## 2026-08-24 — first GitHub Release, so the site is reachable from the repo
+
+**What:** tagged `v1.0.0` at the current tip (`5e599fb`, the loader fix) and published
+a GitHub Release from it, so the game is one click from the repo's Releases page
+instead of only reachable if someone already has the Pages URL.
+
+**How:** `git tag -a v1.0.0 -m "..." 5e599fb`, pushed the tag, then
+`gh release create v1.0.0 --notes-file ...` with the play link
+(`https://sayandeep1013.github.io/Rein-Bot/`) as the first line of the release body,
+followed by a short how-it-plays summary and the stack list. No workflow change: the
+existing `pages.yml` deploy is untouched and unrelated — this release just points at
+what it already publishes. Confirmed with `gh release view v1.0.0` that it published
+non-draft, non-prerelease.
+
+**What it changed:** nothing in `app/`, the database, or CI — this is a pointer, not
+a deploy. The live site and this release can drift apart the moment the next commit
+to `app/**` ships, since the tag stays pinned to `5e599fb` while Pages always serves
+`main` HEAD.
+
+**What it unlocked:** the repo now has a stable, described "go here to play" link for
+anyone who lands on the GitHub page rather than the live site directly. Worth
+revisiting after any release-worthy milestone (a real content update, not every
+commit) — cut a new tag rather than editing `v1.0.0` in place, so the release history
+stays a record of what actually shipped when.
+
+---
+
 ## 2026-08-22 — docs reorganized into `doc/`, self-updating rule added
 
 **What:** all six design documents moved to `doc/` (`ARCHITECTURE`, `BLOCKERS`,
