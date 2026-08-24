@@ -1673,3 +1673,57 @@ The POST screen runs **once per session, not per load** — charming the first t
 obstacle the fifth — is skippable with any key, click or touch, is skipped entirely under
 `prefers-reduced-motion`, and is *removed from the DOM* rather than hidden so it can
 never intercept a click or trap a focus ring.
+
+### Reverts, and one bug that took three deploys — 2026-08-24
+
+Two of my own calls reverted on the user's preference, which is the right outcome for
+both: **filled drop shadows are back** (the offset outlines read thinner than intended)
+and **the bouncing-dot loader is back** (the stepped squares lost the bounce), remapped
+to the retro palette. The 1-bit cursor stays.
+
+### The page-shift bug, and why it took three attempts
+
+Reported as "the page shifts and adjusts itself" when opening create or join. Real, and
+precisely measurable: the landing page is 1258px tall so it shows a scrollbar; create and
+join are 730px so they do not. `clientWidth` therefore swings **1521 ↔ 1536**, and since
+both screens centre their content, everything jumps **7.5px sideways**.
+
+Three fixes were deployed. Only the third worked, and the two failures are more
+instructive than the success:
+
+**Attempt 1 — `scrollbar-gutter: stable` on the root.** No effect. The property applies
+only to *scroll containers*, and with `overflow-y` computing to `visible` the root is not
+one, so it silently does nothing.
+
+**Attempt 2 — adding `overflow-y: scroll` beside the existing `overflow-x: clip`.** No
+effect either, and this one is a genuine trap: **`overflow-x: clip` with
+`overflow-y: scroll` is not a legal pair.** The browser keeps `clip` and *discards* the
+`scroll`, computing `["clip","visible"]`. The declaration reads perfectly in the file and
+does nothing at all.
+
+**Attempt 3 — remove `overflow-x` from the root entirely**, leaving `overflow-y: scroll`,
+and suppress horizontal overflow on `body` where it was needed anyway. Computed
+`["auto","scroll"]`, shift **0** across every screen.
+
+Attempt 3 was chosen by trying all three *in the live page via script* and measuring each
+before touching the stylesheet:
+
+| Root overflow | Computed | Shift |
+| --- | --- | --- |
+| `clip` + `scroll` | `["clip","visible"]` | 15px |
+| `overflow-y: scroll` alone | `["auto","scroll"]` | **0** |
+
+### The reason two verifications lied
+
+Both failed attempts were *also* verified after deploying, and both verifications said
+"still broken" — which was true, but not because the fix was wrong.
+
+**`index.html` is cached for the same ten minutes as everything else, and the cache-buster
+cannot bust it.** The tab under test kept loading the previous HTML, which references the
+previous asset versions. The asset stamping still does its job — an old HTML with old
+assets is a *consistent* old set, which is the mismatch it was added to prevent — but a
+deploy is not visible to a warm browser straight away.
+
+Recorded in `pages.yml`: **to verify a deploy immediately, load with a fresh query string
+(`?fresh=1`) or hard-reload. Never trust a plain reload.** Three deploys were spent
+"fixing" a bug that had already been fixed.

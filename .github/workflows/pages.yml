@@ -111,6 +111,16 @@ jobs:
       # Stamping the commit sha onto each asset URL makes every deploy a fresh URL, so
       # the three files can never disagree. Done here on the checked-out copy, so the
       # committed HTML stays clean and editable.
+      #
+      # WHAT THIS DOES NOT DO, learned the slow way: index.html is cached for the same
+      # ten minutes, and nothing can bust it. So for up to ten minutes a returning
+      # visitor still gets the PREVIOUS index.html, which references the PREVIOUS asset
+      # versions. That is fine -- it is a consistent old set rather than a mismatched
+      # one, which is the actual bug this prevents -- but a fix is NOT visible to a warm
+      # browser straight away. Three deploys were spent "fixing" a CSS bug that was
+      # already fixed, because the tab under test kept loading yesterday's HTML.
+      # To verify a deploy immediately, load the page with a fresh query string
+      # (`?fresh=1`) or hard-reload; do not trust a plain reload.
       - name: Cache-bust asset URLs with the commit sha
         run: |
           set -euo pipefail
