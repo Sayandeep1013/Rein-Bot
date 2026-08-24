@@ -139,27 +139,46 @@ heading is kept only so a reader who remembers the old list knows it moved.
 - Three new workflows: `pages.yml` (deploy), `test.yml` (the contract suite, which had
   never run in CI), `sweep.yml` (delete orphaned media objects).
 
-**Blocked on the user, and only these two:**
+- **The content bank is full.** 134 questions, 46 distinct anime, 371 accepted answer
+  strings, 43.1 MB — loaded end to end by the `auto_continue` chain. Bucket holds
+  exactly the 670 objects `question_bank` references; orphans swept and verified 0 from
+  both the Storage API and SQL.
+- The publishable key is committed in `app/config.js` and serving.
 
-1. **Anonymous sign-in is OFF** (`external_anonymous_users_enabled: false`, measured).
-   Every RPC begins `if auth.uid() is null then raise AUTH_REQUIRED`, so nothing works
-   until it is on. Dashboard: Authentication -> Sign In / Providers -> Anonymous
-   sign-ins.
-2. **`app/config.js` holds a placeholder publishable key.** Dashboard: Settings ->
-   API Keys -> the `anon` / publishable one.
+**Blocked on the user, and only this one:**
 
-The client detects both and renders the fix rather than failing blankly, so a visitor
-sees instructions rather than a blank page.
+**Anonymous sign-in is OFF.** Measured twice, from two sources:
+`GET /v1/projects/{ref}/config/auth` returns `"external_anonymous_users_enabled": false`,
+and the auth service's own `GET /auth/v1/settings` returns
+`external.anonymous_users: false`. A live signup attempt returns
+`422 anonymous_provider_disabled`. Every RPC begins
+`if auth.uid() is null then raise AUTH_REQUIRED`, so nothing works until it is on.
+
+Dashboard: **Authentication -> Sign In / Providers**, the *User Signups* card, toggle
+**Allow anonymous sign-ins**, then **Save**. Enabling it pops a warning about RLS and
+anonymous users; that warning must be accepted for the save to complete, and it is
+expected here - anonymous users ARE this game's players, every policy is
+membership-scoped through `is_room_member`, and the answer-bearing tables have no client
+grant at all.
+
+Verify with, and do not trust the dashboard alone:
+
+```bash
+curl -s https://mxkqivivqultfuattuin.supabase.co/auth/v1/settings \
+  -H "apikey: <publishable key>" | grep -o '"anonymous_users":[a-z]*'
+```
+
+The client detects this condition at boot and renders the fix, so the deployed site
+explains itself rather than failing blankly.
 
 **Still not done:**
 
-- **`question_bank` content.** Curation runs are in progress; until rows exist,
-  `create_room` correctly fails with `INSUFFICIENT_CONTENT`.
-- Five orphaned objects (314 KB) from the first failed ingest. `sweep.yml` removes
-  them; `tools/sweep-orphans.sql` reports them.
 - The retry/backoff ladder has still never been triggered.
 - Real Supabase egress has still never been measured.
-- No two-browser multiplayer test has been run.
+- No browser has ever played a round. `app/` has never run against a live game.
+- `ingest_question` still uses `search_path = public, pg_temp` rather than `''` - the
+  only function in the schema that does, and the highest-privileged one. Left alone
+  while content was loading; safe to fix now that the load is finished.
 
 ### The OCR leak filter: what was settled, and the one thing that was not
 

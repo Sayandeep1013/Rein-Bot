@@ -1291,3 +1291,67 @@ publishable key), and the client renders precise instructions for each rather th
 blankly. Once those are done the game is playable end to end, and the only remaining work
 is bulk content: the curation run is idempotent on `asset_slug`, so the remaining themes
 are a mechanical re-run.
+
+### Addendum, same day — the content bank is full
+
+The self-chaining load walked the whole pool unsupervised. **134 questions, 46 distinct
+anime, 371 accepted answer strings, 43.1 MB stored** — against a prediction of ~45.6 MB,
+so the arithmetic in HANDOFF §9 was good to within 3%. The OP/ED split came out 79/55,
+exactly the figure computed from the manifest. Every question carries the full 3 stills;
+no theme degraded to 2.
+
+Round capacity by difficulty range, which matters because `create_room` now picks one
+question **per anime**:
+
+| Difficulty | Distinct anime = max rounds |
+| --- | --- |
+| 1–5 (default) | **46** |
+| 2–5 | 46 |
+| 3–5 | 36 |
+| 4–5 | 29 |
+| 5 only | 16 |
+
+All comfortably above the 20-round maximum, so the anime-dedupe added in 0012 costs
+nothing at any setting a host can actually choose. The tier-1 warning carried in earlier
+handoffs — "tier 1 holds only 13 themes" — only ever bit a *tier-1-only* room, and that
+configuration now caps at 8 rounds rather than failing confusingly.
+
+**Two workflow lessons from the load**, both recorded in `curate.yml` itself:
+
+- **Dispatching several slices at once does not queue them.** A concurrency group holds
+  one running plus one pending run, and a third arrival *cancels* the pending one.
+  Firing four slices produced one running, one pending and two `cancelled` — silently,
+  because a cancelled run is not a failed run and nothing in the run list draws
+  attention to it. Replaced with `auto_continue`, where a successful run dispatches its
+  own successor. The whole pool then loads end to end with exactly one run in flight,
+  and the chain halts on failure rather than being papered over by the next slice.
+- **`ingest_question` failed on its first ever HTTP call** with `PGRST202`. PostgREST
+  maps the top-level keys of an RPC body to *named* arguments, and the pipeline posted
+  the payload bare against a function taking one `p_payload jsonb`. Every previous test
+  went through SQL, where the argument is positional and the mistake cannot exist. The
+  best argument in this repo for exercising a path rather than reasoning about it.
+
+**Orphan handling closed the loop.** That failed ingest left five objects with no row
+pointing at them, which is the intended failure direction — objects upload before the
+row is written, so a row can never point at bytes that never arrived. `sweep.yml`
+removed them and `tools/sweep-orphans.sql` confirmed `orphan_count: 0` from the SQL
+side, so two independent methods agree the bucket now holds exactly the 670 objects
+`question_bank` references.
+
+Sweeping had to become a workflow rather than a script: `storage.protect_delete()`
+rejects a direct `DELETE` from `storage.objects`, not only from `storage.buckets` as
+HANDOFF §5 recorded.
+
+**Security advisor, run after the schema settled.** Two WARN findings were real and
+fixed: `is_room_member` and `is_own_player` were executable by `anon`. Both are internal
+helpers used inside RLS policy expressions, neither is client API, and both return false
+for `anon` anyway since they resolve identity from `auth.uid()` — but "returns false
+today" is precisely the reasoning migration 0012 exists to stop relying on. Revoked from
+`anon` only: a policy expression's function calls are permission-checked against the
+querying role, so revoking from `authenticated` would break the policies that call them.
+
+Two further findings were reviewed and deliberately not acted on. The game RPCs are
+`SECURITY DEFINER` and callable by `authenticated` because they **are** the client API,
+and each re-checks membership rather than trusting its caller. And
+`question_bank`/`question_titles` report "RLS enabled, no policies" — which, combined
+with zero grants, is the strongest posture available rather than an oversight.
