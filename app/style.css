@@ -523,18 +523,18 @@ input[type=range] { width: 100%; accent-color: var(--hot); cursor: pointer; }
 .nextwrap .hint { margin: 0; }
 
 /* ═════════════════════════ loader ═════════════════════════ */
-.loader { display: flex; gap: .4rem; justify-content: center; margin-bottom: 1rem; }
-.loader span {
-  width: 9px; height: 9px; border-radius: 50%;
-  background: var(--hot);
-  animation: bounce 1.1s ease-in-out infinite;
+/* The original ring from the first client (commit d244b62), brought back on request
+   and dressed for this theme: the ring is the same 3px black stroke as every border,
+   with one magenta arc turning through it. */
+.spinner {
+  width: 28px; height: 28px;
+  margin: .5rem auto 1rem;
+  border: var(--bw) solid var(--line);
+  border-top-color: var(--hot);
+  border-radius: 50%;
+  animation: spin .8s linear infinite;
 }
-.loader span:nth-child(2) { background: var(--grape); animation-delay: .14s; }
-.loader span:nth-child(3) { background: var(--bondi); animation-delay: .28s; }
-@keyframes bounce {
-  0%, 60%, 100% { transform: translateY(0); opacity: .5; }
-  30% { transform: translateY(-9px); opacity: 1; }
-}
+@keyframes spin { to { transform: rotate(360deg); } }
 
 /* ═════════════════════════ motion / a11y ═════════════════════════ */
 @media (prefers-reduced-motion: reduce) {
