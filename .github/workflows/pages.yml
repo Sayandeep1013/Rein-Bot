@@ -102,6 +102,25 @@ jobs:
           node --check app/config.js
           echo "client checks passed"
 
+      # GitHub Pages serves assets with Cache-Control: max-age=600 and gives no way to
+      # change it. So for ten minutes after every deploy a returning player can be
+      # running new index.html against old app.js -- which is not merely stale, it is a
+      # combination that was never tested. Hit during development: a fix was verifiably
+      # live on the server and the browser kept executing the previous file.
+      #
+      # Stamping the commit sha onto each asset URL makes every deploy a fresh URL, so
+      # the three files can never disagree. Done here on the checked-out copy, so the
+      # committed HTML stays clean and editable.
+      - name: Cache-bust asset URLs with the commit sha
+        run: |
+          set -euo pipefail
+          v="${GITHUB_SHA:0:8}"
+          sed -i "s|\"\./style\.css\"|\"./style.css?v=$v\"|g;
+                  s|\"\./config\.js\"|\"./config.js?v=$v\"|g;
+                  s|\"\./app\.js\"|\"./app.js?v=$v\"|g" app/index.html
+          echo "stamped v=$v"
+          grep -oE '\./(style\.css|config\.js|app\.js)\?v=[0-9a-f]+' app/index.html
+
       - name: Configure Pages
         uses: actions/configure-pages@v5
         with:

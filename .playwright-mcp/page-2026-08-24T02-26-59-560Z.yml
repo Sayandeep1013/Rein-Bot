@@ -1,0 +1,70 @@
+- generic [ref=f3e3]:
+  - generic [ref=f3e4]:
+    - generic [ref=f3e5]:
+      - paragraph [ref=f3e6]: 134 openings · 46 series · free forever
+      - heading "ReINBot" [level=1] [ref=f3e8]:
+        - text: ReINBot
+        - generic [ref=f3e9]: アニメ当て
+      - paragraph [ref=f3e10]:
+        - text: Three frames. Twenty seconds.
+        - emphasis [ref=f3e11]: Name the anime before your friends do.
+      - generic [ref=f3e12]:
+        - button "Create a room" [ref=f3e13] [cursor=pointer]
+        - button "Join with a code" [ref=f3e17] [cursor=pointer]
+      - paragraph [ref=f3e18]: No sign-up. No app. Just a four-letter code.
+    - generic [ref=f3e20]:
+      - generic [ref=f3e21]: OPENING 01
+      - generic [ref=f3e22]: ◆
+      - generic [ref=f3e23]: ED THEME
+      - generic [ref=f3e24]: ◆
+      - generic [ref=f3e25]: 20 SECONDS
+      - generic [ref=f3e26]: ◆
+      - generic [ref=f3e27]: 2–8 PLAYERS
+      - generic [ref=f3e28]: ◆
+      - generic [ref=f3e29]: NO SPOILERS
+      - generic [ref=f3e30]: ◆
+      - generic [ref=f3e31]: OPENING 01
+      - generic [ref=f3e32]: ◆
+      - generic [ref=f3e33]: ED THEME
+      - generic [ref=f3e34]: ◆
+      - generic [ref=f3e35]: 20 SECONDS
+      - generic [ref=f3e36]: ◆
+      - generic [ref=f3e37]: 2–8 PLAYERS
+      - generic [ref=f3e38]: ◆
+      - generic [ref=f3e39]: NO SPOILERS
+      - generic [ref=f3e40]: ◆
+  - generic [ref=f3e41]:
+    - heading "How a round works" [level=2] [ref=f3e42]
+    - list [ref=f3e43]:
+      - listitem [ref=f3e44]:
+        - text: "01"
+        - heading "A frame appears" [level=3] [ref=f3e45]
+        - paragraph [ref=f3e46]: One still from an opening. Then a second at seven seconds, a third at fourteen. Every frame is checked by OCR first, so the show never spells out its own name.
+      - listitem [ref=f3e47]:
+        - text: "02"
+        - heading "Everybody types" [level=3] [ref=f3e48]
+        - paragraph [ref=f3e49]: Free text, not multiple choice. Typos, romaji, English, Japanese, fan abbreviations — the matcher takes all of them.
+      - listitem [ref=f3e50]:
+        - text: "03"
+        - heading "First one wins" [level=3] [ref=f3e51]
+        - paragraph [ref=f3e52]: Fastest correct answer takes the round and the clock stops dead. Up to 200 points for an instant call, 100 if you scrape in at the buzzer.
+  - generic [ref=f3e53]:
+    - generic [ref=f3e54]:
+      - generic [ref=f3e55]: "134"
+      - text: openings & endings
+    - generic [ref=f3e56]:
+      - generic [ref=f3e57]: "46"
+      - text: series in rotation
+    - generic [ref=f3e58]:
+      - generic [ref=f3e59]: 2–8
+      - text: players a room
+    - generic [ref=f3e60]:
+      - generic [ref=f3e61]: 3–20
+      - text: rounds a game
+  - generic [ref=f3e62]:
+    - paragraph [ref=f3e63]:
+      - text: Clips derived from
+      - link "AnimeThemes.moe" [ref=f3e64] [cursor=pointer]:
+        - /url: https://animethemes.moe
+      - text: ", a community project cataloguing anime themes. Only credit-free versions are used and every reveal links back to the source. No ownership is claimed over the music or footage."
+    - paragraph [ref=f3e65]: No accounts · no tracking · no cookies beyond your own seat in a room
